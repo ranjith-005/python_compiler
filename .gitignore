@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.env
+pycompiler.db
+pycompiler.db-wal
+pycompiler.db-shm
+shots/
+.kernels/
+workspaces/
+server.log
+server.log.err

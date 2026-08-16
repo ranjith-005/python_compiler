@@ -1,0 +1,19 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+jinja2==3.1.5
+python-multipart==0.0.20
+bcrypt==4.2.1
+PyJWT==2.10.1
+pydantic[email]==2.10.5
+pytest==8.3.4
+httpx==0.28.1
+
+# Notebook runtime
+ipykernel>=6.29
+jupyter_client>=8.6
+nbformat>=5.10
+
+# Available inside the runtime for rich output
+numpy>=1.26
+pandas>=2.2
+matplotlib>=3.8

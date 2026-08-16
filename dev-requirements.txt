@@ -1,0 +1,3 @@
+# Extras for the live-server verification scripts in tests/ (not needed to run the app).
+-r requirements.txt
+playwright==1.62.0

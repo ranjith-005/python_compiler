@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}{{ notebook_name }} · PyCompiler{% endblock %}
+{% block body_class %}colab{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">{% endblock %}
+
+{% block content %}
+<header class="cb-topbar">
+  <div class="cb-brand">
+    <button class="icon-btn" id="app-menu-btn" title="Menu" aria-haspopup="true">☰</button>
+    <a class="cb-logo-link" href="/notebooks" title="All notebooks"><span class="cb-logo">◉</span></a>
+    <input type="text" id="nb-name" class="cb-name" value="{{ notebook_name }}" spellcheck="false"
+           aria-label="Notebook name">
+    <span class="save-state" id="save-state"></span>
+  </div>
+  <div class="cb-spacer"></div>
+  <span class="cb-runtime" id="runtime-chip" data-state="disconnected">
+    <span class="dot"></span><span id="runtime-label">Not connected</span>
+  </span>
+  <span class="cb-user">{{ email }}</span>
+  <button class="cb-btn ghost" id="logout-btn">Log out</button>
+</header>
+
+<nav class="cb-toolbar">
+  <button class="cb-btn" id="add-code">+ Code</button>
+  <button class="cb-btn" id="add-text">+ Text</button>
+  <span class="cb-sep"></span>
+  <button class="cb-btn" id="run-all">▶ Run all</button>
+  <button class="cb-btn" id="interrupt-btn">■ Stop</button>
+  <button class="cb-btn" id="restart-btn">↻ Restart runtime</button>
+  <span class="cb-sep"></span>
+  <a class="cb-btn" id="download-btn" href="/api/notebooks/{{ notebook_id }}/export">Download .ipynb</a>
+  <span class="cb-hint">Shift+Enter runs a cell · cell timeout {{ cell_timeout }}s</span>
+</nav>
+
+<div class="cb-shell">
+  <button class="sidebar-show" id="sidebar-show" title="Show the Files panel" hidden>☰</button>
+  <aside class="cb-sidebar" id="sidebar">
+    <div class="side-head">
+      <button class="icon-btn" id="sidebar-toggle" title="Hide the Files panel">☰</button>
+      <span class="side-title">Files</span>
+      <div class="side-head-actions">
+        <button class="icon-btn" id="file-upload-btn" title="Upload files">⬆</button>
+        <button class="icon-btn" id="file-mkdir-btn" title="New folder">📁</button>
+        <button class="icon-btn" id="file-refresh-btn" title="Refresh">⟳</button>
+      </div>
+    </div>
+    <input type="file" id="file-input" multiple hidden>
+
+    <div class="side-note">Files here are the notebook's working directory —
+      <code>open("data.csv")</code> just works.</div>
+
+    <nav class="crumbs" id="file-crumbs"></nav>
+
+    <ul class="file-list" id="file-list"></ul>
+    <p class="empty" id="file-empty" hidden>Drop files here, or click ⬆ to upload.</p>
+
+    <div class="quota">
+      <div class="quota-bar"><span id="quota-fill"></span></div>
+      <span class="quota-text" id="quota-text"></span>
+    </div>
+    <div class="drop-overlay" id="drop-overlay" hidden>Drop to upload</div>
+  </aside>
+
+  <main class="cb-main">
+    <div id="cells" class="cells"></div>
+    <div class="cb-endbar">
+      <button class="cb-btn subtle" id="add-code-end">+ Code</button>
+      <button class="cb-btn subtle" id="add-text-end">+ Text</button>
+    </div>
+  </main>
+</div>
+
+<div class="file-menu" id="file-menu" hidden></div>
+<div class="file-menu app-menu" id="app-menu" hidden></div>
+<input type="file" id="ipynb-input" accept=".ipynb,application/x-ipynb+json" hidden>
+
+<div class="modal" id="file-modal" hidden>
+  <div class="modal-card">
+    <header class="modal-head">
+      <span class="modal-title" id="modal-title">file</span>
+      <span class="modal-meta" id="modal-meta"></span>
+      <div class="modal-actions">
+        <button class="cb-btn primary" id="modal-save" hidden>Save</button>
+        <button class="cb-btn" id="modal-close">Close</button>
+      </div>
+    </header>
+    <div class="modal-body">
+      <div class="modal-editor" id="modal-editor" hidden></div>
+      <div class="modal-preview" id="modal-preview" hidden></div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+
+<script id="nb-config" type="application/json">
+  {"notebookId": {{ notebook_id }}, "cellTimeout": {{ cell_timeout }}}
+</script>
+{% endblock %}
+
+{% block scripts %}
+{# marked and DOMPurify are UMD: they must load BEFORE Monaco's AMD loader
+   defines `define`, or they register as anonymous modules and never set their
+   globals ("Can only have one anonymous define call per script file"). #}
+<script src="https://cdn.jsdelivr.net/npm/marked@15.0.6/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.3/dist/purify.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
+<script src="/static/js/notebook.js?v={{ asset_v() }}"></script>
+{% endblock %}
