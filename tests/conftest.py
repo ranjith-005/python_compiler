@@ -30,6 +30,12 @@ def client():
     with get_conn() as conn:
         conn.execute("DELETE FROM cells")
         conn.execute("DELETE FROM notebooks")
+        conn.execute("DELETE FROM submissions")
+        conn.execute("DELETE FROM assignments")
+        conn.execute("DELETE FROM test_cases")
+        conn.execute("DELETE FROM exercises")
+        conn.execute("DELETE FROM notifications")
+        conn.execute("DELETE FROM activities")
         conn.execute("DELETE FROM users")
     # User ids restart at 1 each test, so stale workspace files would leak across.
     shutil.rmtree(settings.WORKSPACE_ROOT, ignore_errors=True)
@@ -38,7 +44,14 @@ def client():
         yield test_client
 
 
-def register(client, email="user@example.com", password="password123"):
-    response = client.post("/auth/register", json={"email": email, "password": password})
+def register(client, email="user@example.com", password="password123", role="student", name=""):
+    response = client.post(
+        "/auth/register",
+        json={"email": email, "password": password, "role": role, "full_name": name},
+    )
     assert response.status_code == 201, response.text
     return response
+
+
+def register_trainer(client, email="trainer@example.com", password="password123"):
+    return register(client, email, password, role="trainer", name="Trainer One")

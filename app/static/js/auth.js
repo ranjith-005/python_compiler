@@ -8,8 +8,12 @@
   const switchBtn = document.getElementById("switch-btn");
   const switchText = document.getElementById("switch-text");
   const tabs = document.querySelectorAll(".tab[data-mode]");
+  const roleTabs = document.querySelectorAll(".tab[data-role]");
+  const registerOnly = document.getElementById("register-only");
+  const nameEl = document.getElementById("full-name");
 
   let mode = "login";
+  let role = "student";
 
   function setMode(next) {
     mode = next;
@@ -18,6 +22,7 @@
     passwordEl.autocomplete = mode === "login" ? "current-password" : "new-password";
     switchText.textContent = mode === "login" ? "New here?" : "Already have an account?";
     switchBtn.textContent = mode === "login" ? "Create an account" : "Sign in";
+    registerOnly.hidden = mode === "login";
     hideError();
   }
 
@@ -41,6 +46,12 @@
   }
 
   tabs.forEach((t) => t.addEventListener("click", () => setMode(t.dataset.mode)));
+  roleTabs.forEach((t) =>
+    t.addEventListener("click", () => {
+      role = t.dataset.role;
+      roleTabs.forEach((other) => other.classList.toggle("active", other === t));
+    })
+  );
   switchBtn.addEventListener("click", () =>
     setMode(mode === "login" ? "register" : "login")
   );
@@ -60,10 +71,16 @@
       const res = await fetch(`/auth/${mode}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify(
+          mode === "register"
+            ? { email, password, role, full_name: nameEl.value.trim() }
+            : { email, password }
+        ),
       });
       if (res.ok) {
-        window.location.href = "/notebooks";
+        const body = await res.json().catch(() => ({}));
+        // The server decides which portal this account belongs to (SRS §1).
+        window.location.href = body.home || "/dashboard";
         return;
       }
       const data = await res.json().catch(() => ({}));

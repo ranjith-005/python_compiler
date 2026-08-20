@@ -22,6 +22,17 @@
     </div>
 
     <form id="auth-form" novalidate>
+      <div id="register-only" hidden>
+        <label for="full-name">Full name</label>
+        <input type="text" id="full-name" autocomplete="name" placeholder="Ada Lovelace">
+
+        <label>Portal</label>
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab active" data-role="student" role="tab">Student</button>
+          <button type="button" class="tab" data-role="trainer" role="tab">Trainer</button>
+        </div>
+      </div>
+
       <label for="email">Email</label>
       <input type="email" id="email" name="email" autocomplete="email"
              placeholder="you@example.com" required autofocus>

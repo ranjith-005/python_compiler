@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block title %}My dashboard · PyCompiler{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+<header class="cb-topbar">
+  <div class="cb-brand">
+    <span class="cb-logo">◉</span>
+    <span class="cb-title">PyCompiler</span>
+  </div>
+  <span class="role-chip student">Student</span>
+  <div class="cb-spacer"></div>
+
+  <div class="bell-wrap">
+    <button class="bell" id="bell-btn" title="Notifications" aria-label="Notifications">
+      🔔<span class="badge" id="bell-badge" hidden>0</span>
+    </button>
+    <div class="bell-panel" id="bell-panel" hidden>
+      <header>
+        <span>Notifications</span>
+        <button class="link-btn" id="mark-read">Mark all read</button>
+      </header>
+      <ul id="bell-list"></ul>
+    </div>
+  </div>
+
+  <a class="cb-link" href="/notebooks">Notebooks</a>
+  <span class="cb-user">{{ email }}</span>
+  <button class="cb-btn ghost" id="logout-btn">Log out</button>
+</header>
+
+<main class="dash-main">
+  <div class="dash-head">
+    <div>
+      <h1>Hi {{ name }}</h1>
+      <p>Your assigned exercises, their status, and what needs attention next.</p>
+    </div>
+  </div>
+
+  <!-- Continue where you left off (SRS §3) -->
+  <section class="resume" id="resume" hidden></section>
+
+  <section class="stat-grid" id="stats"></section>
+
+  <div class="panel-grid">
+    <div>
+      <section class="panel" id="assignments-panel">
+        <header>
+          <h2>Assigned exercises</h2>
+          <span class="count" id="assign-count">0</span>
+          <span class="spacer"></span>
+          <input class="dash-search" id="assign-search" type="search" placeholder="Search exercises">
+        </header>
+        <div class="panel-body pad" style="padding-bottom:0">
+          <div class="filters" id="filters">
+            <button class="active" data-filter="all">All</button>
+            <button data-filter="open">To do</button>
+            <button data-filter="submitted">Submitted</button>
+            <button data-filter="changes_requested">Changes requested</button>
+            <button data-filter="completed">Completed</button>
+          </div>
+        </div>
+        <div class="panel-body" id="assign-list"></div>
+      </section>
+    </div>
+
+    <div>
+      <section class="panel">
+        <header><h2>Recent activity</h2></header>
+        <ul class="feed" id="activity-list"></ul>
+      </section>
+    </div>
+  </div>
+</main>
+
+<!-- Submission result (SRS §12) -->
+<div class="sheet" id="result-sheet" hidden>
+  <div class="sheet-card">
+    <header>
+      <h2 id="result-title">Submission result</h2>
+      <button class="icon-btn" data-close="result-sheet" aria-label="Close">✕</button>
+    </header>
+    <div class="sheet-body" id="result-body"></div>
+    <div class="sheet-foot">
+      <button class="cb-btn primary" data-close="result-sheet">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/student_dashboard.js?v={{ asset_v() }}"></script>
+{% endblock %}

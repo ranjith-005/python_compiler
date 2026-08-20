@@ -60,6 +60,55 @@ run and file is scoped to its owner.
 
 ---
 
+## Assignment & review platform
+
+The same install doubles as a **Python code assignment and review platform**. An account is
+either a **trainer** or a **student** (chosen when you register), and each role signs in to
+its own dashboard.
+
+### Trainer dashboard — `/trainer`
+
+Total students, coding exercises (published vs draft), pending submissions, submissions
+awaiting review, and completed work, each card jumping to the panel behind it. Below that:
+the review queue, outstanding assignments with overdue flags, upcoming deadlines with a
+submitted/assigned bar, per-student progress, the exercise list, notifications and a recent
+activity feed.
+
+**New exercise** creates a coding exercise — title, problem statement, input/output format,
+samples, constraints, due date, draft or published — with any number of test cases (each one
+public or hidden), and assigns it to the students you pick. They are notified immediately.
+
+**Review** opens a submission: the student's code, its verdict, how many test cases passed,
+and a comment box. Approve it, or request modifications and it reopens on the student's side.
+
+### Student dashboard — `/student`
+
+A **continue where you left off** card resumes the most recently opened piece of open work,
+then counts for assigned / in progress / awaiting review / changes requested / completed,
+each one filtering the list below. Every exercise shows its status, due date (overdue in red),
+last verdict, test tally, and any trainer feedback inline.
+
+**Start** opens the exercise as a notebook — the problem statement rendered as markdown, the
+starter code in a cell — so the whole notebook runtime above is the editor. **Submit** runs
+the solution against every test case, hidden ones included, and records the verdict
+(Accepted, Wrong Answer, Runtime Error, Syntax Error). Resubmit until the trainer approves.
+
+### Demo data
+
+```powershell
+.\.venv\Scripts\python.exe -m app.seed
+```
+
+Creates a trainer, four students, four exercises and a spread of assignments, submissions and
+feedback, so both dashboards open with real content. `--reset` recreates it.
+
+| Role | Email | Password |
+|---|---|---|
+| Trainer | `trainer@pycompiler.dev` | `trainer1234` |
+| Student | `aditi@pycompiler.dev` (and `rahul@`, `meera@`, `karthik@`) | `student1234` |
+
+---
+
 ## Feature list
 
 - **Live kernel per user** — state persists across cells; an idle kernel is reaped after 30 minutes
@@ -73,6 +122,12 @@ run and file is scoped to its owner.
 - **Outputs are stored** — a page reload shows your results again, and the kernel outlives
   the reload, so your variables are still there
 - **Cache-busted assets**, sticky toolbar, resizable panels, toasts, keyboard shortcuts
+- **Two portals** — trainers and students sign in to their own role-scoped dashboard
+- **Exercise authoring** — statement, formats, samples, constraints, due date, draft/published
+- **Public and hidden test cases** — hidden ones count towards the verdict, never shown
+- **Automatic evaluation** on submit: Accepted, Wrong Answer, Runtime Error, Syntax Error
+- **Review loop** — approve or request modifications, with comments the student sees inline
+- **Progress tracking and notifications** for both roles, plus per-user activity feeds
 
 ---
 
@@ -85,7 +140,9 @@ cd python_compiler
 ```
 
 `run.ps1` creates the virtual environment and installs dependencies on first run, then
-serves on <http://127.0.0.1:8000>. Open it, create an account, and start writing Python.
+serves on <http://127.0.0.1:8000>. Open it, create an account — as a **student** or a
+**trainer** — and start writing Python. To look around with data already in place, seed the
+[demo accounts](#demo-data) first.
 
 Or just double-click **`start.bat`**, which opens your browser and starts the server.
 **`stop.ps1`** stops whatever is listening on port 8000.
@@ -118,12 +175,15 @@ that matters for security is `SECRET_KEY`, which is generated for you on first s
 .\.venv\Scripts\python.exe -m pytest
 ```
 
-64 tests covering the kernel (state across cells, tracebacks, inline PNG, pandas HTML,
+84 tests covering the kernel (state across cells, tracebacks, inline PNG, pandas HTML,
 stdin, cell timeout + interrupt, restart clearing state), the WebSocket (streaming, output
 persistence, `input()` round-trip, cross-user rejection), the notebook API (CRUD, reorder,
 duplicate, clear-outputs, ownership isolation, `.ipynb` round-trip), the file manager
 (upload/open/edit/download/delete, folders, quota, per-user isolation, path-traversal
-attempts such as `../../escape.txt` and `C:\Windows\...`), and auth.
+attempts such as `../../escape.txt` and `C:\Windows\...`), auth, and the dashboards
+(role routing and 403s both ways, overview counts, per-trainer and per-student isolation,
+assignment -> notebook -> submit -> evaluate -> review -> feedback end to end, resubmission
+superseding the queued attempt, and notifications).
 
 Two scripts run against a **live** server (start it in another terminal first):
 
@@ -140,7 +200,8 @@ regenerates the screenshots in this README.
 
 ## ⚠ Security boundary
 
-**Code in a cell runs as a normal process under your OS account.** There are *resource*
+**Code in a cell — and a submitted solution being evaluated — runs as a normal process
+under your OS account.** There are *resource*
 limits — a cell timeout, an output cap, one kernel per user with an idle reaper and a cap
 on live kernels — but this is **not a security sandbox**. A cell can read and write your
 files and open network connections, and the kernel holds state between requests.
@@ -161,12 +222,17 @@ can't execute on the app's origin.
 
 ```
 app/
-  main.py       FastAPI app; pages: / · /login · /notebooks · /nb/{id}
+  main.py       FastAPI app; pages: / · /login · /trainer · /student · /notebooks · /nb/{id}
   config.py     settings, read from .env with defaults
   db.py         SQLite schema and connection
   security.py   bcrypt hashing, JWT session cookies
-  deps.py       current-user dependency
+  deps.py       current-user dependency, trainer/student role guards
   auth.py       /auth/register · /login · /logout · /me
+
+  dashboards.py /api/dashboard — trainer and student overview aggregation
+  assignments.py/api/exercises · /api/assignments · /api/submissions — assign,
+                open, submit, auto-evaluate, review
+  seed.py       demo trainer, students, exercises and submissions
 
   kernel.py     KernelSession / KernelRegistry — one IPython kernel per user
   ws.py         /ws/kernel/{id} — streaming execution, interrupt, restart, input()
@@ -174,11 +240,13 @@ app/
   workspace.py  per-user folder + path-traversal defence
   files.py      /api/files — upload, browse, open/save, download, rename, delete
 
-  templates/    base · login · notebooks · notebook
-  static/       css/{colab,styles}.css · js/{notebook,notebooks_home,auth}.js
+  templates/    base · login · notebooks · notebook · trainer_dashboard · student_dashboard
+  static/       css/{colab,styles,dashboard}.css
+                js/{notebook,notebooks_home,auth,dashboard_common}.js
+                js/{trainer,student}_dashboard.js
 
 tests/          test_kernel · test_ws · test_notebooks · test_files · test_auth
-                ui_notebook_check.py · capture_screenshots.py
+                test_dashboards · ui_notebook_check.py · capture_screenshots.py
 
 run.ps1 · start.bat · stop.ps1 · requirements.txt · dev-requirements.txt · .env.example
 ```

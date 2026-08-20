@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sqlite3
 
-from fastapi import HTTPException, Request, status
+from fastapi import Depends, HTTPException, Request, status
 
 from .config import settings
 from .db import get_conn
@@ -20,7 +20,9 @@ def _user_from_request(request: Request) -> sqlite3.Row | None:
         return None
     with get_conn() as conn:
         return conn.execute(
-            "SELECT id, email, created_at FROM users WHERE id = ?", (user_id,)
+            "SELECT id, email, created_at, role, full_name, is_active"
+            " FROM users WHERE id = ?",
+            (user_id,),
         ).fetchone()
 
 
@@ -37,3 +39,20 @@ def get_current_user(request: Request) -> sqlite3.Row:
 def get_optional_user(request: Request) -> sqlite3.Row | None:
     """For page routes: caller decides whether to redirect."""
     return _user_from_request(request)
+
+
+def require_trainer(user: sqlite3.Row = Depends(get_current_user)) -> sqlite3.Row:
+    """Role-based access control (SRS §20): trainer-only endpoints."""
+    if user["role"] != "trainer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Trainer access only."
+        )
+    return user
+
+
+def require_student(user: sqlite3.Row = Depends(get_current_user)) -> sqlite3.Row:
+    if user["role"] != "student":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Student access only."
+        )
+    return user

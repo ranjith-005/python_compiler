@@ -229,7 +229,7 @@ def test_import_rejects_garbage(client):
 
 def test_pages_render(client):
     register(client)
-    assert client.get("/", follow_redirects=False).headers["location"] == "/notebooks"
+    assert client.get("/", follow_redirects=False).headers["location"] == "/student"
     assert client.get("/notebooks").status_code == 200
 
     nb_id = client.get("/api/notebooks").json()[0]["id"]

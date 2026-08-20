@@ -57,6 +57,96 @@ CREATE TABLE IF NOT EXISTS migrations (
 );
 """
 
+# ── Assignment & review platform (SRS §2-§21) ────────────────────────────────
+# Added alongside the notebook tables above; a notebook is what a student
+# actually works in, so `assignments.notebook_id` links the two.
+
+PLATFORM_SCHEMA = """
+CREATE TABLE IF NOT EXISTS exercises (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    trainer_id        INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title             TEXT NOT NULL,
+    problem_statement TEXT NOT NULL DEFAULT '',
+    input_format      TEXT NOT NULL DEFAULT '',
+    output_format     TEXT NOT NULL DEFAULT '',
+    sample_input      TEXT NOT NULL DEFAULT '',
+    sample_output     TEXT NOT NULL DEFAULT '',
+    explanation       TEXT NOT NULL DEFAULT '',
+    constraints       TEXT NOT NULL DEFAULT '',
+    starter_code      TEXT NOT NULL DEFAULT '',
+    due_date          TEXT,
+    status            TEXT NOT NULL DEFAULT 'draft',
+    created_at        TEXT NOT NULL,
+    updated_at        TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_exercises_trainer ON exercises(trainer_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS test_cases (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    exercise_id     INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    position        INTEGER NOT NULL DEFAULT 0,
+    stdin           TEXT NOT NULL DEFAULT '',
+    expected_output TEXT NOT NULL DEFAULT '',
+    is_hidden       INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_test_cases_exercise ON test_cases(exercise_id, position);
+
+CREATE TABLE IF NOT EXISTS assignments (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    exercise_id    INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    student_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    assigned_by    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    assigned_at    TEXT NOT NULL,
+    due_date       TEXT,
+    status         TEXT NOT NULL DEFAULT 'assigned',
+    notebook_id    INTEGER REFERENCES notebooks(id) ON DELETE SET NULL,
+    last_opened_at TEXT,
+    UNIQUE(exercise_id, student_id)
+);
+CREATE INDEX IF NOT EXISTS idx_assignments_student ON assignments(student_id, status);
+
+CREATE TABLE IF NOT EXISTS submissions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    exercise_id   INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    code          TEXT NOT NULL DEFAULT '',
+    submitted_at  TEXT NOT NULL,
+    result        TEXT NOT NULL DEFAULT 'pending',
+    tests_total   INTEGER NOT NULL DEFAULT 0,
+    tests_passed  INTEGER NOT NULL DEFAULT 0,
+    review_status TEXT NOT NULL DEFAULT 'pending',
+    comment       TEXT NOT NULL DEFAULT '',
+    reviewed_at   TEXT,
+    reviewed_by   INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_submissions_review ON submissions(review_status, submitted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_submissions_assignment ON submissions(assignment_id, submitted_at DESC);
+
+CREATE TABLE IF NOT EXISTS notifications (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind       TEXT NOT NULL,
+    title      TEXT NOT NULL,
+    link       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    read_at    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
+
+CREATE TABLE IF NOT EXISTS activities (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    actor_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    kind       TEXT NOT NULL,
+    summary    TEXT NOT NULL,
+    link       TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_activities_user ON activities(user_id, created_at DESC);
+"""
+
+
 WELCOME_CELLS = [
     (
         "code",
@@ -107,6 +197,8 @@ def init_db() -> None:
     settings.DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     with get_conn() as conn:
         conn.executescript(SCHEMA)
+        conn.executescript(PLATFORM_SCHEMA)
+        _migrate_user_columns(conn)
         _migrate_snippets_to_notebooks(conn)
 
 
@@ -146,3 +238,39 @@ def create_notebook(conn: sqlite3.Connection, user_id: int, name: str, cells=Non
             (notebook_id, position, cell_type, source, now),
         )
     return notebook_id
+
+
+def _migrate_user_columns(conn: sqlite3.Connection) -> None:
+    """Add the platform columns to an accounts table created before roles existed."""
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+    for column, ddl in (
+        ("role", "TEXT NOT NULL DEFAULT 'student'"),
+        ("full_name", "TEXT NOT NULL DEFAULT ''"),
+        ("is_active", "INTEGER NOT NULL DEFAULT 1"),
+    ):
+        if column not in existing:
+            conn.execute(f"ALTER TABLE users ADD COLUMN {column} {ddl}")
+
+
+def notify(conn: sqlite3.Connection, user_id: int, kind: str, title: str, link: str = "") -> None:
+    """Queue a notification for one user (SRS §17)."""
+    conn.execute(
+        "INSERT INTO notifications (user_id, kind, title, link, created_at) VALUES (?, ?, ?, ?, ?)",
+        (user_id, kind, title, link, utcnow()),
+    )
+
+
+def record_activity(
+    conn: sqlite3.Connection,
+    user_id: int,
+    kind: str,
+    summary: str,
+    actor_id: int | None = None,
+    link: str = "",
+) -> None:
+    """Append to one user's recent-activity feed."""
+    conn.execute(
+        "INSERT INTO activities (user_id, actor_id, kind, summary, link, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, actor_id, kind, summary, link, utcnow()),
+    )

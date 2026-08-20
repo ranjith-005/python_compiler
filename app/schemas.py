@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, EmailStr, Field
 
 
@@ -9,3 +11,38 @@ class Credentials(BaseModel):
     email: EmailStr
     # bcrypt only considers the first 72 bytes, so cap the length here.
     password: str = Field(min_length=8, max_length=72)
+    # Which portal the account belongs to (SRS §1). Trainers and students sign
+    # in through the same form but land on different dashboards.
+    role: Literal["trainer", "student"] = "student"
+    full_name: str = Field(default="", max_length=120)
+
+
+class TestCaseIn(BaseModel):
+    stdin: str = ""
+    expected_output: str = ""
+    is_hidden: bool = False
+
+
+class ExerciseIn(BaseModel):
+    """A coding exercise plus the students it goes to (SRS §5, §6, §10)."""
+
+    title: str = Field(min_length=1, max_length=200)
+    problem_statement: str = ""
+    input_format: str = ""
+    output_format: str = ""
+    sample_input: str = ""
+    sample_output: str = ""
+    explanation: str = ""
+    constraints: str = ""
+    starter_code: str = ""
+    due_date: str | None = None
+    status: Literal["draft", "published"] = "published"
+    test_cases: list[TestCaseIn] = Field(default_factory=list, max_length=50)
+    assign_to: list[int] = Field(default_factory=list, max_length=500)
+
+
+class ReviewIn(BaseModel):
+    """A trainer's verdict on one submission (SRS §13)."""
+
+    action: Literal["approve", "request_changes", "complete"]
+    comment: str = Field(default="", max_length=4000)

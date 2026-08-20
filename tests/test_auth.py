@@ -61,16 +61,16 @@ def test_notebook_pages_require_login(client):
 
     register(client)
     assert client.get("/notebooks").status_code == 200
-    # A logged-in user is bounced away from the login page, into the notebooks list.
+    # A logged-in user is bounced off the login page onto their own dashboard.
     logged_in = client.get("/login", follow_redirects=False)
     assert logged_in.status_code == 302
-    assert logged_in.headers["location"] == "/notebooks"
+    assert logged_in.headers["location"] == "/student"
 
 
 def test_root_redirects_by_session(client):
     assert client.get("/", follow_redirects=False).headers["location"] == "/login"
     register(client)
-    assert client.get("/", follow_redirects=False).headers["location"] == "/notebooks"
+    assert client.get("/", follow_redirects=False).headers["location"] == "/student"
 
 
 def test_tampered_token_is_rejected(client):

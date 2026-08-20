@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+{% block title %}Trainer dashboard · PyCompiler{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+<header class="cb-topbar">
+  <div class="cb-brand">
+    <span class="cb-logo">◉</span>
+    <span class="cb-title">PyCompiler</span>
+  </div>
+  <span class="role-chip">Trainer</span>
+  <div class="cb-spacer"></div>
+
+  <div class="bell-wrap">
+    <button class="bell" id="bell-btn" title="Notifications" aria-label="Notifications">
+      🔔<span class="badge" id="bell-badge" hidden>0</span>
+    </button>
+    <div class="bell-panel" id="bell-panel" hidden>
+      <header>
+        <span>Notifications</span>
+        <button class="link-btn" id="mark-read">Mark all read</button>
+      </header>
+      <ul id="bell-list"></ul>
+    </div>
+  </div>
+
+  <a class="cb-link" href="/notebooks">Notebooks</a>
+  <span class="cb-user">{{ email }}</span>
+  <button class="cb-btn ghost" id="logout-btn">Log out</button>
+</header>
+
+<main class="dash-main">
+  <div class="dash-head">
+    <div>
+      <h1>Welcome back, {{ name }}</h1>
+      <p>Everything across your students, exercises and submissions.</p>
+    </div>
+    <div class="quick">
+      <button class="cb-btn primary" id="new-exercise-btn">+ New exercise</button>
+      <button class="cb-btn" data-jump="review-panel">Review queue</button>
+      <button class="cb-btn" data-jump="students-panel">Students</button>
+      <button class="cb-btn" data-jump="exercises-panel">Exercises</button>
+    </div>
+  </div>
+
+  <section class="stat-grid" id="stats"></section>
+
+  <div class="panel-grid">
+    <div>
+      <section class="panel" id="review-panel">
+        <header>
+          <h2>Submissions awaiting review</h2>
+          <span class="count" id="review-count">0</span>
+          <span class="spacer"></span>
+          <input class="dash-search" id="review-search" type="search" placeholder="Search student or exercise">
+        </header>
+        <div class="panel-body" id="review-list"></div>
+      </section>
+
+      <section class="panel" id="pending-panel">
+        <header>
+          <h2>Pending submissions</h2>
+          <span class="count" id="pending-count">0</span>
+          <span class="spacer"></span>
+          <span class="cb-hint">Assigned, not yet submitted</span>
+        </header>
+        <div class="panel-body" id="pending-list"></div>
+      </section>
+
+      <section class="panel" id="exercises-panel">
+        <header>
+          <h2>Coding exercises</h2>
+          <span class="count" id="exercise-count">0</span>
+        </header>
+        <div class="panel-body" id="exercise-list"></div>
+      </section>
+    </div>
+
+    <div>
+      <section class="panel" id="deadlines-panel">
+        <header><h2>Upcoming deadlines</h2></header>
+        <div class="panel-body" id="deadline-list"></div>
+      </section>
+
+      <section class="panel" id="students-panel">
+        <header>
+          <h2>Student progress</h2>
+          <span class="count" id="student-count">0</span>
+        </header>
+        <div class="panel-body" id="student-list"></div>
+      </section>
+
+      <section class="panel">
+        <header><h2>Recent activity</h2></header>
+        <ul class="feed" id="activity-list"></ul>
+      </section>
+    </div>
+  </div>
+</main>
+
+<!-- Create a coding exercise and assign it (SRS §5, §6, §10) -->
+<div class="sheet" id="exercise-sheet" hidden>
+  <div class="sheet-card">
+    <header>
+      <h2>New coding exercise</h2>
+      <button class="icon-btn" data-close="exercise-sheet" aria-label="Close">✕</button>
+    </header>
+    <div class="sheet-body">
+      <div class="field">
+        <label for="ex-title">Title</label>
+        <input id="ex-title" placeholder="Sum of two numbers">
+      </div>
+      <div class="field">
+        <label for="ex-statement">Problem statement</label>
+        <textarea id="ex-statement" rows="4" placeholder="Read two integers and print their sum."></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="ex-input">Input format</label>
+          <textarea id="ex-input" rows="2"></textarea>
+        </div>
+        <div class="field">
+          <label for="ex-output">Output format</label>
+          <textarea id="ex-output" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="ex-sample-in">Sample input</label>
+          <textarea id="ex-sample-in" rows="2"></textarea>
+        </div>
+        <div class="field">
+          <label for="ex-sample-out">Sample output</label>
+          <textarea id="ex-sample-out" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="field">
+        <label for="ex-constraints">Constraints (optional)</label>
+        <input id="ex-constraints" placeholder="0 ≤ n ≤ 10^6">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="ex-due">Due date</label>
+          <input id="ex-due" type="datetime-local">
+        </div>
+        <div class="field">
+          <label for="ex-status">Status</label>
+          <select id="ex-status">
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+          </select>
+          <p class="help">Drafts are not assigned or shown to students.</p>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Test cases</label>
+        <div id="test-rows"></div>
+        <button class="cb-btn subtle" id="add-test">+ Add test case</button>
+        <p class="help">Hidden test cases run at submission and are never shown to students.</p>
+      </div>
+
+      <div class="field">
+        <label>Assign to</label>
+        <div class="picker" id="student-picker"></div>
+        <p class="help"><button class="link-btn" id="pick-all" type="button">Select all</button></p>
+      </div>
+    </div>
+    <div class="sheet-foot">
+      <button class="cb-btn" data-close="exercise-sheet">Cancel</button>
+      <button class="cb-btn primary" id="save-exercise">Create &amp; assign</button>
+    </div>
+  </div>
+</div>
+
+<!-- Review one submission (SRS §13) -->
+<div class="sheet" id="review-sheet" hidden>
+  <div class="sheet-card">
+    <header>
+      <h2 id="review-title">Review submission</h2>
+      <button class="icon-btn" data-close="review-sheet" aria-label="Close">✕</button>
+    </header>
+    <div class="sheet-body">
+      <div class="review-meta" id="review-meta"></div>
+      <pre class="code-block" id="review-code"></pre>
+      <div class="field" style="margin-top:16px">
+        <label for="review-comment">Comment to the student</label>
+        <textarea id="review-comment" rows="3" placeholder="What was good, what to fix…"></textarea>
+      </div>
+    </div>
+    <div class="sheet-foot">
+      <button class="cb-btn" data-close="review-sheet">Cancel</button>
+      <button class="cb-btn" id="request-changes">Request modifications</button>
+      <button class="cb-btn primary" id="approve-btn">Approve</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/trainer_dashboard.js?v={{ asset_v() }}"></script>
+{% endblock %}

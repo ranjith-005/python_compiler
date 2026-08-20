@@ -10,9 +10,10 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import auth, files, notebooks, ws
+from . import assignments, auth, dashboards, files, notebooks, ws
 from .config import settings
 from .db import get_conn, init_db
+from .auth import home_for
 from .deps import get_optional_user
 from .kernel import registry
 
@@ -49,6 +50,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="PyCompiler", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="static")
 app.include_router(auth.router)
+app.include_router(dashboards.router)
+app.include_router(assignments.router)
 app.include_router(notebooks.router)
 app.include_router(files.router)
 app.include_router(ws.router)
@@ -56,13 +59,45 @@ app.include_router(ws.router)
 
 @app.get("/", include_in_schema=False)
 def index(user=Depends(get_optional_user)):
-    return RedirectResponse("/notebooks" if user else "/login", status_code=302)
+    return RedirectResponse(home_for(user["role"]) if user else "/login", status_code=302)
+
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard(user=Depends(get_optional_user)):
+    """One address that lands each role on its own portal (SRS §1)."""
+    return RedirectResponse(home_for(user["role"]) if user else "/login", status_code=302)
+
+
+@app.get("/trainer", include_in_schema=False)
+def trainer_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "trainer":
+        return RedirectResponse("/student", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "trainer_dashboard.html",
+        {"email": user["email"], "name": user["full_name"] or user["email"]},
+    )
+
+
+@app.get("/student", include_in_schema=False)
+def student_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "student":
+        return RedirectResponse("/trainer", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "student_dashboard.html",
+        {"email": user["email"], "name": user["full_name"] or user["email"]},
+    )
 
 
 @app.get("/login", include_in_schema=False)
 def login_page(request: Request, user=Depends(get_optional_user)):
     if user:
-        return RedirectResponse("/notebooks", status_code=302)
+        return RedirectResponse(home_for(user["role"]), status_code=302)
     return templates.TemplateResponse(request, "login.html", {})
 
 
