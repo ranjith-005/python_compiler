@@ -28,8 +28,10 @@
     </div>
   </div>
 
-  <a class="cb-link" href="/notebooks">Notebooks</a>
-  <span class="cb-user">{{ email }}</span>
+  <a class="cb-link" href="/student">Dashboard</a>
+  <a class="cb-link" href="/student/exercises">Exercises</a>
+  <a class="cb-link" href="/profile">Profile</a>
+  <span class="cb-user">{{ name }}</span>
   <button class="cb-btn ghost" id="logout-btn">Log out</button>
 </header>
 
@@ -70,7 +72,7 @@
 
     <div>
       <section class="panel">
-        <header><h2>Recent activity</h2></header>
+        <header><h2>Recent activity</h2><span class="spacer"></span><a class="cb-link" href="/activity">Full history</a></header>
         <ul class="feed" id="activity-list"></ul>
       </section>
     </div>

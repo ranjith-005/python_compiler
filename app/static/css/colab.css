@@ -8,17 +8,17 @@ html:has(body.colab) { background: #ffffff; height: auto; }
 
 .colab {
   --bg: #ffffff;
-  --surface: #f8f9fa;
-  --cell-bg: #f7f7f7;
-  --border: #e0e0e0;
-  --border-strong: #dadce0;
-  --text: #202124;
-  --text-dim: #5f6368;
-  --blue: #1a73e8;
-  --blue-dark: #1765cc;
-  --green: #137333;
-  --red: #c5221f;
-  --amber: #e37400;
+  --surface: #f8fafc;
+  --cell-bg: #f8fafc;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+  --text: #0f172a;
+  --text-dim: #64748b;
+  --blue: #2563eb;
+  --blue-dark: #1d4ed8;
+  --green: #15803d;
+  --red: #dc2626;
+  --amber: #d97706;
   --mono: "Roboto Mono", "Cascadia Mono", Consolas, monospace;
   --sans: "Google Sans", Roboto, -apple-system, "Segoe UI", sans-serif;
 
@@ -55,7 +55,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   width: 260px;
   padding: 5px 8px;
   border: 1px solid transparent;
-  border-radius: 4px;
+  border-radius: 6px;
   font: 500 15px var(--sans);
   color: var(--text);
   background: transparent;
@@ -98,14 +98,16 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   font: 500 13px var(--sans);
   text-decoration: none;
   cursor: pointer;
-  transition: background .12s, color .12s, border-color .12s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  transition: background .12s, color .12s, border-color .12s, box-shadow .12s;
 }
-.cb-btn:hover { background: var(--surface); color: var(--text); }
+.cb-btn:hover { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(15, 23, 42, .10); }
 .cb-btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
 .cb-btn.primary:hover { background: var(--blue-dark); color: #fff; }
 .cb-btn.ghost { border-color: transparent; }
 .cb-btn.subtle { border-style: dashed; color: var(--text-dim); }
 .cb-btn[disabled] { opacity: .5; cursor: default; }
+#app-menu-btn, #download-btn, #app-menu, #ipynb-input { display: none !important; }
 
 /* ───────────────────────────── toolbar ───────────────────────────── */
 
@@ -548,9 +550,10 @@ html:has(body.colab) { background: #ffffff; height: auto; }
 /* ───────────────────────────── toast ─────────────────────────────── */
 
 .colab .toast {
-  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
-  background: #202124; color: #fff;
-  padding: 11px 18px; border-radius: 4px; font-size: 13px;
-  box-shadow: 0 3px 12px rgba(0,0,0,.3); z-index: 60;
+  position: fixed; top: 20px; right: 20px;
+  background: #0f172a; color: #fff;
+  padding: 12px 16px; border-radius: 8px; font-size: 13px;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, .18); z-index: 60;
+  border: 1px solid rgba(255, 255, 255, .12);
 }
 .colab .toast.err { background: var(--red); }

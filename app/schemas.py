@@ -15,6 +15,9 @@ class Credentials(BaseModel):
     # in through the same form but land on different dashboards.
     role: Literal["trainer", "student"] = "student"
     full_name: str = Field(default="", max_length=120)
+    first_name: str = Field(default="", min_length=1, max_length=60)
+    last_name: str = Field(default="", min_length=1, max_length=60)
+    phone: str = Field(default="", min_length=7, max_length=30)
 
 
 class TestCaseIn(BaseModel):

@@ -31,14 +31,19 @@ def register(creds: Credentials, response: Response) -> dict:
     try:
         with get_conn() as conn:
             cur = conn.execute(
-                "INSERT INTO users (email, password_hash, created_at, role, full_name)"
-                " VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO users (email, password_hash, created_at, role, full_name, first_name, last_name, phone)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     email,
                     hash_password(creds.password),
                     now,
                     creds.role,
-                    creds.full_name.strip() or email.split("@")[0],
+                    f"{creds.first_name.strip()} {creds.last_name.strip()}".strip()
+                    or creds.full_name.strip()
+                    or email.split("@")[0],
+                    creds.first_name.strip(),
+                    creds.last_name.strip(),
+                    creds.phone.strip(),
                 ),
             )
             user_id = int(cur.lastrowid)
@@ -93,5 +98,8 @@ def me(user: sqlite3.Row = Depends(get_current_user)) -> dict:
         "email": user["email"],
         "role": user["role"],
         "full_name": user["full_name"],
+        "first_name": user["first_name"],
+        "last_name": user["last_name"],
+        "phone": user["phone"],
         "home": home_for(user["role"]),
     }

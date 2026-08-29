@@ -281,3 +281,9 @@ def mark_notifications_read(user: sqlite3.Row = Depends(get_current_user)) -> di
             (utcnow(), user["id"]),
         )
     return {"ok": True}
+
+
+@router.get("/activity")
+def full_activity(user: sqlite3.Row = Depends(get_current_user)) -> list[dict]:
+    with get_conn() as conn:
+        return _rows(conn.execute("SELECT id, kind, summary, link, created_at FROM activities WHERE user_id = ? ORDER BY created_at DESC, id DESC", (user["id"],)))

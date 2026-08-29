@@ -8,12 +8,13 @@
   const switchBtn = document.getElementById("switch-btn");
   const switchText = document.getElementById("switch-text");
   const tabs = document.querySelectorAll(".tab[data-mode]");
-  const roleTabs = document.querySelectorAll(".tab[data-role]");
   const registerOnly = document.getElementById("register-only");
-  const nameEl = document.getElementById("full-name");
+  const firstNameEl = document.getElementById("first-name");
+  const lastNameEl = document.getElementById("last-name");
+  const phoneEl = document.getElementById("phone");
 
   let mode = "login";
-  let role = "student";
+  const role = "student";
 
   function setMode(next) {
     mode = next;
@@ -46,12 +47,6 @@
   }
 
   tabs.forEach((t) => t.addEventListener("click", () => setMode(t.dataset.mode)));
-  roleTabs.forEach((t) =>
-    t.addEventListener("click", () => {
-      role = t.dataset.role;
-      roleTabs.forEach((other) => other.classList.toggle("active", other === t));
-    })
-  );
   switchBtn.addEventListener("click", () =>
     setMode(mode === "login" ? "register" : "login")
   );
@@ -63,6 +58,9 @@
     const email = emailEl.value.trim();
     const password = passwordEl.value;
     if (!email) return showError("Enter your email address.");
+    if (mode === "register" && !firstNameEl.value.trim()) return showError("Enter your first name.");
+    if (mode === "register" && !lastNameEl.value.trim()) return showError("Enter your last name.");
+    if (mode === "register" && !phoneEl.value.trim()) return showError("Enter your phone number.");
     if (password.length < 8) return showError("Password must be at least 8 characters.");
 
     submitBtn.disabled = true;
@@ -73,7 +71,7 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(
           mode === "register"
-            ? { email, password, role, full_name: nameEl.value.trim() }
+            ? { email, password, role, first_name: firstNameEl.value.trim(), last_name: lastNameEl.value.trim(), phone: phoneEl.value.trim() }
             : { email, password }
         ),
       });

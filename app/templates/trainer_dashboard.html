@@ -28,8 +28,10 @@
     </div>
   </div>
 
-  <a class="cb-link" href="/notebooks">Notebooks</a>
-  <span class="cb-user">{{ email }}</span>
+  <a class="cb-link" href="/trainer">Dashboard</a>
+  <a class="cb-link" href="/trainer/students">Students</a>
+  <a class="cb-link" href="/profile">Profile</a>
+  <span class="cb-user">{{ name }}</span>
   <button class="cb-btn ghost" id="logout-btn">Log out</button>
 </header>
 
@@ -41,9 +43,9 @@
     </div>
     <div class="quick">
       <button class="cb-btn primary" id="new-exercise-btn">+ New exercise</button>
-      <button class="cb-btn" data-jump="review-panel">Review queue</button>
-      <button class="cb-btn" data-jump="students-panel">Students</button>
-      <button class="cb-btn" data-jump="exercises-panel">Exercises</button>
+      <a class="cb-btn" href="/trainer/queue">Review queue</a>
+      <a class="cb-btn" href="/trainer/students">Students</a>
+      <a class="cb-btn" href="/trainer/exercises">Exercises</a>
     </div>
   </div>
 
@@ -86,16 +88,8 @@
         <div class="panel-body" id="deadline-list"></div>
       </section>
 
-      <section class="panel" id="students-panel">
-        <header>
-          <h2>Student progress</h2>
-          <span class="count" id="student-count">0</span>
-        </header>
-        <div class="panel-body" id="student-list"></div>
-      </section>
-
       <section class="panel">
-        <header><h2>Recent activity</h2></header>
+        <header><h2>Recent activity</h2><span class="spacer"></span><a class="cb-link" href="/activity">Full history</a></header>
         <ul class="feed" id="activity-list"></ul>
       </section>
     </div>

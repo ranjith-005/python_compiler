@@ -23,14 +23,20 @@
 
     <form id="auth-form" novalidate>
       <div id="register-only" hidden>
-        <label for="full-name">Full name</label>
-        <input type="text" id="full-name" autocomplete="name" placeholder="Ada Lovelace">
-
-        <label>Portal</label>
-        <div class="tabs" role="tablist">
-          <button type="button" class="tab active" data-role="student" role="tab">Student</button>
-          <button type="button" class="tab" data-role="trainer" role="tab">Trainer</button>
+        <div class="name-fields">
+          <div>
+            <label for="first-name">First name</label>
+            <input type="text" id="first-name" autocomplete="given-name" placeholder="Ada">
+          </div>
+          <div>
+            <label for="last-name">Last name</label>
+            <input type="text" id="last-name" autocomplete="family-name" placeholder="Lovelace">
+          </div>
         </div>
+        <label for="phone">Phone number</label>
+        <input type="tel" id="phone" autocomplete="tel" placeholder="+91 98765 43210">
+
+        <p class="hint">Student accounts are created here. Trainers sign in with their existing admin account.</p>
       </div>
 
       <label for="email">Email</label>

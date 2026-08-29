@@ -94,6 +94,54 @@ def student_page(request: Request, user=Depends(get_optional_user)):
     )
 
 
+@app.get("/trainer/students", include_in_schema=False)
+def trainer_students_page(request: Request, user=Depends(get_optional_user)):
+    """Dedicated roster view, kept separate from the trainer overview."""
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "trainer":
+        return RedirectResponse("/student", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "trainer_students.html",
+        {"name": user["full_name"] or user["email"]},
+    )
+
+
+@app.get("/profile", include_in_schema=False)
+def profile_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(
+        request, "profile.html", {"user": user, "back": home_for(user["role"])}
+    )
+
+
+@app.get("/trainer/{section:exercises|queue}", include_in_schema=False)
+def trainer_section_page(section: str, request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "trainer":
+        return RedirectResponse("/student", status_code=302)
+    return templates.TemplateResponse(request, "trainer_section.html", {"section": section, "name": user["full_name"] or user["email"]})
+
+
+@app.get("/student/exercises", include_in_schema=False)
+def student_exercises_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "student":
+        return RedirectResponse("/trainer", status_code=302)
+    return templates.TemplateResponse(request, "student_exercises.html", {"name": user["full_name"] or user["email"]})
+
+
+@app.get("/activity", include_in_schema=False)
+def activity_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(request, "activity.html", {"back": home_for(user["role"]), "name": user["full_name"] or user["email"]})
+
+
 @app.get("/login", include_in_schema=False)
 def login_page(request: Request, user=Depends(get_optional_user)):
     if user:
@@ -105,7 +153,7 @@ def login_page(request: Request, user=Depends(get_optional_user)):
 def notebooks_page(request: Request, user=Depends(get_optional_user)):
     if not user:
         return RedirectResponse("/login", status_code=302)
-    return templates.TemplateResponse(request, "notebooks.html", {"email": user["email"]})
+    return templates.TemplateResponse(request, "notebooks.html", {"name": user["full_name"] or user["email"]})
 
 
 @app.get("/nb/{notebook_id}", include_in_schema=False)
@@ -123,7 +171,7 @@ def notebook_page(notebook_id: int, request: Request, user=Depends(get_optional_
         request,
         "notebook.html",
         {
-            "email": user["email"],
+            "name": user["full_name"] or user["email"],
             "notebook_id": row["id"],
             "notebook_name": row["name"],
             "cell_timeout": settings.CELL_TIMEOUT_SEC,

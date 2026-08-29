@@ -8,6 +8,7 @@
   <div class="cb-brand">
     <button class="icon-btn" id="app-menu-btn" title="Menu" aria-haspopup="true">☰</button>
     <a class="cb-logo-link" href="/notebooks" title="All notebooks"><span class="cb-logo">◉</span></a>
+    <button class="cb-btn" id="back-btn" type="button">Back</button>
     <input type="text" id="nb-name" class="cb-name" value="{{ notebook_name }}" spellcheck="false"
            aria-label="Notebook name">
     <span class="save-state" id="save-state"></span>
@@ -16,7 +17,7 @@
   <span class="cb-runtime" id="runtime-chip" data-state="disconnected">
     <span class="dot"></span><span id="runtime-label">Not connected</span>
   </span>
-  <span class="cb-user">{{ email }}</span>
+  <span class="cb-user">{{ name }}</span>
   <button class="cb-btn ghost" id="logout-btn">Log out</button>
 </header>
 

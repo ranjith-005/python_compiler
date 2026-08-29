@@ -34,7 +34,7 @@
   function renderStats() {
     const s = data.stats;
     const cards = [
-      { label: "Students", value: s.students, sub: "Active accounts", jump: "students-panel" },
+      { label: "Students", value: s.students, sub: "Active accounts", jump: "students-page" },
       {
         label: "Coding exercises",
         value: s.exercises,
@@ -61,8 +61,7 @@
     const host = document.getElementById("stats");
     host.textContent = "";
     cards.forEach((c) => {
-      host.append(
-        el(
+      const card = el(
           "button",
           {
             class: `stat ${c.tone || ""}`,
@@ -73,8 +72,9 @@
           el("span", { class: "label" }, c.label),
           el("span", { class: "value" }, c.value),
           el("span", { class: "sub" }, c.sub)
-        )
-      );
+        );
+      if (c.jump === "students-page") card.addEventListener("click", () => { window.location.href = "/trainer/students"; });
+      host.append(card);
     });
   }
 
@@ -417,7 +417,6 @@
     renderReview();
     renderPending();
     renderDeadlines();
-    renderStudents();
     renderExercises();
     D.renderNotifications(data.notifications, data.unread);
     D.renderActivity(data.activity);

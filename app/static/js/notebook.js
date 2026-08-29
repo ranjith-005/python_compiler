@@ -1214,6 +1214,10 @@
       window.location.href = "/login";
     }
   });
+  document.getElementById("back-btn").addEventListener("click", () => {
+    if (window.history.length > 1) window.history.back();
+    else window.location.href = "/student";
+  });
 
   const nameInput = document.getElementById("nb-name");
   let nameTimer = null;

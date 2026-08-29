@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Exercises · PyCompiler{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}"><link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">{% endblock %}
+{% block content %}
+<header class="cb-topbar"><a class="cb-btn" href="/student">← Back</a><span class="cb-title">My exercises</span><div class="cb-spacer"></div><a class="cb-link" href="/profile">Profile</a><span class="cb-user">{{ name }}</span><button class="cb-btn ghost" id="logout-btn">Log out</button></header><main class="dash-main"><section class="panel"><header><h2>Assigned exercises</h2></header><div class="panel-body" id="exercise-list"></div></section></main><script src="/static/js/student_exercises.js?v={{ asset_v() }}"></script>
+{% endblock %}

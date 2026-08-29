@@ -46,34 +46,31 @@ def _due(value: str | None) -> str | None:
 
 def _exercise_cells(row: sqlite3.Row, tests: list[sqlite3.Row]) -> list[tuple[str, str]]:
     """The notebook a student gets when they open an assignment (SRS §7, §8)."""
-    parts = [f"## {row['title']}", "", row["problem_statement"] or ""]
-    for label, key in (
-        ("Input format", "input_format"),
-        ("Output format", "output_format"),
-        ("Constraints", "constraints"),
-        ("Explanation", "explanation"),
-    ):
-        if row[key]:
-            parts += ["", f"**{label}**", "", row[key]]
+    intro = [f"# {row['title']}", "", "## Question", "", row["problem_statement"] or "Work through the steps below."]
+    if row["due_date"]:
+        intro += ["", f"> Due: {row['due_date']}"]
+    context = ["## Understand the input and output"]
+    if row["input_format"]:
+        context += ["", "**Input**", "", row["input_format"]]
+    if row["output_format"]:
+        context += ["", "**Output**", "", row["output_format"]]
+    if row["constraints"]:
+        context += ["", "**Constraints**", "", row["constraints"]]
     if row["sample_input"] or row["sample_output"]:
-        parts += [
-            "",
-            "**Sample input**",
-            "",
-            "```\n" + (row["sample_input"] or "") + "\n```",
-            "",
-            "**Sample output**",
-            "",
-            "```\n" + (row["sample_output"] or "") + "\n```",
-        ]
+        context += ["", "**Example**", "", "Input:", "```", row["sample_input"] or "", "```", "Output:", "```", row["sample_output"] or "", "```"]
+    explanation = ["## Plan your solution", "", row["explanation"] or "Break the problem into small steps, then test each step.", "", "> `input()` returns text. Use `int(input())` before arithmetic with numbers."]
     public = [t for t in tests if not t["is_hidden"]]
     if public:
-        parts += ["", f"**Public test cases:** {len(public)}"]
-    if row["due_date"]:
-        parts += ["", f"_Due {row['due_date']}_"]
-
+        explanation += ["", f"There are {len(public)} public test case(s) available when you submit."]
     starter = row["starter_code"] or "# Write your solution here.\n"
-    return [("markdown", "\n".join(parts)), ("code", starter)]
+    return [
+        ("markdown", "\n".join(intro)),
+        ("code", starter),
+        ("markdown", "\n".join(context)),
+        ("code", "# Step 2: add a small test or helper while you work.\n"),
+        ("markdown", "\n".join(explanation)),
+        ("code", "# Step 3: improve your solution, then run and submit it.\n"),
+    ]
 
 
 def _notebook_code(conn: sqlite3.Connection, notebook_id: int) -> str:
@@ -151,6 +148,47 @@ def list_students(user: sqlite3.Row = Depends(require_trainer)) -> list[dict]:
             " WHERE role = 'student' ORDER BY full_name COLLATE NOCASE"
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+@router.get("/exercises")
+def list_exercises(user: sqlite3.Row = Depends(require_trainer)) -> list[dict]:
+    """Full trainer-owned exercise details, including assigned students."""
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT e.*, COUNT(a.id) AS assigned FROM exercises e LEFT JOIN assignments a ON a.exercise_id = e.id "
+            "WHERE e.trainer_id = ? GROUP BY e.id ORDER BY e.updated_at DESC", (user["id"],)
+        ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["students"] = [dict(s) for s in conn.execute(
+                "SELECT u.id, u.full_name, u.email, a.status FROM assignments a JOIN users u ON u.id=a.student_id WHERE a.exercise_id=? ORDER BY u.full_name",
+                (row["id"],),
+            ).fetchall()]
+            result.append(item)
+    return result
+
+
+@router.delete("/exercises/{exercise_id}")
+def delete_exercise(exercise_id: int, user: sqlite3.Row = Depends(require_trainer)) -> dict:
+    with get_conn() as conn:
+        cur = conn.execute("DELETE FROM exercises WHERE id = ? AND trainer_id = ?", (exercise_id, user["id"]))
+        if not cur.rowcount:
+            raise HTTPException(status_code=404, detail="Exercise not found.")
+    return {"ok": True}
+
+
+@router.put("/exercises/{exercise_id}")
+def update_exercise(exercise_id: int, body: ExerciseIn, user: sqlite3.Row = Depends(require_trainer)) -> dict:
+    """Alter an exercise while retaining existing student assignments."""
+    with get_conn() as conn:
+        cur = conn.execute(
+            "UPDATE exercises SET title=?, problem_statement=?, input_format=?, output_format=?, sample_input=?, sample_output=?, explanation=?, constraints=?, starter_code=?, due_date=?, status=?, updated_at=? WHERE id=? AND trainer_id=?",
+            (body.title.strip(), body.problem_statement, body.input_format, body.output_format, body.sample_input, body.sample_output, body.explanation, body.constraints, body.starter_code, _due(body.due_date), body.status, utcnow(), exercise_id, user["id"]),
+        )
+        if not cur.rowcount:
+            raise HTTPException(status_code=404, detail="Exercise not found.")
+    return {"ok": True, "id": exercise_id}
 
 
 @router.post("/exercises", status_code=status.HTTP_201_CREATED)

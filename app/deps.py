@@ -20,7 +20,7 @@ def _user_from_request(request: Request) -> sqlite3.Row | None:
         return None
     with get_conn() as conn:
         return conn.execute(
-            "SELECT id, email, created_at, role, full_name, is_active"
+            "SELECT id, email, created_at, role, full_name, first_name, last_name, phone, is_active"
             " FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()

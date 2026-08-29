@@ -246,10 +246,21 @@ def _migrate_user_columns(conn: sqlite3.Connection) -> None:
     for column, ddl in (
         ("role", "TEXT NOT NULL DEFAULT 'student'"),
         ("full_name", "TEXT NOT NULL DEFAULT ''"),
+        ("first_name", "TEXT NOT NULL DEFAULT ''"),
+        ("last_name", "TEXT NOT NULL DEFAULT ''"),
+        ("phone", "TEXT NOT NULL DEFAULT ''"),
         ("is_active", "INTEGER NOT NULL DEFAULT 1"),
     ):
         if column not in existing:
             conn.execute(f"ALTER TABLE users ADD COLUMN {column} {ddl}")
+
+    # Preserve readable names for accounts created before name parts were stored.
+    conn.execute(
+        "UPDATE users SET first_name = COALESCE(NULLIF(first_name, ''), "
+        "trim(substr(full_name, 1, instr(full_name || ' ', ' ') - 1))), "
+        "last_name = COALESCE(NULLIF(last_name, ''), "
+        "trim(substr(full_name, instr(full_name || ' ', ' ') + 1)))"
+    )
 
 
 def notify(conn: sqlite3.Connection, user_id: int, kind: str, title: str, link: str = "") -> None:
