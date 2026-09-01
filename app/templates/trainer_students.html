@@ -1,17 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Students · PyCompiler{% endblock %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Students · Python Learning Platform{% endblock %}
 {% block body_class %}colab dash{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
 <link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
 {% endblock %}
 {% block content %}
-<header class="cb-topbar">
-  <div class="cb-brand"><span class="cb-logo">◉</span><span class="cb-title">PyCompiler</span></div>
-  <span class="role-chip">Trainer</span><div class="cb-spacer"></div>
-  <a class="cb-link" href="/trainer">Dashboard</a><span class="cb-user">{{ name }}</span>
-  <button class="cb-btn ghost" id="logout-btn">Log out</button>
-</header>
+{{ topbar('trainer', name) }}
 <main class="dash-main">
   <div class="dash-head"><div><h1>Students</h1><p>Progress and assignment status for every student.</p></div><a class="cb-btn" href="/trainer">Back to dashboard</a></div>
   <section class="panel student-directory"><header><h2>Student roster</h2><span class="count" id="student-count">0</span><span class="spacer"></span><input class="dash-search" id="student-search" type="search" placeholder="Search students"></header><div class="panel-body" id="student-list"></div></section>

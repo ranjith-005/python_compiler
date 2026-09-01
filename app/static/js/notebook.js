@@ -1228,7 +1228,7 @@
       if (!name) return;
       try {
         await api(`/api/notebooks/${NB}`, { method: "PUT", body: JSON.stringify({ name }) });
-        document.title = `${name} · PyCompiler`;
+        document.title = `${name} · Python Learning Platform`;
       } catch (err) {
         if (err.message !== "unauthenticated") toast(err.message, true);
       }

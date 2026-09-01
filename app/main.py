@@ -148,7 +148,15 @@ def student_exercises_page(request: Request, user=Depends(get_optional_user)):
 def activity_page(request: Request, user=Depends(get_optional_user)):
     if not user:
         return RedirectResponse("/login", status_code=302)
-    return templates.TemplateResponse(request, "activity.html", {"back": home_for(user["role"]), "name": user["full_name"] or user["email"]})
+    return templates.TemplateResponse(
+        request,
+        "activity.html",
+        {
+            "back": home_for(user["role"]),
+            "name": user["full_name"] or user["email"],
+            "role": user["role"],
+        },
+    )
 
 
 @app.get("/login", include_in_schema=False)

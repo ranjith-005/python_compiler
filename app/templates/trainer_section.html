@@ -1,9 +1,10 @@
 {% extends "base.html" %}
-{% block title %}{{ section|title }} · PyCompiler{% endblock %}
+{% from "_topbar.html" import topbar %}
+{% block title %}{{ section|title }} · Python Learning Platform{% endblock %}
 {% block body_class %}colab dash{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}"><link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">{% endblock %}
 {% block content %}
-<header class="cb-topbar"><a class="cb-btn" href="/trainer">← Back</a><span class="cb-title">{{ section|title }}</span><div class="cb-spacer"></div><a class="cb-link" href="/profile">Profile</a><span class="cb-user">{{ name }}</span><button class="cb-btn ghost" id="logout-btn">Log out</button></header>
+{{ topbar('trainer', name, back='/trainer', heading=section|title) }}
 <main class="dash-main"><section class="panel"><header><h2 id="section-title">{{ section|title }}</h2></header><div class="panel-body" id="section-list"></div></section></main><div class="toast" id="toast" hidden></div>
 <script>window.SECTION={{ section|tojson }};</script><script src="/static/js/trainer_section.js?v={{ asset_v() }}"></script>
 {% endblock %}

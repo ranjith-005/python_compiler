@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}My dashboard · PyCompiler{% endblock %}
+{% from "_topbar.html" import topbar %}
+{% block title %}My dashboard · Python Learning Platform{% endblock %}
 {% block body_class %}colab dash{% endblock %}
 {% block head %}
 <link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
@@ -7,33 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<header class="cb-topbar">
-  <div class="cb-brand">
-    <span class="cb-logo">◉</span>
-    <span class="cb-title">PyCompiler</span>
-  </div>
-  <span class="role-chip student">Student</span>
-  <div class="cb-spacer"></div>
-
-  <div class="bell-wrap">
-    <button class="bell" id="bell-btn" title="Notifications" aria-label="Notifications">
-      🔔<span class="badge" id="bell-badge" hidden>0</span>
-    </button>
-    <div class="bell-panel" id="bell-panel" hidden>
-      <header>
-        <span>Notifications</span>
-        <button class="link-btn" id="mark-read">Mark all read</button>
-      </header>
-      <ul id="bell-list"></ul>
-    </div>
-  </div>
-
-  <a class="cb-link" href="/student">Dashboard</a>
-  <a class="cb-link" href="/student/exercises">Exercises</a>
-  <a class="cb-link" href="/profile">Profile</a>
-  <span class="cb-user">{{ name }}</span>
-  <button class="cb-btn ghost" id="logout-btn">Log out</button>
-</header>
+{{ topbar('student', name, bell=true) }}
 
 <main class="dash-main">
   <div class="dash-head">
@@ -71,10 +46,6 @@
     </div>
 
     <div>
-      <section class="panel">
-        <header><h2>Recent activity</h2><span class="spacer"></span><a class="cb-link" href="/activity">Full history</a></header>
-        <ul class="feed" id="activity-list"></ul>
-      </section>
     </div>
   </div>
 </main>

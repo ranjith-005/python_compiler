@@ -1,1 +1,64 @@
-{% extends "base.html" %}{% block title %}Activity · PyCompiler{% endblock %}{% block body_class %}colab dash{% endblock %}{% block head %}<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}"><link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">{% endblock %}{% block content %}<header class="cb-topbar"><a class="cb-btn" href="{{ back }}">← Back</a><span class="cb-title">Full activity history</span><div class="cb-spacer"></div><span class="cb-user">{{ name }}</span></header><main class="dash-main"><section class="panel"><div class="panel-body"><ul class="feed history" id="activity-list"></ul></div></section></main><script>fetch('/api/dashboard/activity').then(r=>r.json()).then(x=>{document.getElementById('activity-list').innerHTML=x.map(a=>`<li><span class="icon">•</span><div>${a.summary}<time>${new Date(a.created_at).toLocaleString()}</time></div></li>`).join('')||'<li>No activity yet.</li>'})</script>{% endblock %}
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Activity · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar(role, name, back=back, heading='Activity history') }}
+
+<main class="dash-main narrow">
+  <div class="dash-head">
+    <div>
+      <h1>Activity history</h1>
+      <p>Everything that has happened on your account, newest first.</p>
+    </div>
+  </div>
+
+  <section class="panel">
+    <header>
+      <h2>History</h2>
+      <span class="count" id="activity-count">0</span>
+      <span class="spacer"></span>
+      <input class="dash-search" id="activity-search" type="search" placeholder="Search history">
+    </header>
+    <div class="panel-body">
+      <ul class="feed history" id="activity-list"></ul>
+    </div>
+  </section>
+</main>
+
+<script>
+  (function () {
+    const list = document.getElementById("activity-list");
+    const count = document.getElementById("activity-count");
+    const search = document.getElementById("activity-search");
+    let all = [];
+
+    function render() {
+      const q = search.value.trim().toLowerCase();
+      const rows = q ? all.filter((a) => (a.summary || "").toLowerCase().includes(q)) : all;
+      count.textContent = rows.length;
+      list.innerHTML =
+        rows
+          .map(
+            (a) =>
+              `<li><span class="icon">•</span><div>${a.summary}` +
+              `<time>${new Date(a.created_at).toLocaleString()}</time></div></li>`
+          )
+          .join("") || `<li class="empty-note">${q ? "Nothing matches that search." : "No activity yet."}</li>`;
+    }
+
+    search.addEventListener("input", render);
+    fetch("/api/dashboard/activity")
+      .then((r) => r.json())
+      .then((x) => {
+        all = x || [];
+        render();
+      });
+  })();
+</script>
+{% endblock %}

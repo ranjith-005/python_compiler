@@ -1,4 +1,4 @@
-# PyCompiler
+# Python Learning Platform
 
 A Colab-style Python notebook that runs in your browser, backed by a **real IPython
 kernel** — so variables persist between cells, plots render inline, and `input()` works.

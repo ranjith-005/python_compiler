@@ -1,0 +1,102 @@
+{#
+  The one top bar every page uses.
+
+  Before this existed the bar was copy-pasted into seven templates, which is how
+  the roster ended up with two Students links. Change it here, it changes
+  everywhere.
+
+  Usage:  {% from "_topbar.html" import topbar %}
+          {{ topbar('trainer', name, bell=true) }}
+#}
+{% macro topbar(role, name, back=None, heading=None, bell=False) %}
+{% set parts = (name or '?').split() %}
+{% set initials = ((parts[0][0] if parts else '?') ~ (parts[-1][0] if parts|length > 1 else ''))|upper %}
+{% set home = '/trainer' if role == 'trainer' else '/student' %}
+<header class="cb-topbar">
+  {% if back %}<a class="cb-btn ghost back-btn" href="{{ back }}">← Back</a>{% endif %}
+
+  <a class="cb-brand" href="{{ home }}">
+    <span class="cb-logo">◉</span>
+    <span class="cb-title">Python Learning Platform</span>
+  </a>
+
+  {% if heading %}<span class="cb-heading">{{ heading }}</span>{% endif %}
+  <span class="role-chip {{ 'student' if role == 'student' else '' }}">{{ role|title }}</span>
+
+  <div class="cb-spacer"></div>
+
+  <nav class="cb-nav">
+    <a class="cb-link" href="{{ home }}">Dashboard</a>
+    {% if role == 'trainer' %}
+      <a class="cb-link" href="/trainer/students">Students</a>
+    {% else %}
+      <a class="cb-link" href="/student/exercises">Exercises</a>
+    {% endif %}
+    <a class="cb-link" href="/activity">Activity</a>
+  </nav>
+
+  {% if bell %}
+  <div class="bell-wrap">
+    <button class="bell" id="bell-btn" title="Notifications" aria-label="Notifications">
+      🔔<span class="badge" id="bell-badge" hidden>0</span>
+    </button>
+    <div class="bell-panel" id="bell-panel" hidden>
+      <header>
+        <span>Notifications</span>
+        <button class="link-btn" id="mark-read">Mark all read</button>
+      </header>
+      <ul id="bell-list"></ul>
+    </div>
+  </div>
+  {% endif %}
+
+  {# Requirement 9 + shared 4: the only profile control, an avatar dropdown.
+     Requirement 13: each option is a link to a real page, not an in-place panel. #}
+  <div class="avatar-wrap">
+    <button class="avatar" id="profile-menu" type="button"
+            aria-haspopup="true" aria-expanded="false" title="{{ name }}">{{ initials }}</button>
+    <div class="avatar-panel" id="profile-panel" hidden>
+      <div class="avatar-head">
+        <span class="avatar big">{{ initials }}</span>
+        <div>
+          <strong>{{ name }}</strong>
+          <span class="meta">{{ role|title }}</span>
+        </div>
+      </div>
+      <a class="avatar-item" href="/profile">My profile</a>
+      <a class="avatar-item" href="/activity">Activity history</a>
+      <button class="avatar-item danger" id="logout-btn" type="button">Log out</button>
+    </div>
+  </div>
+</header>
+
+<script>
+  // Self-contained so the bar works on pages that load no other script.
+  (function () {
+    const btn = document.getElementById("profile-menu");
+    const panel = document.getElementById("profile-panel");
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const open = panel.hidden;
+      panel.hidden = !open;
+      btn.setAttribute("aria-expanded", String(open));
+    });
+    document.addEventListener("click", (e) => {
+      if (!panel.hidden && !e.target.closest(".avatar-wrap")) {
+        panel.hidden = true;
+        btn.setAttribute("aria-expanded", "false");
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") panel.hidden = true;
+    });
+    document.getElementById("logout-btn").addEventListener("click", async () => {
+      try {
+        await fetch("/auth/logout", { method: "POST" });
+      } finally {
+        window.location.href = "/login";
+      }
+    });
+  })();
+</script>
+{% endmacro %}

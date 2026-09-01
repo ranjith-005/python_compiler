@@ -26,7 +26,6 @@
     if (response.status === 401) { window.location.href = "/login"; return; }
     const data = await response.json(); students = data.students || []; render();
   }
-  document.getElementById("logout-btn").addEventListener("click", logout);
   search.addEventListener("input", render);
   load().catch(() => { list.innerHTML = '<p class="empty-note">Unable to load students.</p>'; });
 })();

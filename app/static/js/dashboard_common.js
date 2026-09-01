@@ -216,6 +216,7 @@ window.Dash = (function () {
 
   function initChrome(reload) {
     const bell = document.getElementById("bell-btn");
+    if (!bell) return;
     const panel = document.getElementById("bell-panel");
     bell.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -230,13 +231,6 @@ window.Dash = (function () {
         reload();
       } catch (err) {
         toast(err.message, true);
-      }
-    });
-    document.getElementById("logout-btn").addEventListener("click", async () => {
-      try {
-        await fetch("/auth/logout", { method: "POST" });
-      } finally {
-        window.location.href = "/login";
       }
     });
   }

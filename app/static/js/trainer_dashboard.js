@@ -33,14 +33,9 @@
 
   function renderStats() {
     const s = data.stats;
+    // Requirement 1: only the two cards a trainer acts on. The API still
+    // reports students/exercises/completed; they are shown in their own pages.
     const cards = [
-      { label: "Students", value: s.students, sub: "Active accounts", jump: "students-page" },
-      {
-        label: "Coding exercises",
-        value: s.exercises,
-        sub: `${s.published} published · ${s.drafts} draft`,
-        jump: "exercises-panel",
-      },
       {
         label: "Pending submissions",
         value: s.pending,
@@ -55,7 +50,6 @@
         tone: s.awaiting_review ? "warn" : "",
         jump: "review-panel",
       },
-      { label: "Completed", value: s.completed, sub: "Marked done", tone: "good" },
     ];
 
     const host = document.getElementById("stats");
@@ -73,7 +67,6 @@
           el("span", { class: "value" }, c.value),
           el("span", { class: "sub" }, c.sub)
         );
-      if (c.jump === "students-page") card.addEventListener("click", () => { window.location.href = "/trainer/students"; });
       host.append(card);
     });
   }
@@ -162,9 +155,8 @@
   function renderDeadlines() {
     fill(
       document.getElementById("deadline-list"),
-      data.deadlines.map((d) => {
-        const done = d.assigned ? Math.round((100 * d.submitted) / d.assigned) : 0;
-        return el(
+      data.deadlines.map((d) =>
+        el(
           "div",
           { class: "row" },
           el(
@@ -174,17 +166,11 @@
             el(
               "div",
               { class: "meta" },
-              el("span", { class: d.overdue ? "tests fail" : "" }, D.due(d.due_date)),
-              el("span", {}, `${d.submitted}/${d.assigned} submitted`)
+              el("span", { class: d.overdue ? "tests fail" : "" }, D.due(d.due_date))
             )
-          ),
-          el(
-            "div",
-            { class: `bar ${done === 100 ? "done" : ""}` },
-            el("span", { style: `width:${done}%` })
           )
-        );
-      }),
+        )
+      ),
       "No published exercise has a due date yet."
     );
   }
@@ -419,7 +405,6 @@
     renderDeadlines();
     renderExercises();
     D.renderNotifications(data.notifications, data.unread);
-    D.renderActivity(data.activity);
   }
 
   document.getElementById("new-exercise-btn").addEventListener("click", async () => {
@@ -443,11 +428,6 @@
   document
     .getElementById("request-changes")
     .addEventListener("click", () => submitReview("request_changes"));
-  document.getElementById("review-search").addEventListener("input", (event) => {
-    reviewFilter = event.target.value;
-    renderReview();
-  });
-
   D.initChrome(load);
   load();
 })();

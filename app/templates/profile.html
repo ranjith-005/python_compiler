@@ -1,9 +1,35 @@
 {% extends "base.html" %}
-{% block title %}My profile · PyCompiler{% endblock %}
+{% from "_topbar.html" import topbar %}
+{% block title %}My profile · Python Learning Platform{% endblock %}
 {% block body_class %}colab dash{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}"><link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
 {% block content %}
-<header class="cb-topbar"><a class="cb-btn" href="{{ back }}">← Back</a><div class="cb-brand"><span class="cb-title">My profile</span></div><div class="cb-spacer"></div><button class="cb-btn ghost" id="logout-btn">Log out</button></header>
-<main class="dash-main"><section class="panel profile-card"><header><h2>Account details</h2><span class="role-chip {{ 'student' if user['role'] == 'student' else '' }}">{{ user['role'] }}</span></header><div class="panel-body profile-fields"><div><span>First name</span><strong>{{ user['first_name'] or user['full_name'] }}</strong></div><div><span>Last name</span><strong>{{ user['last_name'] or '—' }}</strong></div><div><span>Email</span><strong>{{ user['email'] }}</strong></div><div><span>Phone</span><strong>{{ user['phone'] or '—' }}</strong></div></div></section></main>
-<script>document.getElementById('logout-btn').onclick=async()=>{await fetch('/auth/logout',{method:'POST'});location='/login'}</script>
+{{ topbar(user['role'], user['full_name'] or user['email'], back=back, heading='My profile') }}
+
+<main class="dash-main narrow">
+  <div class="dash-head">
+    <div>
+      <h1>My profile</h1>
+      <p>The details held on your account.</p>
+    </div>
+  </div>
+
+  <section class="panel profile-card">
+    <header>
+      <h2>Account details</h2>
+      <span class="spacer"></span>
+      <span class="role-chip {{ 'student' if user['role'] == 'student' else '' }}">{{ user['role']|title }}</span>
+    </header>
+    <div class="panel-body profile-fields">
+      <div><span>First name</span><strong>{{ user['first_name'] or user['full_name'] or '—' }}</strong></div>
+      <div><span>Last name</span><strong>{{ user['last_name'] or '—' }}</strong></div>
+      <div><span>Email</span><strong>{{ user['email'] }}</strong></div>
+      <div><span>Phone</span><strong>{{ user['phone'] or '—' }}</strong></div>
+    </div>
+  </section>
+</main>
 {% endblock %}

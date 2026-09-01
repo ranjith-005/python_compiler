@@ -452,3 +452,75 @@
 .profile-fields span { font-size:12px; color:var(--text-dim); }
 .profile-fields strong { font-size:15px; }
 @media (max-width: 600px) { .profile-fields { grid-template-columns:1fr; } }
+
+/* ══════════════════════ Phase A: shell + alignment ══════════════════════ */
+
+/* The brand is a link home now, so strip the anchor styling. */
+.cb-brand { text-decoration: none; color: inherit; display: flex; align-items: center; gap: 8px; }
+.cb-heading { font-size: 14px; color: var(--text-dim); margin-left: 4px; }
+.cb-nav { display: flex; align-items: center; gap: 2px; }
+
+/* ── profile avatar + dropdown (req 9, shared 4) ── */
+.avatar-wrap { position: relative; margin-left: 10px; }
+
+.avatar {
+  width: 32px; height: 32px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: linear-gradient(140deg, var(--blue), #6b4ce6);
+  color: #fff;
+  font: 600 12px/1 system-ui, sans-serif;
+  letter-spacing: .02em;
+  cursor: pointer;
+  transition: box-shadow .12s, transform .12s;
+}
+.avatar:hover { box-shadow: 0 0 0 3px rgba(26, 115, 232, .18); }
+.avatar:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.avatar.big { width: 40px; height: 40px; font-size: 14px; cursor: default; }
+
+.avatar-panel {
+  position: absolute; right: 0; top: calc(100% + 8px);
+  min-width: 232px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .16);
+  padding: 6px;
+  z-index: 60;
+}
+.avatar-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 10px 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+}
+.avatar-head strong { display: block; font-weight: 500; font-size: 13.5px; }
+.avatar-head .meta { font-size: 12px; color: var(--text-dim); }
+
+.avatar-item {
+  display: block; width: 100%;
+  padding: 9px 10px;
+  border: 0; border-radius: 8px;
+  background: none;
+  font: inherit; font-size: 13.5px;
+  color: inherit; text-align: left; text-decoration: none;
+  cursor: pointer;
+}
+.avatar-item:hover { background: var(--hover, rgba(0, 0, 0, .05)); }
+.avatar-item.danger { color: var(--red); }
+
+/* ── alignment pass (shared 1, req 16) ── */
+.dash-main.narrow { max-width: 860px; }
+
+/* Panels in a column share one rhythm; the last has no trailing gap. */
+.panel-grid > div > .panel:last-child { margin-bottom: 0; }
+.panel header { min-height: 46px; }
+.panel header h2 { font-size: 14px; font-weight: 500; margin: 0; }
+
+/* Two cards should sit at a readable width, not stretch across the page. */
+.stat-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 320px)); }
+
+.profile-fields > div { display: flex; justify-content: space-between; gap: 16px; padding: 11px 0; }
+.profile-fields > div + div { border-top: 1px solid var(--border); }
+.profile-fields span { color: var(--text-dim); font-size: 13px; }

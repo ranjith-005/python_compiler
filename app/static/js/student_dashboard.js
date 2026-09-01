@@ -295,7 +295,6 @@
     renderStats();
     renderAssignments();
     D.renderNotifications(data.notifications, data.unread);
-    D.renderActivity(data.activity);
   }
 
   document.querySelectorAll("#filters button").forEach((b) =>
