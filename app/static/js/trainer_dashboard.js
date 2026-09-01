@@ -5,9 +5,6 @@
   const { el, pill, fill } = D;
 
   let data = null;
-  let students = [];
-  let reviewing = null;
-  let reviewFilter = "";
 
   const RESULT_TONES = {
     accepted: "green",
@@ -75,14 +72,7 @@
 
   function renderReview() {
     const list = document.getElementById("review-list");
-    const term = reviewFilter.toLowerCase();
-    const items = data.review_queue.filter(
-      (r) =>
-        !term ||
-        (r.student || "").toLowerCase().includes(term) ||
-        (r.student_email || "").toLowerCase().includes(term) ||
-        (r.exercise || "").toLowerCase().includes(term)
-    );
+    const items = data.review_queue;
     document.getElementById("review-count").textContent = data.review_queue.length;
 
     fill(
@@ -112,7 +102,7 @@
           el(
             "div",
             { class: "actions" },
-            el("button", { class: "cb-btn", onclick: () => openReview(r) }, "Review")
+            el("a", { class: "cb-btn", href: `/trainer/submissions/${r.id}` }, "Review")
           )
         );
       }),
@@ -122,11 +112,33 @@
 
   // ── pending submissions ───────────────────────────────────────────────────
 
+  // Requirement 3: both panels filter on a date range, client side over data
+  // the dashboard endpoint already returns.
+  function inRange(iso, fromId, toId) {
+    const from = document.getElementById(fromId).value;
+    const to = document.getElementById(toId).value;
+    if (!from && !to) return true;
+    const day = (iso || "").slice(0, 10);
+    if (!day) return false;
+    if (from && day < from) return false;
+    if (to && day > to) return false;
+    return true;
+  }
+
+  function pendingInRange() {
+    return data.pending.filter((p) => inRange(p.assigned_at, "pending-from", "pending-to"));
+  }
+
+  function exercisesInRange() {
+    return data.exercises.filter((x) => inRange(x.updated_at, "exercise-from", "exercise-to"));
+  }
+
   function renderPending() {
-    document.getElementById("pending-count").textContent = data.pending.length;
+    const rows = pendingInRange();
+    document.getElementById("pending-count").textContent = rows.length;
     fill(
       document.getElementById("pending-list"),
-      data.pending.map((p) => {
+      rows.map((p) => {
         const [text, tone] = STATUS_LABELS[p.status] || [label(p.status), "grey"];
         return el(
           "div",
@@ -219,13 +231,18 @@
   // ── exercises (§5) ────────────────────────────────────────────────────────
 
   function renderExercises() {
-    document.getElementById("exercise-count").textContent = data.exercises.length;
+    document.getElementById("exercise-count").textContent = exercisesInRange().length;
     fill(
       document.getElementById("exercise-list"),
-      data.exercises.map((x) =>
+      exercisesInRange().map((x) =>
         el(
           "div",
-          { class: "row" },
+          {
+            class: "row clickable",
+            onclick: () => {
+              window.location.href = `/trainer/exercises/${x.id}`;
+            },
+          },
           el(
             "div",
             {},
@@ -239,158 +256,17 @@
               el("span", { class: "dot-sep" }, D.due(x.due_date))
             )
           ),
-          el("div", { class: "actions" }, el("span", { class: "tests" }, D.ago(x.updated_at)))
+          el(
+            "div",
+            { class: "actions" },
+            el("span", { class: "tests" }, D.ago(x.updated_at)),
+            el("span", { class: "chev" }, "›")
+          )
         )
       ),
-      "No exercises yet — create your first one."
+      "No exercises in this date range."
     );
   }
-
-  // ── review sheet (§13) ────────────────────────────────────────────────────
-
-  function openReview(submission) {
-    reviewing = submission;
-    document.getElementById("review-title").textContent = submission.exercise;
-    const meta = document.getElementById("review-meta");
-    meta.textContent = "";
-    meta.append(
-      el("span", { class: "title" }, submission.student || submission.student_email),
-      pill(label(submission.result), RESULT_TONES[submission.result] || "grey"),
-      el(
-        "span",
-        { class: "tests" },
-        `${submission.tests_passed}/${submission.tests_total} tests passed`
-      ),
-      el("span", { class: "tests" }, D.when(submission.submitted_at))
-    );
-    document.getElementById("review-code").textContent =
-      submission.code || "(no code submitted)";
-    document.getElementById("review-comment").value = "";
-    D.openSheet("review-sheet");
-  }
-
-  async function submitReview(action) {
-    if (!reviewing) return;
-    const comment = document.getElementById("review-comment").value.trim();
-    if (action === "request_changes" && !comment) {
-      D.toast("Add a comment so the student knows what to change.", true);
-      return;
-    }
-    try {
-      await D.api(`/api/submissions/${reviewing.id}/review`, {
-        method: "POST",
-        body: JSON.stringify({ action, comment }),
-      });
-      D.closeSheet("review-sheet");
-      D.toast(action === "request_changes" ? "Modifications requested" : "Submission approved");
-      reviewing = null;
-      load();
-    } catch (err) {
-      D.toast(err.message, true);
-    }
-  }
-
-  // ── new exercise sheet (§5, §6, §10) ──────────────────────────────────────
-
-  function addTestRow(test) {
-    const row = el(
-      "div",
-      { class: "test-row" },
-      el("textarea", { class: "t-in", rows: "2", placeholder: "Input (stdin)" }),
-      el("textarea", { class: "t-out", rows: "2", placeholder: "Expected output" }),
-      el(
-        "label",
-        { class: "hidden-toggle" },
-        el("input", { type: "checkbox", class: "t-hidden" }),
-        "Hidden"
-      )
-    );
-    if (test) {
-      row.querySelector(".t-in").value = test.stdin || "";
-      row.querySelector(".t-out").value = test.expected_output || "";
-    }
-    document.getElementById("test-rows").append(row);
-  }
-
-  function renderPicker() {
-    const picker = document.getElementById("student-picker");
-    picker.textContent = "";
-    if (!students.length) {
-      picker.append(el("p", { class: "help" }, "No students registered yet."));
-      return;
-    }
-    students.forEach((s) => {
-      picker.append(
-        el(
-          "label",
-          {},
-          el("input", { type: "checkbox", value: s.id, disabled: !s.is_active }),
-          `${s.name || s.email} (${s.email})${s.is_active ? "" : " — inactive"}`
-        )
-      );
-    });
-  }
-
-  async function saveExercise() {
-    const value = (id) => document.getElementById(id).value.trim();
-    const title = value("ex-title");
-    if (!title) {
-      D.toast("Give the exercise a title.", true);
-      return;
-    }
-
-    const tests = [...document.querySelectorAll("#test-rows .test-row")]
-      .map((row) => ({
-        stdin: row.querySelector(".t-in").value,
-        expected_output: row.querySelector(".t-out").value,
-        is_hidden: row.querySelector(".t-hidden").checked,
-      }))
-      .filter((t) => t.stdin.trim() || t.expected_output.trim());
-
-    const assign_to = [...document.querySelectorAll("#student-picker input:checked")].map((i) =>
-      Number(i.value)
-    );
-
-    const btn = document.getElementById("save-exercise");
-    btn.disabled = true;
-    try {
-      const result = await D.api("/api/exercises", {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          problem_statement: value("ex-statement"),
-          input_format: value("ex-input"),
-          output_format: value("ex-output"),
-          sample_input: value("ex-sample-in"),
-          sample_output: value("ex-sample-out"),
-          constraints: value("ex-constraints"),
-          due_date: value("ex-due") || null,
-          status: document.getElementById("ex-status").value,
-          test_cases: tests,
-          assign_to,
-        }),
-      });
-      D.closeSheet("exercise-sheet");
-      D.toast(`Exercise created and assigned to ${result.assigned} student(s)`);
-      resetSheet();
-      load();
-    } catch (err) {
-      D.toast(err.message, true);
-    } finally {
-      btn.disabled = false;
-    }
-  }
-
-  function resetSheet() {
-    ["ex-title", "ex-statement", "ex-input", "ex-output", "ex-sample-in", "ex-sample-out",
-      "ex-constraints", "ex-due"].forEach((id) => (document.getElementById(id).value = ""));
-    document.getElementById("ex-status").value = "published";
-    document.getElementById("test-rows").textContent = "";
-    addTestRow();
-    renderPicker();
-  }
-
-  // ── load ──────────────────────────────────────────────────────────────────
 
   async function load() {
     try {
@@ -407,27 +283,14 @@
     D.renderNotifications(data.notifications, data.unread);
   }
 
-  document.getElementById("new-exercise-btn").addEventListener("click", async () => {
-    try {
-      students = await D.api("/api/students");
-    } catch (err) {
-      students = [];
-    }
-    resetSheet();
-    D.openSheet("exercise-sheet");
-    document.getElementById("ex-title").focus();
-  });
-  document.getElementById("add-test").addEventListener("click", () => addTestRow());
-  document.getElementById("pick-all").addEventListener("click", () => {
-    document
-      .querySelectorAll("#student-picker input:not([disabled])")
-      .forEach((i) => (i.checked = true));
-  });
-  document.getElementById("save-exercise").addEventListener("click", saveExercise);
-  document.getElementById("approve-btn").addEventListener("click", () => submitReview("approve"));
-  document
-    .getElementById("request-changes")
-    .addEventListener("click", () => submitReview("request_changes"));
+  // Requirement 3: re-render when either date range changes.
+  ["pending-from", "pending-to"].forEach((id) =>
+    document.getElementById(id).addEventListener("change", renderPending)
+  );
+  ["exercise-from", "exercise-to"].forEach((id) =>
+    document.getElementById(id).addEventListener("change", renderExercises)
+  );
+
   D.initChrome(load);
   load();
 })();

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Student · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('trainer', name, back='/trainer/students', heading='Student') }}
+
+<main class="dash-main">
+  <div class="dash-head">
+    <div>
+      <h1 id="student-name">Student</h1>
+      <p id="student-sub">Their progress on everything you have assigned.</p>
+    </div>
+    <div class="quick">
+      <a class="cb-btn" id="personal-link" href="#">Personal information</a>
+    </div>
+  </div>
+
+  <section class="stat-grid" id="stats"></section>
+
+  <section class="panel">
+    <header>
+      <h2>Assigned exercises</h2>
+      <span class="count" id="ex-count">0</span>
+      <span class="spacer"></span>
+      <input class="dash-search" id="ex-search" type="search" placeholder="Search exercises">
+    </header>
+    <div class="panel-body" id="ex-list"></div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Queries raised</h2><span class="count" id="q-count">0</span></header>
+    <div class="panel-body" id="q-list"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "student_detail", studentId: {{ student_id }} };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/trainer_detail.js?v={{ asset_v() }}"></script>
+{% endblock %}

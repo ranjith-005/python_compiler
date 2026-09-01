@@ -193,11 +193,24 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
             )
         )
 
+        queries = _rows(
+            conn.execute(
+                "SELECT q.*, e.title AS exercise, u.full_name AS student, u.email"
+                " FROM queries q"
+                " JOIN assignments a ON a.id = q.assignment_id"
+                " JOIN exercises e ON e.id = a.exercise_id"
+                " JOIN users u ON u.id = q.student_id"
+                " WHERE q.trainer_id = ? ORDER BY q.created_at DESC LIMIT 50",
+                (trainer_id,),
+            )
+        )
+
         feed = _feed(conn, trainer_id)
 
     return {
         "user": {"name": user["full_name"] or user["email"], "email": user["email"]},
         "stats": stats,
+        "queries": queries,
         "review_queue": review_queue,
         "pending": pending,
         "deadlines": deadlines,
@@ -260,11 +273,23 @@ def student_dashboard(user: sqlite3.Row = Depends(require_student)) -> dict:
             opened = [a for a in open_work if a["last_opened_at"]]
             resume = max(opened, key=lambda a: a["last_opened_at"]) if opened else open_work[0]
 
+        queries = _rows(
+            conn.execute(
+                "SELECT q.*, e.title AS exercise"
+                " FROM queries q"
+                " JOIN assignments a ON a.id = q.assignment_id"
+                " JOIN exercises e ON e.id = a.exercise_id"
+                " WHERE q.student_id = ? ORDER BY q.created_at DESC LIMIT 50",
+                (student_id,),
+            )
+        )
+
         feed = _feed(conn, student_id)
 
     return {
         "user": {"name": user["full_name"] or user["email"], "email": user["email"]},
         "stats": stats,
+        "queries": queries,
         "assignments": assignments,
         "resume": resume,
         "now": now,

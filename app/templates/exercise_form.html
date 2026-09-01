@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}New exercise · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('trainer', name, back='/trainer', heading='New exercise') }}
+
+<main class="dash-main narrow">
+  <div class="dash-head">
+    <div>
+      <h1>New coding exercise</h1>
+      <p>Write the question, add test cases, then choose who gets it.</p>
+    </div>
+    <div class="quick"><a class="cb-btn" href="/trainer/exercises/drafts">View drafts</a></div>
+  </div>
+
+  <section class="panel">
+    <header><h2>The question</h2></header>
+    <div class="panel-body">
+      <div class="field">
+        <label for="ex-title">Title</label>
+        <input id="ex-title" placeholder="Sum of two numbers">
+      </div>
+      <div class="field">
+        <label for="ex-statement">Problem statement</label>
+        <textarea id="ex-statement" rows="4" placeholder="Read two integers and print their sum."></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="ex-input">Input format</label>
+          <textarea id="ex-input" rows="2"></textarea>
+        </div>
+        <div class="field">
+          <label for="ex-output">Output format</label>
+          <textarea id="ex-output" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="ex-sample-in">Sample input</label>
+          <textarea id="ex-sample-in" rows="2"></textarea>
+        </div>
+        <div class="field">
+          <label for="ex-sample-out">Sample output</label>
+          <textarea id="ex-sample-out" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="field">
+        <label for="ex-constraints">Constraints (optional)</label>
+        <input id="ex-constraints" placeholder="0 ≤ n ≤ 10^6">
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Scheduling</h2></header>
+    <div class="panel-body">
+      <div class="field-row">
+        <div class="field">
+          <label for="ex-due">Due date</label>
+          <input id="ex-due" type="datetime-local">
+        </div>
+        <div class="field">
+          <label for="ex-status">Status</label>
+          <select id="ex-status">
+            <option value="published">Published</option>
+            <option value="draft">Draft</option>
+          </select>
+          <p class="help">Drafts are not assigned or shown to students. You can
+            assign them later from the drafts page.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Test cases</h2></header>
+    <div class="panel-body">
+      <div id="test-rows"></div>
+      <button class="cb-btn subtle" id="add-test">+ Add test case</button>
+      <p class="help">Hidden test cases run at submission and are never shown to students.</p>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Assign to</h2></header>
+    <div class="panel-body">
+      <div class="picker" id="student-picker"></div>
+      <p class="help"><button class="link-btn" id="pick-all" type="button">Select all</button></p>
+    </div>
+  </section>
+
+  <div class="row-actions page-actions">
+    <a class="cb-btn" href="/trainer">Cancel</a>
+    <button class="cb-btn primary" id="save-exercise">Create &amp; assign</button>
+  </div>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "exercise_form" };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/trainer_detail.js?v={{ asset_v() }}"></script>
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Review · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('trainer', name, back='/trainer', heading='Review submission') }}
+
+<main class="dash-main">
+  <div class="dash-head">
+    <div>
+      <h1 id="title">Review submission</h1>
+      <p id="subtitle"></p>
+    </div>
+  </div>
+
+  <section class="panel">
+    <header><h2>Result</h2></header>
+    <div class="panel-body" id="meta"></div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Submitted code</h2></header>
+    <div class="panel-body"><pre class="code-block" id="code"></pre></div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Your verdict</h2></header>
+    <div class="panel-body">
+      <div class="field">
+        <label for="comment">Comment to the student</label>
+        <textarea id="comment" rows="3" placeholder="What was good, what to fix…"></textarea>
+      </div>
+      <div class="row-actions">
+        <button class="cb-btn" id="request-changes">Request modifications</button>
+        <button class="cb-btn primary" id="approve-btn">Approve</button>
+      </div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "review", submissionId: {{ submission_id }} };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/trainer_detail.js?v={{ asset_v() }}"></script>
+{% endblock %}

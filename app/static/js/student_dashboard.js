@@ -284,6 +284,66 @@
 
   // ── load ──────────────────────────────────────────────────────────────────
 
+  // ── requirement 12: the trainer's queries, and one reply each ───────────
+
+  const SEVERITY = { note: "grey", warning: "amber", urgent: "red" };
+
+  function renderQueries() {
+    const rows = data.queries || [];
+    document.getElementById("query-count").textContent = rows.length;
+    fill(
+      document.getElementById("query-list"),
+      rows.map((q) => {
+        const body = el(
+          "div",
+          { class: "query-row" },
+          el(
+            "div",
+            {},
+            el("div", { class: "title" }, q.exercise),
+            el(
+              "div",
+              { class: "meta" },
+              pill(q.severity, SEVERITY[q.severity] || "grey"),
+              el("span", {}, D.ago(q.created_at))
+            )
+          ),
+          el("div", {}, q.message)
+        );
+
+        if (q.reply) {
+          body.append(el("div", { class: "meta" }, `You replied: ${q.reply}`));
+          return el("div", { class: "row" }, body);
+        }
+
+        const box = el("textarea", { placeholder: "Reply to your trainer…" });
+        const send = el(
+          "button",
+          {
+            class: "cb-btn primary",
+            onclick: async () => {
+              if (!box.value.trim()) return D.toast("Write a reply first", true);
+              try {
+                await D.api(`/api/queries/${q.id}/reply`, {
+                  method: "POST",
+                  body: JSON.stringify({ reply: box.value.trim() }),
+                });
+                D.toast("Reply sent");
+                load();
+              } catch (err) {
+                D.toast(err.message, true);
+              }
+            },
+          },
+          "Send"
+        );
+        body.append(el("div", { class: "query-reply" }, box, send));
+        return el("div", { class: "row" }, body);
+      }),
+      "Nothing from your trainer right now."
+    );
+  }
+
   async function load() {
     try {
       data = await D.api("/api/dashboard/student");
@@ -294,6 +354,7 @@
     renderResume();
     renderStats();
     renderAssignments();
+    renderQueries();
     D.renderNotifications(data.notifications, data.unread);
   }
 

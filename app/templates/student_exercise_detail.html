@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Progress · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('trainer', name, heading='Progress on one exercise') }}
+
+<main class="dash-main">
+  <div class="dash-head">
+    <div>
+      <h1 id="title">Exercise</h1>
+      <p id="subtitle"></p>
+    </div>
+    <div class="quick"><a class="cb-btn" id="back-link" href="#">Back to student</a></div>
+  </div>
+
+  <section class="panel">
+    <header><h2>Timeline</h2></header>
+    <div class="panel-body" id="timeline"></div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Submission</h2></header>
+    <div class="panel-body" id="submission"></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "student_exercise", studentId: {{ student_id }}, exerciseId: {{ exercise_id }} };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/trainer_detail.js?v={{ asset_v() }}"></script>
+{% endblock %}

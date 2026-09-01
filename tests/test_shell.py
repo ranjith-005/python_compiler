@@ -74,10 +74,13 @@ def test_a_single_students_link_and_no_duplicate_shortcuts(client):
     html = trainer_page(client)
     assert html.count('href="/trainer/students"') == 1, "expected exactly one Students link"
     head = html[html.index('class="quick"'): html.index("stat-grid")]
-    assert "new-exercise-btn" in head
+    assert "New exercise" in head, "the quick row should still offer New exercise"
+    # Requirement 11: the shortcuts duplicated by dashboard panels are gone.
     assert "/trainer/queue" not in head
-    assert "/trainer/exercises" not in head
     assert "/trainer/students" not in head
+    # Phase B: the only /trainer/exercises links here are the new-exercise and
+    # drafts pages, never the old Exercises shortcut.
+    assert 'href="/trainer/exercises"' not in head
 
 
 # ── requirements 7 and 10: deadlines lose the bar and the x/y counter ───────

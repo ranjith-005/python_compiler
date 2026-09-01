@@ -144,6 +144,22 @@ CREATE TABLE IF NOT EXISTS activities (
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_activities_user ON activities(user_id, created_at DESC);
+
+-- A trainer's query or warning about an assignment the student has not
+-- submitted, and the single reply the student may give back.
+CREATE TABLE IF NOT EXISTS queries (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    trainer_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    severity      TEXT NOT NULL DEFAULT 'note',
+    message       TEXT NOT NULL,
+    created_at    TEXT NOT NULL,
+    reply         TEXT,
+    replied_at    TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_queries_student ON queries(student_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_queries_assignment ON queries(assignment_id);
 """
 
 

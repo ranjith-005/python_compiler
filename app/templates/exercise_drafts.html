@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Drafts · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('trainer', name, back='/trainer', heading='Draft exercises') }}
+
+<main class="dash-main">
+  <div class="dash-head">
+    <div>
+      <h1>Draft exercises</h1>
+      <p>Drafts are invisible to students. Assigning one publishes it.</p>
+    </div>
+    <div class="quick"><a class="cb-btn primary" href="/trainer/exercises/new">+ New exercise</a></div>
+  </div>
+
+  <section class="panel">
+    <header>
+      <h2>Drafts</h2>
+      <span class="count" id="draft-count">0</span>
+      <span class="spacer"></span>
+      <input class="dash-search" id="draft-search" type="search" placeholder="Search drafts">
+    </header>
+    <div class="panel-body" id="draft-list"></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "drafts" };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/trainer_detail.js?v={{ asset_v() }}"></script>
+{% endblock %}

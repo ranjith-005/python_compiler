@@ -199,3 +199,70 @@ def notebook_page(notebook_id: int, request: Request, user=Depends(get_optional_
 @app.get("/healthz", include_in_schema=False)
 def healthz() -> dict:
     return {"ok": True}
+
+
+# ══════════════ Phase B: detail pages (reqs 2, 6, 8, 13) ══════════════════
+#
+# Requirement 13 says a click opens a page, so the New exercise and Review
+# sheets became routes rather than modals. Each renders a shell; the data
+# arrives from /api.
+
+
+def _trainer_page(request: Request, user, template: str, extra: dict | None = None):
+    """Guard and render one of the trainer's detail pages."""
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "trainer":
+        return RedirectResponse("/student", status_code=302)
+    context = {"name": user["full_name"] or user["email"]}
+    context.update(extra or {})
+    return templates.TemplateResponse(request, template, context)
+
+
+@app.get("/trainer/students/{student_id}", include_in_schema=False)
+def trainer_student_detail_page(
+    student_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _trainer_page(request, user, "student_detail.html", {"student_id": student_id})
+
+
+@app.get("/trainer/students/{student_id}/profile", include_in_schema=False)
+def trainer_student_profile_page(
+    student_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _trainer_page(request, user, "student_personal.html", {"student_id": student_id})
+
+
+@app.get("/trainer/students/{student_id}/exercises/{exercise_id}", include_in_schema=False)
+def trainer_student_exercise_page(
+    student_id: int, exercise_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _trainer_page(
+        request,
+        user,
+        "student_exercise_detail.html",
+        {"student_id": student_id, "exercise_id": exercise_id},
+    )
+
+
+# Declared before /trainer/exercises/{exercise_id} so the literal paths win.
+@app.get("/trainer/exercises/new", include_in_schema=False)
+def trainer_new_exercise_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "exercise_form.html")
+
+
+@app.get("/trainer/exercises/drafts", include_in_schema=False)
+def trainer_drafts_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "exercise_drafts.html")
+
+
+@app.get("/trainer/exercises/{exercise_id}", include_in_schema=False)
+def trainer_exercise_detail_page(
+    exercise_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _trainer_page(request, user, "exercise_detail.html", {"exercise_id": exercise_id})
+
+
+@app.get("/trainer/submissions/{submission_id}", include_in_schema=False)
+def trainer_review_page(submission_id: int, request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "review.html", {"submission_id": submission_id})

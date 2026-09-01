@@ -49,3 +49,22 @@ class ReviewIn(BaseModel):
 
     action: Literal["approve", "request_changes", "complete"]
     comment: str = Field(default="", max_length=4000)
+
+
+class QueryIn(BaseModel):
+    """A trainer's query or warning about an unsubmitted assignment (req 12)."""
+
+    severity: Literal["note", "warning", "urgent"] = "note"
+    message: str = Field(min_length=1, max_length=4000)
+
+
+class QueryReplyIn(BaseModel):
+    """The student's single response to a query."""
+
+    reply: str = Field(min_length=1, max_length=4000)
+
+
+class AssignIn(BaseModel):
+    """Assign an existing exercise, e.g. from the drafts page (req 6)."""
+
+    assign_to: list[int] = Field(default_factory=list, max_length=500)

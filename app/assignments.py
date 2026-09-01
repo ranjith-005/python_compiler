@@ -13,12 +13,12 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from .config import settings
 from .db import create_notebook, get_conn, notify, record_activity, utcnow
 from .deps import get_current_user, require_student, require_trainer
-from .schemas import ExerciseIn, ReviewIn
+from .schemas import AssignIn, ExerciseIn, QueryIn, QueryReplyIn, ReviewIn
 from .workspace import workspace_dir
 
 router = APIRouter(prefix="/api", tags=["assignments"])
@@ -151,12 +151,22 @@ def list_students(user: sqlite3.Row = Depends(require_trainer)) -> list[dict]:
 
 
 @router.get("/exercises")
-def list_exercises(user: sqlite3.Row = Depends(require_trainer)) -> list[dict]:
-    """Full trainer-owned exercise details, including assigned students."""
+def list_exercises(
+    status_filter: str | None = Query(None, alias="status"),
+    user: sqlite3.Row = Depends(require_trainer),
+) -> list[dict]:
+    """Full trainer-owned exercise details, including assigned students.
+
+    ``status=draft`` backs the drafts page (req 6).
+    """
+    where, params = "e.trainer_id = ?", [user["id"]]
+    if status_filter in ("draft", "published"):
+        where += " AND e.status = ?"
+        params.append(status_filter)
     with get_conn() as conn:
         rows = conn.execute(
             "SELECT e.*, COUNT(a.id) AS assigned FROM exercises e LEFT JOIN assignments a ON a.exercise_id = e.id "
-            "WHERE e.trainer_id = ? GROUP BY e.id ORDER BY e.updated_at DESC", (user["id"],)
+            f"WHERE {where} GROUP BY e.id ORDER BY e.updated_at DESC", params
         ).fetchall()
         result = []
         for row in rows:
@@ -521,3 +531,228 @@ def assignment_detail(assignment_id: int, user: sqlite3.Row = Depends(get_curren
         "hidden_tests": hidden,
         "history": history,
     }
+
+
+# ══════════════════════ Phase B: detail views and queries ══════════════════
+
+
+@router.get("/students/{student_id}")
+def student_detail(student_id: int, user: sqlite3.Row = Depends(require_trainer)) -> dict:
+    """One student: who they are, and every exercise this trainer gave them.
+
+    Backs the student detail page, its personal-information page and the
+    per-exercise timeline (req 2).
+    """
+    trainer_id = int(user["id"])
+    with get_conn() as conn:
+        student = conn.execute(
+            "SELECT id, email, full_name, first_name, last_name, phone, role,"
+            "       is_active, created_at"
+            " FROM users WHERE id = ? AND role = 'student'",
+            (student_id,),
+        ).fetchone()
+        if not student:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such student")
+
+        exercises = conn.execute(
+            "SELECT a.id AS assignment_id, a.status, a.assigned_at, a.due_date,"
+            "       a.last_opened_at, a.notebook_id,"
+            "       e.id AS exercise_id, e.title, e.problem_statement,"
+            "       s.id AS submission_id, s.submitted_at, s.tests_passed, s.tests_total,"
+            "       s.result, s.review_status, s.comment, s.reviewed_at"
+            " FROM assignments a"
+            " JOIN exercises e ON e.id = a.exercise_id"
+            " LEFT JOIN submissions s ON s.assignment_id = a.id"
+            " WHERE a.student_id = ? AND e.trainer_id = ?"
+            " ORDER BY a.assigned_at DESC",
+            (student_id, trainer_id),
+        ).fetchall()
+
+        queries = conn.execute(
+            "SELECT q.*, e.title AS exercise"
+            " FROM queries q"
+            " JOIN assignments a ON a.id = q.assignment_id"
+            " JOIN exercises e ON e.id = a.exercise_id"
+            " WHERE q.student_id = ? AND q.trainer_id = ?"
+            " ORDER BY q.created_at DESC",
+            (student_id, trainer_id),
+        ).fetchall()
+
+    rows = [dict(r) for r in exercises]
+    completed = sum(1 for r in rows if r["status"] == "completed")
+    return {
+        "student": dict(student),
+        "exercises": rows,
+        "queries": [dict(q) for q in queries],
+        "assigned": len(rows),
+        "completed": completed,
+        "progress": round(100 * completed / len(rows)) if rows else 0,
+    }
+
+
+@router.get("/exercises/{exercise_id}")
+def exercise_detail(exercise_id: int, user: sqlite3.Row = Depends(require_trainer)) -> dict:
+    """Everything about one exercise, for its detail page (req 8)."""
+    trainer_id = int(user["id"])
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM exercises WHERE id = ? AND trainer_id = ?",
+            (exercise_id, trainer_id),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such exercise")
+
+        item = dict(row)
+        item["test_cases"] = [
+            dict(t)
+            for t in conn.execute(
+                "SELECT id, position, stdin, expected_output, is_hidden FROM test_cases"
+                " WHERE exercise_id = ? ORDER BY position",
+                (exercise_id,),
+            )
+        ]
+        item["students"] = [
+            dict(s)
+            for s in conn.execute(
+                "SELECT u.id, u.full_name, u.email, a.id AS assignment_id, a.status,"
+                "       a.assigned_at, a.due_date"
+                " FROM assignments a JOIN users u ON u.id = a.student_id"
+                " WHERE a.exercise_id = ? ORDER BY u.full_name COLLATE NOCASE",
+                (exercise_id,),
+            )
+        ]
+        item["submissions"] = [
+            dict(s)
+            for s in conn.execute(
+                "SELECT s.id, s.student_id, s.submitted_at, s.result, s.tests_passed,"
+                "       s.tests_total, s.review_status, u.full_name AS student, u.email"
+                " FROM submissions s JOIN users u ON u.id = s.student_id"
+                " WHERE s.exercise_id = ? ORDER BY s.submitted_at DESC",
+                (exercise_id,),
+            )
+        ]
+    return item
+
+
+@router.post("/exercises/{exercise_id}/assign")
+def assign_exercise(
+    exercise_id: int, body: AssignIn, user: sqlite3.Row = Depends(require_trainer)
+) -> dict:
+    """Assign an existing exercise, publishing it if it was still a draft (req 6)."""
+    trainer_id = int(user["id"])
+    now = utcnow()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM exercises WHERE id = ? AND trainer_id = ?",
+            (exercise_id, trainer_id),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such exercise")
+
+        # Assigning a draft is how a trainer publishes it from the drafts page.
+        if row["status"] != "published":
+            conn.execute(
+                "UPDATE exercises SET status = 'published', updated_at = ? WHERE id = ?",
+                (now, exercise_id),
+            )
+
+        valid = {
+            int(r["id"])
+            for r in conn.execute(
+                "SELECT id FROM users WHERE role = 'student' AND is_active = 1"
+            )
+        }
+        title = row["title"]
+        actor = user["full_name"] or user["email"]
+        assigned = 0
+        for student_id in dict.fromkeys(body.assign_to):
+            if int(student_id) not in valid:
+                continue
+            conn.execute(
+                "INSERT OR IGNORE INTO assignments (exercise_id, student_id, assigned_by,"
+                " assigned_at, due_date, status) VALUES (?, ?, ?, ?, ?, 'assigned')",
+                (exercise_id, student_id, trainer_id, now, row["due_date"]),
+            )
+            assigned += 1
+            notify(conn, student_id, "assigned", f"New exercise assigned: {title}", "/student")
+            record_activity(
+                conn,
+                student_id,
+                "assigned",
+                f'{actor} assigned "{title}"',
+                trainer_id,
+                "/student",
+            )
+    return {"id": exercise_id, "assigned": assigned}
+
+
+@router.post("/assignments/{assignment_id}/query", status_code=status.HTTP_201_CREATED)
+def raise_query(
+    assignment_id: int, body: QueryIn, user: sqlite3.Row = Depends(require_trainer)
+) -> dict:
+    """Raise a query or warning on an assignment the student has not sent in (req 12)."""
+    trainer_id = int(user["id"])
+    now = utcnow()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT a.id, a.student_id, e.title FROM assignments a"
+            " JOIN exercises e ON e.id = a.exercise_id"
+            " WHERE a.id = ? AND e.trainer_id = ?",
+            (assignment_id, trainer_id),
+        ).fetchone()
+        if not row:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such assignment")
+
+        title = row["title"]
+        actor = user["full_name"] or user["email"]
+        cur = conn.execute(
+            "INSERT INTO queries (assignment_id, trainer_id, student_id, severity,"
+            " message, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (assignment_id, trainer_id, row["student_id"], body.severity, body.message, now),
+        )
+        notify(
+            conn,
+            row["student_id"],
+            "query",
+            f'{body.severity.title()} on "{title}"',
+            "/student",
+        )
+        record_activity(
+            conn,
+            row["student_id"],
+            "query",
+            f'{actor} raised a {body.severity} on "{title}"',
+            trainer_id,
+            "/student",
+        )
+    return {"id": int(cur.lastrowid), "severity": body.severity}
+
+
+@router.post("/queries/{query_id}/reply")
+def reply_to_query(
+    query_id: int, body: QueryReplyIn, user: sqlite3.Row = Depends(require_student)
+) -> dict:
+    """The student's one reply to a trainer's query (req 12)."""
+    student_id = int(user["id"])
+    now = utcnow()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM queries WHERE id = ? AND student_id = ?", (query_id, student_id)
+        ).fetchone()
+        if not row:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "No such query")
+        if row["reply"]:
+            raise HTTPException(status.HTTP_409_CONFLICT, "This query already has a reply")
+
+        conn.execute(
+            "UPDATE queries SET reply = ?, replied_at = ? WHERE id = ?",
+            (body.reply, now, query_id),
+        )
+        notify(
+            conn,
+            row["trainer_id"],
+            "reviewed",
+            f"{user['full_name'] or user['email']} replied to your query",
+            "/trainer",
+        )
+    return {"id": query_id, "reply": body.reply}

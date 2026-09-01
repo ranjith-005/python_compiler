@@ -17,7 +17,8 @@
       <p>Everything across your students, exercises and submissions.</p>
     </div>
     <div class="quick">
-      <button class="cb-btn primary" id="new-exercise-btn">+ New exercise</button>
+      <a class="cb-btn primary" href="/trainer/exercises/new">+ New exercise</a>
+      <a class="cb-btn" href="/trainer/exercises/drafts">Drafts</a>
     </div>
   </div>
 
@@ -39,6 +40,10 @@
           <span class="count" id="pending-count">0</span>
           <span class="spacer"></span>
           <span class="cb-hint">Assigned, not yet submitted</span>
+          <label class="date-filter">From
+            <input type="date" id="pending-from"></label>
+          <label class="date-filter">To
+            <input type="date" id="pending-to"></label>
         </header>
         <div class="panel-body" id="pending-list"></div>
       </section>
@@ -47,6 +52,11 @@
         <header>
           <h2>Coding exercises</h2>
           <span class="count" id="exercise-count">0</span>
+          <span class="spacer"></span>
+          <label class="date-filter">From
+            <input type="date" id="exercise-from"></label>
+          <label class="date-filter">To
+            <input type="date" id="exercise-to"></label>
         </header>
         <div class="panel-body" id="exercise-list"></div>
       </section>
@@ -60,104 +70,6 @@
     </div>
   </div>
 </main>
-
-<!-- Create a coding exercise and assign it (SRS §5, §6, §10) -->
-<div class="sheet" id="exercise-sheet" hidden>
-  <div class="sheet-card">
-    <header>
-      <h2>New coding exercise</h2>
-      <button class="icon-btn" data-close="exercise-sheet" aria-label="Close">✕</button>
-    </header>
-    <div class="sheet-body">
-      <div class="field">
-        <label for="ex-title">Title</label>
-        <input id="ex-title" placeholder="Sum of two numbers">
-      </div>
-      <div class="field">
-        <label for="ex-statement">Problem statement</label>
-        <textarea id="ex-statement" rows="4" placeholder="Read two integers and print their sum."></textarea>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="ex-input">Input format</label>
-          <textarea id="ex-input" rows="2"></textarea>
-        </div>
-        <div class="field">
-          <label for="ex-output">Output format</label>
-          <textarea id="ex-output" rows="2"></textarea>
-        </div>
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="ex-sample-in">Sample input</label>
-          <textarea id="ex-sample-in" rows="2"></textarea>
-        </div>
-        <div class="field">
-          <label for="ex-sample-out">Sample output</label>
-          <textarea id="ex-sample-out" rows="2"></textarea>
-        </div>
-      </div>
-      <div class="field">
-        <label for="ex-constraints">Constraints (optional)</label>
-        <input id="ex-constraints" placeholder="0 ≤ n ≤ 10^6">
-      </div>
-      <div class="field-row">
-        <div class="field">
-          <label for="ex-due">Due date</label>
-          <input id="ex-due" type="datetime-local">
-        </div>
-        <div class="field">
-          <label for="ex-status">Status</label>
-          <select id="ex-status">
-            <option value="published">Published</option>
-            <option value="draft">Draft</option>
-          </select>
-          <p class="help">Drafts are not assigned or shown to students.</p>
-        </div>
-      </div>
-
-      <div class="field">
-        <label>Test cases</label>
-        <div id="test-rows"></div>
-        <button class="cb-btn subtle" id="add-test">+ Add test case</button>
-        <p class="help">Hidden test cases run at submission and are never shown to students.</p>
-      </div>
-
-      <div class="field">
-        <label>Assign to</label>
-        <div class="picker" id="student-picker"></div>
-        <p class="help"><button class="link-btn" id="pick-all" type="button">Select all</button></p>
-      </div>
-    </div>
-    <div class="sheet-foot">
-      <button class="cb-btn" data-close="exercise-sheet">Cancel</button>
-      <button class="cb-btn primary" id="save-exercise">Create &amp; assign</button>
-    </div>
-  </div>
-</div>
-
-<!-- Review one submission (SRS §13) -->
-<div class="sheet" id="review-sheet" hidden>
-  <div class="sheet-card">
-    <header>
-      <h2 id="review-title">Review submission</h2>
-      <button class="icon-btn" data-close="review-sheet" aria-label="Close">✕</button>
-    </header>
-    <div class="sheet-body">
-      <div class="review-meta" id="review-meta"></div>
-      <pre class="code-block" id="review-code"></pre>
-      <div class="field" style="margin-top:16px">
-        <label for="review-comment">Comment to the student</label>
-        <textarea id="review-comment" rows="3" placeholder="What was good, what to fix…"></textarea>
-      </div>
-    </div>
-    <div class="sheet-foot">
-      <button class="cb-btn" data-close="review-sheet">Cancel</button>
-      <button class="cb-btn" id="request-changes">Request modifications</button>
-      <button class="cb-btn primary" id="approve-btn">Approve</button>
-    </div>
-  </div>
-</div>
 
 <div class="toast" id="toast" hidden></div>
 {% endblock %}

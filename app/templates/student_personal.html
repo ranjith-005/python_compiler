@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Personal information · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('trainer', name, back='/trainer/students', heading='Personal information') }}
+
+<main class="dash-main narrow">
+  <div class="dash-head">
+    <div>
+      <h1 id="student-name">Personal information</h1>
+      <p>The details held on this student's account.</p>
+    </div>
+    <div class="quick"><a class="cb-btn" id="back-link" href="#">Back to progress</a></div>
+  </div>
+
+  <section class="panel profile-card">
+    <header><h2>Account details</h2></header>
+    <div class="panel-body profile-fields" id="fields"></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "student_personal", studentId: {{ student_id }} };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/trainer_detail.js?v={{ asset_v() }}"></script>
+{% endblock %}
