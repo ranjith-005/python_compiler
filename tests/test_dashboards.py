@@ -389,3 +389,30 @@ def test_dashboard_pages_render_their_own_assets(client):
     assert page.status_code == 200
     assert "trainer_dashboard.js" in page.text
     assert "Trainer One" in page.text
+
+
+def test_trainer_section_pages_are_reachable(client):
+    """The trainer dashboard links to /trainer/queue and /trainer/exercises,
+    so both must resolve to the section page rather than 404."""
+    sections = ("exercises", "queue")
+
+    for section in sections:
+        assert client.get(f"/trainer/{section}", follow_redirects=False).headers[
+            "location"
+        ] == "/login"
+
+    register(client)
+    for section in sections:
+        assert client.get(f"/trainer/{section}", follow_redirects=False).headers[
+            "location"
+        ] == "/student"
+    client.post("/auth/logout")
+
+    register_trainer(client)
+    for section in sections:
+        resp = client.get(f"/trainer/{section}", follow_redirects=False)
+        assert resp.status_code == 200, f"/trainer/{section} returned {resp.status_code}"
+
+    # The roster page must keep its own literal route, not be swallowed by the
+    # {section} parameter declared after it.
+    assert client.get("/trainer/students", follow_redirects=False).status_code == 200

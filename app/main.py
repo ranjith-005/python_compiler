@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from enum import Enum
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
@@ -117,13 +118,21 @@ def profile_page(request: Request, user=Depends(get_optional_user)):
     )
 
 
-@app.get("/trainer/{section:exercises|queue}", include_in_schema=False)
-def trainer_section_page(section: str, request: Request, user=Depends(get_optional_user)):
+class TrainerSection(str, Enum):
+    """The trainer sub-pages that share one template."""
+
+    exercises = "exercises"
+    queue = "queue"
+
+
+# Declared after /trainer/students so that literal path still wins.
+@app.get("/trainer/{section}", include_in_schema=False)
+def trainer_section_page(section: TrainerSection, request: Request, user=Depends(get_optional_user)):
     if not user:
         return RedirectResponse("/login", status_code=302)
     if user["role"] != "trainer":
         return RedirectResponse("/student", status_code=302)
-    return templates.TemplateResponse(request, "trainer_section.html", {"section": section, "name": user["full_name"] or user["email"]})
+    return templates.TemplateResponse(request, "trainer_section.html", {"section": section.value, "name": user["full_name"] or user["email"]})
 
 
 @app.get("/student/exercises", include_in_schema=False)
