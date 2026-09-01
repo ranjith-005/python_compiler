@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Modules · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('trainer', name, back='/trainer', heading='Learning modules') }}
+
+<main class="dash-main">
+  <div class="dash-head">
+    <div>
+      <h1>Learning modules</h1>
+      <p>Upload a notebook. Its text becomes the lesson, its code cells become
+         practice sections the student runs in place.</p>
+    </div>
+  </div>
+
+  <section class="panel">
+    <header><h2>Upload a module</h2></header>
+    <div class="panel-body">
+      <div class="field-row">
+        <div class="field">
+          <label for="m-title">Module name</label>
+          <input id="m-title" placeholder="Loops">
+        </div>
+        <div class="field">
+          <label for="m-desc">Short description</label>
+          <input id="m-desc" placeholder="for, while, break and continue">
+        </div>
+      </div>
+      <div class="field">
+        <label for="m-file">Notebook (.ipynb)</label>
+        <input id="m-file" type="file" accept=".ipynb,application/json">
+        <p class="help">Markdown cells become the lesson text; code cells become
+           runnable practice sections. Author it anywhere &mdash; this app, Jupyter
+           or Colab.</p>
+      </div>
+      <div class="row-actions page-actions">
+        <button class="cb-btn primary" id="m-upload">Upload module</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header>
+      <h2>Your modules</h2>
+      <span class="count" id="m-count">0</span>
+      <span class="spacer"></span>
+      <input class="dash-search" id="m-search" type="search" placeholder="Search modules">
+    </header>
+    <div class="panel-body" id="m-list"></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "trainer_modules" };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/modules.js?v={{ asset_v() }}"></script>
+{% endblock %}

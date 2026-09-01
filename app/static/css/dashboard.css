@@ -577,3 +577,52 @@
   background: #fff; color: inherit; resize: vertical;
 }
 .pill.red { background: rgba(217, 48, 37, .12); color: var(--red); }
+
+/* ══════════════════════ Phase C: learning modules ══════════════════════ */
+
+/* The lesson text between practice sections (req 14). */
+.lesson-panel .panel-body { padding: 18px 20px; }
+.lesson h2, .lesson h3, .lesson h4, .lesson h5 { margin: 18px 0 8px; font-weight: 500; }
+.lesson h2 { font-size: 20px; }
+.lesson h3 { font-size: 16px; }
+.lesson h4, .lesson h5 { font-size: 14px; color: var(--text-dim); }
+.lesson > :first-child { margin-top: 0; }
+.lesson p { margin: 0 0 10px; line-height: 1.65; }
+.lesson ul { margin: 0 0 10px; padding-left: 22px; line-height: 1.65; }
+.lesson code {
+  padding: 1px 5px;
+  background: var(--surface-2, #f1f3f5);
+  border: 1px solid var(--border); border-radius: 5px;
+  font: 12.5px/1.4 ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+
+/* "Try it yourself": editor, Run, output, in place. */
+.practice-panel header h2 { font-size: 13px; color: var(--text-dim); }
+.practice-panel .tick { font-size: 12px; color: var(--green); font-weight: 500; }
+
+.code-editor {
+  display: block; width: 100%; min-height: 132px;
+  padding: 12px 14px;
+  border: 1px solid var(--border); border-radius: 9px;
+  background: #1e1f22; color: #e6e6e6;
+  font: 13px/1.6 ui-monospace, "Cascadia Code", Consolas, monospace;
+  resize: vertical; tab-size: 4;
+}
+.code-editor:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+.practice-actions { justify-content: flex-start; margin-top: 10px; }
+
+.code-output {
+  margin: 10px 0 0; padding: 11px 14px;
+  background: var(--surface-2, #f7f8fa);
+  border: 1px solid var(--border); border-left: 3px solid var(--green);
+  border-radius: 8px;
+  font: 12.5px/1.6 ui-monospace, "Cascadia Code", Consolas, monospace;
+  white-space: pre-wrap; word-break: break-word;
+  max-height: 320px; overflow: auto;
+}
+.code-output.err { border-left-color: var(--red); color: var(--red); }
+
+/* Progress along a module (student req 2). */
+.progress-panel .bar { height: 8px; border-radius: 999px; }
+.progress-label { font-size: 20px; font-weight: 400; }

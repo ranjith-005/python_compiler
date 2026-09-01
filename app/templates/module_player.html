@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Learn · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('student', name, back='/student/modules', heading='Module') }}
+
+<main class="dash-main narrow">
+  <div class="dash-head">
+    <div>
+      <h1 id="m-title">Module</h1>
+      <p id="m-sub"></p>
+    </div>
+  </div>
+
+  <!-- Student req 2: progress follows the code actually run. -->
+  <section class="panel progress-panel">
+    <header>
+      <h2>Your progress</h2>
+      <span class="spacer"></span>
+      <span class="progress-label" id="p-label">0%</span>
+    </header>
+    <div class="panel-body">
+      <div class="bar"><span id="p-bar" style="width:0%"></span></div>
+      <p class="help" id="p-help">A practice section counts once you run it without an error.</p>
+    </div>
+  </section>
+
+  <div id="blocks"></div>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "module_player", moduleId: {{ module_id }} };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/modules.js?v={{ asset_v() }}"></script>
+{% endblock %}

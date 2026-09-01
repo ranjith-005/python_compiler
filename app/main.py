@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
-from enum import Enum
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
@@ -11,7 +10,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import assignments, auth, dashboards, files, notebooks, ws
+from . import assignments, auth, dashboards, files, modules, notebooks, ws
 from .config import settings
 from .db import get_conn, init_db
 from .auth import home_for
@@ -53,6 +52,7 @@ app.mount("/static", StaticFiles(directory=str(APP_DIR / "static")), name="stati
 app.include_router(auth.router)
 app.include_router(dashboards.router)
 app.include_router(assignments.router)
+app.include_router(modules.router)
 app.include_router(notebooks.router)
 app.include_router(files.router)
 app.include_router(ws.router)
@@ -118,21 +118,17 @@ def profile_page(request: Request, user=Depends(get_optional_user)):
     )
 
 
-class TrainerSection(str, Enum):
-    """The trainer sub-pages that share one template."""
+# Literal routes, not /trainer/{section}. A single-segment path parameter here
+# matches every future /trainer/<page>, swallowing it before its own route is
+# reached -- which is exactly what happened when the modules pages arrived.
+@app.get("/trainer/exercises", include_in_schema=False)
+def trainer_exercises_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "trainer_section.html", {"section": "exercises"})
 
-    exercises = "exercises"
-    queue = "queue"
 
-
-# Declared after /trainer/students so that literal path still wins.
-@app.get("/trainer/{section}", include_in_schema=False)
-def trainer_section_page(section: TrainerSection, request: Request, user=Depends(get_optional_user)):
-    if not user:
-        return RedirectResponse("/login", status_code=302)
-    if user["role"] != "trainer":
-        return RedirectResponse("/student", status_code=302)
-    return templates.TemplateResponse(request, "trainer_section.html", {"section": section.value, "name": user["full_name"] or user["email"]})
+@app.get("/trainer/queue", include_in_schema=False)
+def trainer_queue_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "trainer_section.html", {"section": "queue"})
 
 
 @app.get("/student/exercises", include_in_schema=False)
@@ -266,3 +262,41 @@ def trainer_exercise_detail_page(
 @app.get("/trainer/submissions/{submission_id}", include_in_schema=False)
 def trainer_review_page(submission_id: int, request: Request, user=Depends(get_optional_user)):
     return _trainer_page(request, user, "review.html", {"submission_id": submission_id})
+
+
+# ══════════════ Phase C: learning modules (reqs 14, 15, 17) ════════════════
+
+
+@app.get("/trainer/modules", include_in_schema=False)
+def trainer_modules_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "modules_trainer.html")
+
+
+@app.get("/trainer/modules/{module_id}", include_in_schema=False)
+def trainer_module_detail_page(
+    module_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _trainer_page(request, user, "module_review.html", {"module_id": module_id})
+
+
+def _student_page(request: Request, user, template: str, extra: dict | None = None):
+    """Guard and render one of the student's pages."""
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "student":
+        return RedirectResponse("/trainer", status_code=302)
+    context = {"name": user["full_name"] or user["email"]}
+    context.update(extra or {})
+    return templates.TemplateResponse(request, template, context)
+
+
+@app.get("/student/modules", include_in_schema=False)
+def student_modules_page(request: Request, user=Depends(get_optional_user)):
+    return _student_page(request, user, "modules_student.html")
+
+
+@app.get("/student/modules/{module_id}", include_in_schema=False)
+def student_module_player_page(
+    module_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _student_page(request, user, "module_player.html", {"module_id": module_id})

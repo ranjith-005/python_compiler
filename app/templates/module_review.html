@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Module · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('trainer', name, back='/trainer/modules', heading='Module') }}
+
+<main class="dash-main">
+  <div class="dash-head">
+    <div>
+      <h1 id="m-title">Module</h1>
+      <p id="m-sub"></p>
+    </div>
+    <div class="quick"><button class="cb-btn primary" id="assign-btn">Assign to students</button></div>
+  </div>
+
+  <div class="panel-grid">
+    <div>
+      <section class="panel">
+        <header><h2>Student progress</h2><span class="count" id="s-count">0</span></header>
+        <div class="panel-body" id="s-list"></div>
+      </section>
+    </div>
+    <div>
+      <section class="panel">
+        <header><h2>Contents</h2><span class="count" id="b-count">0</span></header>
+        <div class="panel-body" id="b-list"></div>
+      </section>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "module_review", moduleId: {{ module_id }} };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/modules.js?v={{ asset_v() }}"></script>
+{% endblock %}

@@ -160,6 +160,53 @@ CREATE TABLE IF NOT EXISTS queries (
 );
 CREATE INDEX IF NOT EXISTS idx_queries_student ON queries(student_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_queries_assignment ON queries(assignment_id);
+
+-- ── learning modules (reqs 14, 15) ──────────────────────────────────────
+-- A module is uploaded as one .ipynb and flattened into ordered blocks:
+-- markdown cells become content, code cells become practice sections the
+-- student runs in place.
+CREATE TABLE IF NOT EXISTS modules (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    trainer_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title       TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    source_name TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL DEFAULT 'published',
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS module_blocks (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    module_id INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    position  INTEGER NOT NULL,
+    kind      TEXT NOT NULL,          -- 'content' | 'code'
+    source    TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_module_blocks ON module_blocks(module_id, position);
+
+CREATE TABLE IF NOT EXISTS module_assignments (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    module_id   INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    student_id  INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    assigned_at TEXT NOT NULL,
+    UNIQUE (module_id, student_id)
+);
+
+-- One row per student per code block. ran_ok flips to 1 the first time the
+-- student runs that block without an error, which is what progress counts.
+CREATE TABLE IF NOT EXISTS module_progress (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    module_id  INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    block_id   INTEGER NOT NULL REFERENCES module_blocks(id) ON DELETE CASCADE,
+    student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    ran_ok     INTEGER NOT NULL DEFAULT 0,
+    last_code  TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL,
+    UNIQUE (block_id, student_id)
+);
+CREATE INDEX IF NOT EXISTS idx_module_progress ON module_progress(module_id, student_id);
 """
 
 

@@ -29,8 +29,10 @@
     <a class="cb-link" href="{{ home }}">Dashboard</a>
     {% if role == 'trainer' %}
       <a class="cb-link" href="/trainer/students">Students</a>
+      <a class="cb-link" href="/trainer/modules">Modules</a>
     {% else %}
       <a class="cb-link" href="/student/exercises">Exercises</a>
+      <a class="cb-link" href="/student/modules">Modules</a>
     {% endif %}
     <a class="cb-link" href="/activity">Activity</a>
   </nav>

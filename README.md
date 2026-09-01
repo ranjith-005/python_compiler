@@ -93,6 +93,24 @@ starter code in a cell — so the whole notebook runtime above is the editor. **
 the solution against every test case, hidden ones included, and records the verdict
 (Accepted, Wrong Answer, Runtime Error, Syntax Error). Resubmit until the trainer approves.
 
+### Learning modules — `/trainer/modules`, `/student/modules`
+
+A trainer uploads a module as a single `.ipynb`. It is flattened once, on
+upload, into an ordered lesson: **markdown cells become the text, code cells
+become practice sections**. Nothing is assembled item by item in the website.
+
+The student player renders those blocks in order and gives every code section
+its own editor, a **Run** button and an output pane, so a topic is followed
+immediately by practice — the way w3schools reads.
+
+Progress is evidence rather than self-assessment: a practice section counts
+once the student has run it without raising, so a module's percentage reflects
+the code they actually got working. Trainers see the same number per student
+on the module page and on each student's detail page.
+
+Each run is a fresh, isolated subprocess with a short timeout, so one
+learner's runaway `while True` cannot affect anything else.
+
 ### Demo data
 
 ```powershell

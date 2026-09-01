@@ -578,11 +578,39 @@ def student_detail(student_id: int, user: sqlite3.Row = Depends(require_trainer)
             (student_id, trainer_id),
         ).fetchall()
 
+        # Requirement 17: module completion sits beside exercise completion.
+        module_rows = []
+        for m in conn.execute(
+            "SELECT m.id, m.title, m.description, a.assigned_at FROM module_assignments a"
+            " JOIN modules m ON m.id = a.module_id"
+            " WHERE a.student_id = ? AND m.trainer_id = ?"
+            " ORDER BY a.assigned_at DESC",
+            (student_id, trainer_id),
+        ):
+            total = conn.execute(
+                "SELECT COUNT(*) FROM module_blocks WHERE module_id = ? AND kind = 'code'",
+                (m["id"],),
+            ).fetchone()[0]
+            done = conn.execute(
+                "SELECT COUNT(*) FROM module_progress"
+                " WHERE module_id = ? AND student_id = ? AND ran_ok = 1",
+                (m["id"], student_id),
+            ).fetchone()[0]
+            module_rows.append(
+                {
+                    **dict(m),
+                    "code_blocks": total,
+                    "completed_blocks": done,
+                    "progress": round(100 * done / total) if total else 0,
+                }
+            )
+
     rows = [dict(r) for r in exercises]
     completed = sum(1 for r in rows if r["status"] == "completed")
     return {
         "student": dict(student),
         "exercises": rows,
+        "modules": module_rows,
         "queries": [dict(q) for q in queries],
         "assigned": len(rows),
         "completed": completed,

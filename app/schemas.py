@@ -68,3 +68,9 @@ class AssignIn(BaseModel):
     """Assign an existing exercise, e.g. from the drafts page (req 6)."""
 
     assign_to: list[int] = Field(default_factory=list, max_length=500)
+
+
+class RunIn(BaseModel):
+    """One practice snippet from a module's code section (req 14)."""
+
+    code: str = Field(default="", max_length=100_000)

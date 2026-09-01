@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}My modules · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('student', name, back='/student', heading='My modules') }}
+
+<main class="dash-main">
+  <div class="dash-head">
+    <div>
+      <h1>My modules</h1>
+      <p>Read a topic, then run the practice code right underneath it.</p>
+    </div>
+  </div>
+
+  <section class="panel">
+    <header>
+      <h2>Assigned modules</h2>
+      <span class="count" id="m-count">0</span>
+      <span class="spacer"></span>
+      <input class="dash-search" id="m-search" type="search" placeholder="Search modules">
+    </header>
+    <div class="panel-body" id="m-list"></div>
+  </section>
+</main>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "student_modules" };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/modules.js?v={{ asset_v() }}"></script>
+{% endblock %}
