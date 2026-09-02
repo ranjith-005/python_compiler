@@ -32,9 +32,9 @@
     cards.forEach((c) =>
       host.append(
         el("a", { class: `stat ${c.tone || ""}`, href: c.href },
-          el("span", { class: "stat-label", text: c.label }),
-          el("strong", { class: "stat-value", text: String(c.value) }),
-          el("span", { class: "stat-sub", text: c.sub })
+          el("span", { class: "label", text: c.label }),
+          el("strong", { class: "value", text: String(c.value) }),
+          el("span", { class: "sub", text: c.sub })
         )
       )
     );
