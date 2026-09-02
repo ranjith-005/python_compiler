@@ -1,20 +1,24 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="{{ theme|default('system', true) }}">
+<html lang="en" data-theme="{{ theme|default('system', true) }}" data-theme-source="{{ theme_source|default('anonymous', true) }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Python Learning Platform{% endblock %}</title>
   <script>
-    // The server already stamped the account's theme on <html>. This only
-    // covers a signed-out visitor who set a theme on a previous visit, and
-    // keeps localStorage in step for the Settings page's picker.
+    // A signed-in account is authoritative: the server already stamped it, and
+    // this only keeps localStorage in step so the Settings picker agrees.
+    // localStorage is consulted ONLY for a visitor with no account to read.
     (function () {
-      var server = document.documentElement.getAttribute("data-theme");
+      var root = document.documentElement;
+      var server = root.getAttribute("data-theme");
       try {
-        if (server && server !== "system") { localStorage.setItem("theme", server); return; }
+        if (root.getAttribute("data-theme-source") === "account") {
+          localStorage.setItem("theme", server);
+          return;
+        }
         var saved = localStorage.getItem("theme");
         if (saved === "light" || saved === "dark" || saved === "system") {
-          document.documentElement.setAttribute("data-theme", saved);
+          root.setAttribute("data-theme", saved);
         }
       } catch (e) {}
     })();

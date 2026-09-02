@@ -27,10 +27,17 @@ def theme_context(request: Request) -> dict:
     The theme has to be on <html> before the first paint, and 9 of 24 templates
     never load dashboard_common.js, so a script-only reconcile left those pages
     permanently on the default. One processor covers every page instead.
+
+    `theme_source` matters: an account set to "system" renders the same value as
+    an anonymous visitor, so without it the head script cannot tell whether the
+    server's value is authoritative.
     """
     user = get_optional_user(request)
     theme = user["theme"] if user else "system"
-    return {"theme": theme if theme in ("system", "light", "dark") else "system"}
+    return {
+        "theme": theme if theme in ("system", "light", "dark") else "system",
+        "theme_source": "account" if user else "anonymous",
+    }
 
 
 templates = Jinja2Templates(
