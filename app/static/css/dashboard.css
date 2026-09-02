@@ -1,6 +1,7 @@
 /* Trainer and student dashboards (SRS §2, §3).
-   Layered on colab.css: the palette, top bar and buttons come from there, and
-   everything below is the dashboard-specific furniture. */
+   The palette is the :root token set in styles.css; the top bar and buttons are
+   reused from colab.css, and everything below is the dashboard-specific
+   furniture. */
 
 .dash {
   background: var(--cell-bg);
@@ -41,7 +42,7 @@
   position: absolute; top: 2px; right: 2px;
   min-width: 16px; height: 16px; padding: 0 4px;
   border-radius: 8px;
-  background: var(--red); color: #fff;
+  background: var(--danger-fill); color: var(--on-accent);
   font-size: 10px; font-weight: 700; line-height: 16px;
   text-align: center;
 }
@@ -264,24 +265,25 @@
   padding: 20px 22px;
   margin-bottom: 20px;
   border-radius: 12px;
-  background: linear-gradient(120deg, var(--blue), var(--blue-dark));
-  color: #fff;
+  background: linear-gradient(120deg, var(--accent-fill), var(--accent-fill-2));
+  color: var(--on-accent);
   box-shadow: 0 6px 20px color-mix(in srgb, var(--blue) 25%, transparent);
 }
 .resume .grow { flex: 1; min-width: 240px; }
 .resume .eyebrow {
   font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--on-accent);
   opacity: .85;
 }
-.resume h2 { margin: 6px 0 6px; font-size: 21px; font-weight: 500; }
-.resume p { margin: 0; font-size: 13px; opacity: .9; line-height: 1.5; }
+.resume h2 { margin: 6px 0 6px; font-size: 21px; font-weight: 500; color: var(--on-accent); }
+.resume p { margin: 0; font-size: 13px; color: var(--on-accent); opacity: .9; line-height: 1.5; }
 .resume .cb-btn {
-  background: #fff; border-color: #fff; color: var(--blue); font-weight: 600;
+  background: #fff; border-color: #fff; color: var(--accent-fill); font-weight: 600;
   padding: 9px 18px;
 }
-.resume .cb-btn:hover { background: #eef3ff; color: var(--blue); }
-.resume .cb-btn.hollow { background: transparent; border-color: rgba(255,255,255,.6); color: #fff; }
-.resume .cb-btn.hollow:hover { background: rgba(255,255,255,.14); color: #fff; }
+.resume .cb-btn:hover { background: #eef3ff; color: var(--accent-fill); }
+.resume .cb-btn.hollow { background: transparent; border-color: color-mix(in srgb, var(--on-accent) 60%, transparent); color: var(--on-accent); }
+.resume .cb-btn.hollow:hover { background: rgba(255,255,255,.14); color: var(--on-accent); }
 .resume.empty-state { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); border: 1px solid var(--border); }
 .resume.empty-state .eyebrow { color: var(--text-dim); }
 .resume.empty-state p { color: var(--text-dim); }
@@ -327,7 +329,7 @@
   cursor: pointer;
 }
 .filters button:hover { background: var(--cell-bg); color: var(--text); }
-.filters button.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.filters button.active { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--on-accent); }
 
 /* ───────────────────────── search ───────────────────────── */
 
@@ -367,6 +369,8 @@
   border-bottom: 1px solid var(--border);
 }
 .sheet-card > header h2 { margin: 0; font-size: 16px; font-weight: 500; flex: 1; }
+/* colab.css hovers .icon-btn to var(--surface), which is the sheet's own fill. */
+.sheet-card .icon-btn:hover { background: var(--cell-bg); }
 .sheet-body { padding: 18px; overflow-y: auto; }
 .sheet-foot {
   display: flex; gap: 8px; justify-content: flex-end;
@@ -467,8 +471,8 @@
   display: grid; place-items: center;
   border-radius: 50%;
   border: 1px solid var(--border);
-  background: linear-gradient(140deg, var(--blue), var(--blue-dark));
-  color: #fff;
+  background: linear-gradient(140deg, var(--accent-fill), var(--accent-fill-2));
+  color: var(--on-accent);
   font: 600 12px/1 system-ui, sans-serif;
   letter-spacing: .02em;
   cursor: pointer;

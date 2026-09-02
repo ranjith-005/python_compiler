@@ -1,9 +1,11 @@
-/* Colab-style light theme for the notebook UI. */
+/* Colab-style notebook UI: top bar, sidebar, cells and outputs.
+   Colour comes from the one token set on :root in styles.css, which the
+   data-theme attribute switches; this file is layout and structure only. */
 
-/* styles.css paints <html> dark for the script IDE; the notebook pages are light.
-   `height: auto` matters: styles.css sets html/body to height:100%, which caps a
-   sticky header's containing block at one viewport - it would scroll out of view
-   on a long notebook. */
+/* <html> has to repeat the body's background, and `height: auto` matters:
+   styles.css sets html/body to height:100%, which caps a sticky header's
+   containing block at one viewport - it would scroll out of view on a long
+   notebook. */
 html:has(body.colab) { background: var(--bg); height: auto; }
 
 .colab {
@@ -87,8 +89,8 @@ html:has(body.colab) { background: var(--bg); height: auto; }
   transition: background .12s, color .12s, border-color .12s, box-shadow .12s;
 }
 .cb-btn:hover { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card-hover); }
-.cb-btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
-.cb-btn.primary:hover { background: var(--blue-dark); color: #fff; }
+.cb-btn.primary { background: var(--accent-fill); border-color: var(--accent-fill); color: var(--on-accent); }
+.cb-btn.primary:hover { background: var(--accent-fill-2); border-color: var(--accent-fill-2); color: var(--on-accent); }
 .cb-btn.ghost { border-color: transparent; }
 .cb-btn.subtle { border-style: dashed; color: var(--text-dim); }
 .cb-btn[disabled] { opacity: .5; cursor: default; }
