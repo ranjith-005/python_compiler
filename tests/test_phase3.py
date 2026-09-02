@@ -181,3 +181,27 @@ def test_opening_an_exercise_no_longer_creates_a_notebook(client):
     client.post(f"/api/assignments/{assignment_id}/open")
     after = client.get("/api/notebooks").json()
     assert len(after) == before, "opening an exercise must not create a notebook"
+
+
+def test_the_solve_page_renders_and_is_guarded(client):
+    assignment_id = _make_assignment(client)
+    page = client.get(f"/student/assignments/{assignment_id}/solve")
+    assert page.status_code == 200
+    for piece in ("Run", "Submit", "Input", "Output"):
+        assert piece in page.text, piece
+
+    client.cookies.clear()
+    register_trainer(client, email="nosy@example.com")
+    redirected = client.get(f"/student/assignments/{assignment_id}/solve", follow_redirects=False)
+    assert redirected.status_code == 302
+
+
+def test_someone_elses_assignment_redirects_rather_than_erroring(client):
+    assignment_id = _make_assignment(client)
+    client.cookies.clear()
+    register(client, email="other@example.com")
+    response = client.get(
+        f"/student/assignments/{assignment_id}/solve", follow_redirects=False
+    )
+    assert response.status_code == 302
+    assert response.headers["location"] == "/student/exercises"

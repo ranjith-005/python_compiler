@@ -192,6 +192,28 @@ def student_exercises_page(request: Request, user=Depends(get_optional_user)):
     return templates.TemplateResponse(request, "student_exercises.html", {"name": display_name(user)})
 
 
+@app.get("/student/assignments/{assignment_id}/solve", include_in_schema=False)
+def student_solve_page(
+    assignment_id: int, request: Request, user=Depends(get_optional_user)
+):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "student":
+        return RedirectResponse("/trainer", status_code=302)
+    with get_conn() as conn:
+        owned = conn.execute(
+            "SELECT 1 FROM assignments WHERE id = ? AND student_id = ?",
+            (assignment_id, user["id"]),
+        ).fetchone()
+    if owned is None:
+        return RedirectResponse("/student/exercises", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "solve.html",
+        {"name": display_name(user), "assignment_id": assignment_id},
+    )
+
+
 @app.get("/activity", include_in_schema=False)
 def activity_page(request: Request, user=Depends(get_optional_user)):
     if not user:

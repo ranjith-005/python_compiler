@@ -647,3 +647,46 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 @media (max-width: 760px) {
   .theme-choices { grid-template-columns: 1fr; }
 }
+
+/* ── exercise solve page ──────────────────────────────────────────── */
+
+.solve-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; align-items: start; }
+.solve-side { display: grid; gap: 16px; }
+.code-area {
+  width: 100%;
+  min-height: 340px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--cell-bg);
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.55;
+  resize: vertical;
+  tab-size: 4;
+}
+.code-area.small { min-height: 110px; }
+.code-area:focus { outline: none; border-color: var(--blue); }
+.output {
+  margin: 0;
+  min-height: 110px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--text);
+}
+.output.err { color: var(--red); }
+.field-block { margin-top: 14px; }
+.field-block .label { display: block; margin-bottom: 4px; }
+.sample {
+  margin: 0; padding: 8px 10px;
+  background: var(--cell-bg); border: 1px solid var(--border);
+  border-radius: 6px; font-family: var(--mono); font-size: 13px;
+  white-space: pre-wrap;
+}
+.statement { margin: 0; white-space: pre-wrap; }
+
+@media (max-width: 980px) { .solve-grid { grid-template-columns: 1fr; } }

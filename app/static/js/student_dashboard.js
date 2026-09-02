@@ -64,15 +64,6 @@
 
   // ── upcoming deadlines ──────────────────────────────────────────────────
 
-  async function openAssignment(a) {
-    try {
-      const result = await D.api(`/api/assignments/${a.id}/open`, { method: "POST" });
-      window.location.href = `/nb/${result.notebook_id}`;
-    } catch (err) {
-      D.toast(err.message, true);
-    }
-  }
-
   function renderDeadlines() {
     // Open work with a due date; `assignments` is already ordered soonest
     // due date first (nulls last), so filtering keeps that order.
@@ -99,9 +90,9 @@
             "div",
             { class: "actions" },
             el(
-              "button",
-              { class: "cb-btn primary", onclick: () => openAssignment(a) },
-              a.notebook_id ? "Continue" : "Start"
+              "a",
+              { class: "cb-btn primary", href: `/student/assignments/${a.id}/solve` },
+              a.status === "assigned" ? "Start" : "Continue"
             )
           )
         )

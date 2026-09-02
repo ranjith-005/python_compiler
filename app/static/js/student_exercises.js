@@ -103,9 +103,9 @@
             el(
               "button",
               { class: "cb-btn primary", onclick: () => openAssignment(a) },
-              closed ? "View" : a.notebook_id ? "Continue" : "Start"
+              closed ? "View" : a.status === "assigned" ? "Start" : "Continue"
             ),
-            !closed && a.notebook_id
+            !closed && a.status !== "assigned"
               ? el("button", { class: "cb-btn", onclick: () => submit(a) }, "Submit")
               : null
           )
@@ -140,8 +140,8 @@
 
   async function openAssignment(a) {
     try {
-      const result = await D.api(`/api/assignments/${a.id}/open`, { method: "POST" });
-      window.location.href = `/nb/${result.notebook_id}`;
+      await D.api(`/api/assignments/${a.id}/open`, { method: "POST" });
+      window.location.href = `/student/assignments/${a.id}/solve`;
     } catch (err) {
       D.toast(err.message, true);
     }

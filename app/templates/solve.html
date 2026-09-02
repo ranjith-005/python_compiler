@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Solve · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar('student', name, back='/student/exercises', heading='Exercise', current='exercises') }}
+
+<main class="dash-main solve">
+  <div class="dash-head">
+    <div>
+      <h1 id="ex-title">Loading…</h1>
+      <p id="ex-meta"></p>
+    </div>
+    <span class="pill" id="ex-status"></span>
+  </div>
+
+  <section class="panel" id="problem-panel">
+    <header><h2>Problem</h2></header>
+    <div class="panel-body pad" id="problem-body"></div>
+  </section>
+
+  <div class="solve-grid">
+    <section class="panel">
+      <header><h2>Your solution</h2><span class="spacer"></span>
+        <span class="cb-hint" id="save-state">Saved</span></header>
+      <div class="panel-body pad">
+        <textarea id="code" class="code-area" spellcheck="false"
+                  aria-label="Your solution"></textarea>
+      </div>
+    </section>
+
+    <div class="solve-side">
+      <section class="panel">
+        <header><h2>Input</h2></header>
+        <div class="panel-body pad">
+          <textarea id="stdin" class="code-area small" spellcheck="false"
+                    aria-label="Input given to your program"></textarea>
+        </div>
+      </section>
+      <section class="panel">
+        <header><h2>Output</h2><span class="spacer"></span>
+          <span class="cb-hint" id="run-time"></span></header>
+        <div class="panel-body pad"><pre class="output" id="output"></pre></div>
+      </section>
+    </div>
+  </div>
+
+  <div class="row-actions page-actions">
+    <button class="cb-btn" id="run-btn">Run</button>
+    <button class="cb-btn primary" id="submit-btn">Submit</button>
+  </div>
+</main>
+
+<div class="flash" id="flash" hidden></div>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.ASSIGNMENT_ID = {{ assignment_id }};</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/solve.js?v={{ asset_v() }}"></script>
+{% endblock %}
