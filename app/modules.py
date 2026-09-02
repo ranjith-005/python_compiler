@@ -30,6 +30,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from .config import settings
 from .db import get_conn, notify, record_activity, utcnow
 from .deps import get_current_user, require_student, require_trainer
+from .names import display_name
 from .schemas import AssignIn, RunIn
 from .workspace import workspace_dir
 
@@ -83,6 +84,18 @@ def parse_notebook(raw: bytes) -> list[tuple[str, str]]:
 
 def _progress(done: int, total: int) -> int:
     return round(100 * done / total) if total else 0
+
+
+def _display(row: dict, name_key: str = "full_name", email_key: str = "email") -> str:
+    """`display_name` for a joined row that carries only a name and an email."""
+    return display_name(
+        {
+            "full_name": row.get(name_key) or "",
+            "first_name": "",
+            "last_name": "",
+            "email": row.get(email_key) or "",
+        }
+    )
 
 
 def _assigned(conn: sqlite3.Connection, module_id: int, student_id: int) -> bool:
@@ -274,8 +287,14 @@ def module_detail(module_id: int, user: sqlite3.Row = Depends(get_current_user))
                     " WHERE module_id = ? AND student_id = ? AND ran_ok = 1",
                     (module_id, row["id"]),
                 ).fetchone()[0]
+                row_dict = dict(row)
                 students.append(
-                    {**dict(row), "completed_blocks": done, "progress": _progress(done, total)}
+                    {
+                        **row_dict,
+                        "completed_blocks": done,
+                        "progress": _progress(done, total),
+                        "display": _display(row_dict),
+                    }
                 )
             item["students"] = students
         else:

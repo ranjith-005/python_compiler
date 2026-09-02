@@ -40,6 +40,18 @@ def _scalar(conn: sqlite3.Connection, sql: str, params: tuple = ()) -> int:
     return int(row[0]) if row and row[0] is not None else 0
 
 
+def _display(row: dict, name_key: str, email_key: str = "email") -> str:
+    """`display_name` for a joined row that carries only a name and an email."""
+    return display_name(
+        {
+            "full_name": row.get(name_key) or "",
+            "first_name": "",
+            "last_name": "",
+            "email": row.get(email_key) or "",
+        }
+    )
+
+
 def _feed(conn: sqlite3.Connection, user_id: int) -> dict:
     """Notifications and recent activity - shared by both dashboards (§17)."""
     notifications = _rows(
@@ -128,6 +140,8 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
                 (trainer_id,),
             )
         )
+        for row in review_queue:
+            row["display"] = _display(row, "student", "student_email")
 
         pending = _rows(
             conn.execute(
@@ -144,6 +158,7 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
         )
         for row in pending:
             row["overdue"] = bool(row["due_date"] and row["due_date"] < now)
+            row["display"] = _display(row, "student", "student_email")
 
         deadlines = _rows(
             conn.execute(
@@ -180,6 +195,7 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
             row["progress"] = (
                 round(100 * row["completed"] / row["assigned"]) if row["assigned"] else 0
             )
+            row["display"] = _display(row, "name", "email")
 
         exercises = _rows(
             conn.execute(
@@ -205,6 +221,8 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
                 (trainer_id,),
             )
         )
+        for row in queries:
+            row["display"] = _display(row, "student", "email")
 
         feed = _feed(conn, trainer_id)
 

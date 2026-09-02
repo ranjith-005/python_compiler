@@ -58,7 +58,7 @@
   async function studentDetail() {
     const data = await api(`/api/students/${PAGE.studentId}`);
     const s = data.student;
-    $("student-name").textContent = s.full_name || s.email;
+    $("student-name").textContent = s.display;
     $("student-sub").textContent = s.email;
     $("personal-link").href = `/trainer/students/${PAGE.studentId}/profile`;
 
@@ -111,7 +111,7 @@
   async function studentPersonal() {
     const data = await api(`/api/students/${PAGE.studentId}`);
     const s = data.student;
-    $("student-name").textContent = s.full_name || s.email;
+    $("student-name").textContent = s.display;
     $("back-link").href = `/trainer/students/${PAGE.studentId}`;
 
     const field = (label, value) =>
@@ -138,7 +138,7 @@
     }
 
     $("title").textContent = e.title;
-    $("subtitle").textContent = `${data.student.full_name || data.student.email} · ${
+    $("subtitle").textContent = `${data.student.display} · ${
       (STATUS[e.status] || [e.status])[0]
     }`;
 
@@ -222,7 +222,7 @@
       $("students"),
       x.students.map((s) =>
         row(
-          s.full_name || s.email,
+          s.display,
           [statusPill(s.status), el("span", {}, `Assigned ${D.when(s.assigned_at)}`)],
           el("span", { class: "chev" }, "›"),
           () => {
@@ -238,7 +238,7 @@
       $("submissions"),
       x.submissions.map((s) =>
         row(
-          s.student || s.email,
+          s.display,
           [
             el("span", {}, D.when(s.submitted_at)),
             el(
@@ -287,7 +287,7 @@
                 event.stopPropagation();
                 const picked = prompt(
                   `Assign "${x.title}" to which students?\n\n` +
-                    students.map((s) => `${s.id}: ${s.name || s.email}`).join("\n") +
+                    students.map((s) => `${s.id}: ${s.display}`).join("\n") +
                     "\n\nEnter ids separated by commas, or 'all'.",
                   "all"
                 );
@@ -331,7 +331,7 @@
       return;
     }
     $("title").textContent = s.exercise;
-    $("subtitle").textContent = `${s.student || s.student_email} · submitted ${D.when(
+    $("subtitle").textContent = `${s.display} · submitted ${D.when(
       s.submitted_at
     )}`;
     fill($("meta"), [
@@ -373,7 +373,7 @@
           "label",
           { class: "pick" },
           el("input", { type: "checkbox", value: s.id }),
-          el("span", {}, s.name || s.email)
+          el("span", {}, s.display)
         )
       );
     });

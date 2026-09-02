@@ -75,3 +75,19 @@ def test_password_change_closes_the_kernel_socket_too(client):
         with pytest.raises(WebSocketDisconnect):
             with elsewhere.websocket_connect(f"/ws/kernel/{notebook_id}"):
                 pass
+
+
+def test_no_api_response_exposes_an_email_as_a_name(client):
+    register_trainer(client)
+    client.cookies.clear()
+    register(client, email="nameless.student@example.com")
+    client.cookies.clear()
+    # A second, distinct trainer account: the first email is already taken, and
+    # the roster this endpoint returns is not scoped to who is asking anyway.
+    register_trainer(client, email="trainer2@example.com")
+
+    roster = client.get("/api/dashboard/trainer").json()["students"]
+    assert roster, "expected the student in the roster"
+    for row in roster:
+        assert row["display"] == "Nameless Student"
+        assert "@" not in row["display"]

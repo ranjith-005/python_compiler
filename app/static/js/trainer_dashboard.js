@@ -89,7 +89,7 @@
             el(
               "div",
               { class: "meta" },
-              el("span", {}, r.student || r.student_email),
+              el("span", {}, r.display),
               pill(label(r.result), RESULT_TONES[r.result] || "grey"),
               el(
                 "span",
@@ -150,7 +150,7 @@
             el(
               "div",
               { class: "meta" },
-              el("span", {}, p.student || p.student_email),
+              el("span", {}, p.display),
               pill(text, tone),
               el("span", { class: p.overdue ? "tests fail" : "" }, D.due(p.due_date))
             )
@@ -194,7 +194,7 @@
     fill(
       document.getElementById("student-list"),
       data.students.map((s) => {
-        const name = s.name || s.email;
+        const name = s.display;
         return el(
           "div",
           { class: "row student-row" },

@@ -12,7 +12,7 @@
     list.textContent = "";
     if (!visible.length) { list.innerHTML = '<p class="empty-note">No students match your search.</p>'; return; }
     visible.forEach((s) => {
-      const name = s.name || s.email;
+      const name = s.display;
       const row = document.createElement("div"); row.className = "row student-row";
       row.innerHTML = `<div class="who"><span class="avatar"></span><div><div class="title"></div><div class="meta"><span>${s.assigned} assigned</span><span class="dot-sep">${s.completed} completed</span>${s.awaiting ? `<span class="pill amber">${s.awaiting} awaiting review</span>` : ""}</div></div></div><span class="tests">${s.progress}%</span><div class="bar ${s.progress === 100 ? "done" : ""}"><span></span></div>`;
       row.querySelector(".avatar").textContent = name.slice(0, 2).toUpperCase();

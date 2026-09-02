@@ -144,7 +144,7 @@
           el(
             "div",
             {},
-            el("div", { class: "title" }, s.full_name || s.email),
+            el("div", { class: "title" }, s.display),
             el(
               "div",
               { class: "meta" },
@@ -181,7 +181,7 @@
       const students = await api("/api/students");
       const picked = prompt(
         `Assign "${m.title}" to which students?\n\n` +
-          students.map((s) => `${s.id}: ${s.name || s.email}`).join("\n") +
+          students.map((s) => `${s.id}: ${s.display}`).join("\n") +
           "\n\nEnter ids separated by commas, or 'all'.",
         "all"
       );

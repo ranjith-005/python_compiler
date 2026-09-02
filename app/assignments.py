@@ -29,6 +29,18 @@ router = APIRouter(prefix="/api", tags=["assignments"])
 RUN_TIMEOUT_SEC = min(settings.CELL_TIMEOUT_SEC, 15)
 
 
+def _display(row: dict, name_key: str, email_key: str = "email") -> str:
+    """`display_name` for a joined row that carries only a name and an email."""
+    return display_name(
+        {
+            "full_name": row.get(name_key) or "",
+            "first_name": "",
+            "last_name": "",
+            "email": row.get(email_key) or "",
+        }
+    )
+
+
 def _due(value: str | None) -> str | None:
     """Accept a date or datetime from the form and store it as UTC ISO."""
     if not value:
@@ -148,7 +160,10 @@ def list_students(user: sqlite3.Row = Depends(require_trainer)) -> list[dict]:
             "SELECT id, email, full_name AS name, is_active, created_at FROM users"
             " WHERE role = 'student' ORDER BY full_name COLLATE NOCASE"
         ).fetchall()
-    return [dict(r) for r in rows]
+    result = [dict(r) for r in rows]
+    for row in result:
+        row["display"] = _display(row, "name")
+    return result
 
 
 @router.get("/exercises")
@@ -176,6 +191,8 @@ def list_exercises(
                 "SELECT u.id, u.full_name, u.email, a.status FROM assignments a JOIN users u ON u.id=a.student_id WHERE a.exercise_id=? ORDER BY u.full_name",
                 (row["id"],),
             ).fetchall()]
+            for s in item["students"]:
+                s["display"] = _display(s, "full_name")
             result.append(item)
     return result
 
@@ -608,8 +625,10 @@ def student_detail(student_id: int, user: sqlite3.Row = Depends(require_trainer)
 
     rows = [dict(r) for r in exercises]
     completed = sum(1 for r in rows if r["status"] == "completed")
+    student_dict = dict(student)
+    student_dict["display"] = display_name(student_dict)
     return {
-        "student": dict(student),
+        "student": student_dict,
         "exercises": rows,
         "modules": module_rows,
         "queries": [dict(q) for q in queries],
@@ -650,6 +669,8 @@ def exercise_detail(exercise_id: int, user: sqlite3.Row = Depends(require_traine
                 (exercise_id,),
             )
         ]
+        for s in item["students"]:
+            s["display"] = _display(s, "full_name")
         item["submissions"] = [
             dict(s)
             for s in conn.execute(
@@ -660,6 +681,8 @@ def exercise_detail(exercise_id: int, user: sqlite3.Row = Depends(require_traine
                 (exercise_id,),
             )
         ]
+        for s in item["submissions"]:
+            s["display"] = _display(s, "student")
     return item
 
 
