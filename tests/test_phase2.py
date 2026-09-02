@@ -1,4 +1,7 @@
+from datetime import datetime, timedelta, timezone
+
 from conftest import register, register_trainer
+from test_dashboards import make_exercise, solve, student_id
 
 
 def test_pages_render_the_accounts_theme_server_side(client):
@@ -129,3 +132,94 @@ def test_trainer_dashboard_is_cards_only(client):
     # used to duplicate it, is what must be gone.
     assert 'class="quick"' not in html
     assert 'id="stats"' in html
+
+
+# ── Task 6: the two new trainer pages, and the roster by name ───────────────
+
+
+def test_new_trainer_pages_are_guarded_and_render(client):
+    register_trainer(client)
+    for path in ("/trainer/pending", "/trainer/completed"):
+        assert client.get(path).status_code == 200
+    client.cookies.clear()
+    register(client, email="s2@example.com")
+    for path in ("/trainer/pending", "/trainer/completed"):
+        r = client.get(path, follow_redirects=False)
+        assert r.status_code == 302 and r.headers["location"] == "/student"
+
+
+def test_student_detail_counts_late_submissions(client):
+    # An assignment submitted after its due date is late; one with no due date never is.
+    register_trainer(client)
+    students = client.get("/api/students").json()
+    detail_keys = ("late", "on_time_rate", "assigned", "completed", "pending", "awaiting")
+    if students:
+        detail = client.get(f"/api/students/{students[0]['id']}").json()
+        for key in detail_keys:
+            assert key in detail, key
+
+
+def test_student_detail_late_arithmetic(client):
+    """The shape-only test above never submits anything; this exercises the
+    actual computation: one exercise assigned with a due date in the past
+    (submitted late), one with no due date at all (never late)."""
+    register_trainer(client)
+    client.cookies.clear()
+    register(client, email="late@example.com")
+    client.cookies.clear()
+    client.post("/auth/login", json={"email": "trainer@example.com", "password": "password123"})
+
+    sid = student_id(client, "late@example.com")
+    past_due = (datetime.now(timezone.utc) - timedelta(days=2)).date().isoformat()
+    make_exercise(client, [sid], title="Late one", due=past_due)
+    make_exercise(client, [sid], title="No due date", due=None)
+
+    client.cookies.clear()
+    client.post("/auth/login", json={"email": "late@example.com", "password": "password123"})
+    assignments = client.get("/api/dashboard/student").json()["assignments"]
+    late_assignment = next(a for a in assignments if a["title"] == "Late one")
+    ontime_assignment = next(a for a in assignments if a["title"] == "No due date")
+    solve(client, late_assignment["id"], "a = int(input())\nb = int(input())\nprint(a + b)")
+    solve(client, ontime_assignment["id"], "a = int(input())\nb = int(input())\nprint(a + b)")
+
+    client.cookies.clear()
+    client.post("/auth/login", json={"email": "trainer@example.com", "password": "password123"})
+    detail = client.get(f"/api/students/{sid}").json()
+
+    assert detail["assigned"] == 2
+    assert detail["late"] == 1
+    assert detail["on_time_rate"] == 50
+    assert detail["awaiting"] == 2
+    assert detail["pending"] == 0
+    late_row = next(e for e in detail["exercises"] if e["title"] == "Late one")
+    ontime_row = next(e for e in detail["exercises"] if e["title"] == "No due date")
+    assert late_row["late"] is True
+    assert ontime_row["late"] is False
+
+
+def test_exercise_deletion_is_reachable_from_the_detail_page(client):
+    register_trainer(client)
+    created = client.post("/api/exercises", json={
+        "title": "Throwaway",
+        "problem_statement": "x",
+        "status": "published",
+        "test_cases": [], "assign_to": [],
+    }).json()
+
+    page = client.get(f"/trainer/exercises/{created['id']}").text
+    assert 'id="delete-exercise-btn"' in page
+
+    assert client.delete(f"/api/exercises/{created['id']}").status_code == 200
+    assert client.get(f"/api/exercises/{created['id']}").status_code == 404
+
+
+def test_date_filters_restored_on_exercises_and_pending_only(client):
+    register_trainer(client)
+    for path in ("/trainer/exercises", "/trainer/pending"):
+        html = client.get(path).text
+        assert 'id="filter-from"' in html, path
+        assert 'id="filter-to"' in html, path
+    for path in ("/trainer/queue", "/trainer/completed"):
+        html = client.get(path).text
+        assert 'id="filter-from"' not in html, path
+        assert 'id="filter-to"' not in html, path

@@ -537,6 +537,11 @@
 .row.clickable:hover { background: color-mix(in srgb, var(--blue) 5%, transparent); }
 .row .chev { color: var(--text-dim); font-size: 18px; line-height: 1; padding-left: 8px; }
 
+/* The exercise detail page's two-step delete confirm: armed state reads as
+   an unmistakable "about to happen", never a silent browser confirm(). */
+.cb-btn.danger { background: var(--danger-fill); border-color: var(--danger-fill); color: var(--on-accent); }
+.cb-btn.danger:hover { background: var(--red); border-color: var(--red); color: var(--on-accent); }
+
 /* Date range filters in a panel header (req 3). */
 .date-filter {
   display: inline-flex; align-items: center; gap: 6px;

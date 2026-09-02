@@ -20,6 +20,15 @@
 <main class="dash-main">
   <div class="dash-head"><div><h1>{{ title }}</h1><p>{{ blurb }}</p></div></div>
   <section class="panel">
+    {% if section in ('exercises', 'pending') %}
+    <header>
+      <span class="spacer"></span>
+      <label class="date-filter">From
+        <input type="date" id="filter-from"></label>
+      <label class="date-filter">To
+        <input type="date" id="filter-to"></label>
+    </header>
+    {% endif %}
     <div class="panel-body" id="section-list"></div>
   </section>
 </main>

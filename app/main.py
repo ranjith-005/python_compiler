@@ -173,6 +173,16 @@ def trainer_queue_page(request: Request, user=Depends(get_optional_user)):
     return _trainer_page(request, user, "trainer_section.html", {"section": "queue"})
 
 
+@app.get("/trainer/pending", include_in_schema=False)
+def trainer_pending_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "trainer_section.html", {"section": "pending"})
+
+
+@app.get("/trainer/completed", include_in_schema=False)
+def trainer_completed_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "trainer_section.html", {"section": "completed"})
+
+
 @app.get("/student/exercises", include_in_schema=False)
 def student_exercises_page(request: Request, user=Depends(get_optional_user)):
     if not user:

@@ -65,7 +65,12 @@
     fill($("stats"), [
       stat("Assigned", data.assigned, "Exercises from you"),
       stat("Completed", data.completed, "Marked done", "good"),
-      stat("Progress", `${data.progress}%`, "Of what you assigned"),
+      stat("Pending", data.pending, "Still open"),
+      stat("Awaiting review", data.awaiting, "Submitted, not yet reviewed"),
+      stat("Late", data.late, "Submitted after the due date", data.late ? "bad" : ""),
+      stat("On-time rate", `${data.on_time_rate}%`, "Of what was submitted"),
+      stat("Avg tests passed", `${data.avg_tests}%`, "Across graded submissions"),
+      stat("Last active", data.last_active ? D.when(data.last_active) : "Never", "Most recent activity"),
     ]);
 
     const items = data.exercises.map((e) => ({
@@ -76,6 +81,7 @@
           statusPill(e.status),
           el("span", {}, `Assigned ${D.when(e.assigned_at)}`),
           e.submitted_at ? el("span", {}, `Submitted ${D.when(e.submitted_at)}`) : null,
+          e.late ? pill("Late", "red") : null,
           e.tests_total
             ? el(
                 "span",
@@ -183,10 +189,49 @@
 
   // ── requirement 8: one exercise ──────────────────────────────────────────
 
+  // No confirm() — browser dialogs block this environment. A first click arms
+  // the button; a second click within a few seconds deletes. Clicking
+  // anything else, or the timeout firing, disarms it again.
+  function wireDelete(btn, exerciseId) {
+    let armed = false;
+    let timer = null;
+
+    function disarm() {
+      armed = false;
+      btn.textContent = "Delete exercise";
+      btn.classList.remove("danger");
+      clearTimeout(timer);
+      timer = null;
+    }
+
+    btn.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      if (!armed) {
+        armed = true;
+        btn.textContent = "Click again to confirm";
+        btn.classList.add("danger");
+        timer = setTimeout(disarm, 4000);
+        return;
+      }
+      try {
+        await api(`/api/exercises/${exerciseId}`, { method: "DELETE" });
+        window.location.href = "/trainer/exercises";
+      } catch (err) {
+        toast(err.message, true);
+        disarm();
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      if (armed && event.target !== btn) disarm();
+    });
+  }
+
   async function exerciseDetail() {
     const x = await api(`/api/exercises/${PAGE.exerciseId}`);
     $("title").textContent = x.title;
     $("subtitle").textContent = `${x.status} · created ${D.when(x.created_at)}`;
+    wireDelete($("delete-exercise-btn"), x.id);
 
     const block = (label, value) =>
       value ? el("div", { class: "qblock" }, el("h3", {}, label), el("pre", {}, value)) : null;

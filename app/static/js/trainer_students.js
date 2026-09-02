@@ -1,31 +1,55 @@
+// The trainer's student roster. Every row is built with el() from
+// dashboard_common.js — never innerHTML — because a name here is
+// student-authored (`display`, never a raw email) and reaches the trainer's
+// browser as data.
 (function () {
+  const D = window.Dash;
+  const { api, el, fill, pill } = D;
   const list = document.getElementById("student-list");
   const count = document.getElementById("student-count");
   const search = document.getElementById("student-search");
   let students = [];
 
-  function logout() { fetch("/auth/logout", { method: "POST" }).finally(() => { window.location.href = "/login"; }); }
+  function row(s) {
+    return el(
+      "a",
+      { class: "row student-row clickable", href: `/trainer/students/${s.id}` },
+      el(
+        "div",
+        { class: "who" },
+        el("span", { class: "avatar" }, s.display.slice(0, 2).toUpperCase()),
+        el(
+          "div",
+          {},
+          el("div", { class: "title" }, s.display),
+          el(
+            "div",
+            { class: "meta" },
+            el("span", {}, `${s.assigned} assigned`),
+            el("span", { class: "dot-sep" }, `${s.completed} completed`),
+            s.awaiting ? pill(`${s.awaiting} awaiting review`, "amber") : null
+          )
+        )
+      ),
+      el("span", { class: "chev" }, "›")
+    );
+  }
+
   function render() {
     const term = search.value.trim().toLowerCase();
-    const visible = students.filter((s) => !term || `${s.name} ${s.email}`.toLowerCase().includes(term));
+    const visible = students.filter(
+      (s) => !term || `${s.display} ${s.email}`.toLowerCase().includes(term)
+    );
     count.textContent = students.length;
-    list.textContent = "";
-    if (!visible.length) { list.innerHTML = '<p class="empty-note">No students match your search.</p>'; return; }
-    visible.forEach((s) => {
-      const name = s.display;
-      const row = document.createElement("div"); row.className = "row student-row";
-      row.innerHTML = `<div class="who"><span class="avatar"></span><div><div class="title"></div><div class="meta"><span>${s.assigned} assigned</span><span class="dot-sep">${s.completed} completed</span>${s.awaiting ? `<span class="pill amber">${s.awaiting} awaiting review</span>` : ""}</div></div></div><span class="tests">${s.progress}%</span><div class="bar ${s.progress === 100 ? "done" : ""}"><span></span></div>`;
-      row.querySelector(".avatar").textContent = name.slice(0, 2).toUpperCase();
-      row.querySelector(".title").textContent = name;
-      row.querySelector(".bar span").style.width = `${s.progress}%`;
-      list.appendChild(row);
-    });
+    fill(list, visible.map(row), "No students match your search.");
   }
+
   async function load() {
-    const response = await fetch("/api/dashboard/trainer");
-    if (response.status === 401) { window.location.href = "/login"; return; }
-    const data = await response.json(); students = data.students || []; render();
+    const data = await api("/api/dashboard/trainer");
+    students = data.students || [];
+    render();
   }
+
   search.addEventListener("input", render);
-  load().catch(() => { list.innerHTML = '<p class="empty-note">Unable to load students.</p>'; });
+  load().catch(() => fill(list, [], "Unable to load students."));
 })();

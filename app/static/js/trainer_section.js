@@ -10,6 +10,22 @@
   const list = document.getElementById("section-list");
   const section = window.SECTION;
 
+  // Restored date-range filters (req 3): only these two sections ever had
+  // them, so only these two get the controls back. Filtering is client side
+  // over `due_date`, which the dashboard endpoint already returns.
+  const fromInput = document.getElementById("filter-from");
+  const toInput = document.getElementById("filter-to");
+
+  function dueInRange(dueDate) {
+    if (!dueDate) return true; // no due date is never filtered out
+    const from = fromInput ? fromInput.value : "";
+    const to = toInput ? toInput.value : "";
+    const day = dueDate.slice(0, 10);
+    if (from && day < from) return false;
+    if (to && day > to) return false;
+    return true;
+  }
+
   function row(title, metaParts, href) {
     const body = el(
       "div",
@@ -28,7 +44,7 @@
 
   const RENDER = {
     exercises(data) {
-      const rows = data.exercises || [];
+      const rows = (data.exercises || []).filter((x) => dueInRange(x.due_date));
       if (!rows.length) return empty("No exercises created yet.");
       rows.forEach((x) =>
         list.append(
@@ -55,7 +71,7 @@
       );
     },
     pending(data) {
-      const rows = data.pending || [];
+      const rows = (data.pending || []).filter((x) => dueInRange(x.due_date));
       if (!rows.length) return empty("No outstanding work — everything assigned has been submitted.");
       rows.forEach((x) =>
         list.append(
@@ -79,13 +95,25 @@
     },
   };
 
+  let data = null;
+  function render() {
+    if (!data) return;
+    list.textContent = "";
+    (RENDER[section] || RENDER.exercises)(data);
+  }
+
   D.api("/api/dashboard/trainer")
-    .then((data) => {
-      list.textContent = "";
-      (RENDER[section] || RENDER.exercises)(data);
+    .then((loaded) => {
+      data = loaded;
+      render();
     })
     .catch((err) => {
       list.textContent = "";
       empty(err.message || "Unable to load this page.");
     });
+
+  if (fromInput && toInput) {
+    fromInput.addEventListener("input", render);
+    toInput.addEventListener("input", render);
+  }
 })();

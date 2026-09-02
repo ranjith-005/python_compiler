@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from .config import settings
+from .dashboards import OPEN_STATUSES
 from .db import create_notebook, get_conn, notify, record_activity, utcnow
 from .deps import get_current_user, require_student, require_trainer
 from .names import display_name
@@ -625,15 +626,27 @@ def student_detail(student_id: int, user: sqlite3.Row = Depends(require_trainer)
 
     rows = [dict(r) for r in exercises]
     completed = sum(1 for r in rows if r["status"] == "completed")
-    student_dict = dict(student)
-    student_dict["display"] = display_name(student_dict)
+    submitted = [r for r in rows if r["submitted_at"]]
+    # Late means it arrived after its due date. No due date is never late.
+    for r in rows:
+        r["late"] = bool(r["due_date"] and r["submitted_at"] and r["submitted_at"] > r["due_date"])
+    late = sum(1 for r in rows if r["late"])
+    graded = [r for r in submitted if r["tests_total"]]
     return {
-        "student": student_dict,
+        "student": {**dict(student), "display": display_name(student)},
         "exercises": rows,
         "modules": module_rows,
         "queries": [dict(q) for q in queries],
         "assigned": len(rows),
         "completed": completed,
+        "pending": sum(1 for r in rows if r["status"] in OPEN_STATUSES),
+        "awaiting": sum(1 for r in rows if r["status"] == "submitted"),
+        "late": late,
+        "on_time_rate": round(100 * (len(submitted) - late) / len(submitted)) if submitted else 100,
+        "avg_tests": round(
+            100 * sum(r["tests_passed"] for r in graded) / sum(r["tests_total"] for r in graded)
+        ) if graded else 0,
+        "last_active": max((r["last_opened_at"] for r in rows if r["last_opened_at"]), default=None),
         "progress": round(100 * completed / len(rows)) if rows else 0,
     }
 
