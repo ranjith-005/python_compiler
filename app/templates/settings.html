@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Settings · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar(user['role'], name, back=back, heading='Settings') }}
+
+<main class="dash-main narrow">
+  <div class="dash-head">
+    <div>
+      <h1>Settings</h1>
+      <p>Appearance, your sign-in password, and the name people see.</p>
+    </div>
+  </div>
+
+  <section class="panel">
+    <header><h2>Appearance</h2></header>
+    <div class="panel-body">
+      <div class="theme-choices" id="theme-choices">
+        <label class="theme-choice">
+          <input type="radio" name="theme" value="system">
+          <span class="swatch system"></span>
+          <strong>System</strong>
+          <small>Follows your device. Black unless your system asks for light.</small>
+        </label>
+        <label class="theme-choice">
+          <input type="radio" name="theme" value="light">
+          <span class="swatch light"></span>
+          <strong>Light</strong>
+          <small>Always light.</small>
+        </label>
+        <label class="theme-choice">
+          <input type="radio" name="theme" value="dark">
+          <span class="swatch dark"></span>
+          <strong>Dark</strong>
+          <small>Always dark.</small>
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Your details</h2></header>
+    <div class="panel-body">
+      <div class="field-row">
+        <div class="field">
+          <label for="first-name">First name</label>
+          <input id="first-name" autocomplete="given-name">
+        </div>
+        <div class="field">
+          <label for="last-name">Last name</label>
+          <input id="last-name" autocomplete="family-name">
+        </div>
+      </div>
+      <div class="field">
+        <label for="phone">Phone</label>
+        <input id="phone" autocomplete="tel">
+      </div>
+      <p class="help">Your email is {{ user['email'] }} and cannot be changed here.</p>
+      <div class="row-actions">
+        <button class="cb-btn primary" id="save-profile">Save details</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Change password</h2></header>
+    <div class="panel-body">
+      <div class="field">
+        <label for="current-password">Current password</label>
+        <input id="current-password" type="password" autocomplete="current-password">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="new-password">New password</label>
+          <input id="new-password" type="password" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="confirm-password">Confirm new password</label>
+          <input id="confirm-password" type="password" autocomplete="new-password">
+        </div>
+      </div>
+      <p class="help">At least 8 characters.</p>
+      <div class="row-actions">
+        <button class="cb-btn primary" id="save-password">Change password</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/settings.js?v={{ asset_v() }}"></script>
+{% endblock %}

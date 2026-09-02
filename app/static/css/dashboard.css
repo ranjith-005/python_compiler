@@ -629,3 +629,38 @@
 /* Progress along a module (student req 2). */
 .progress-panel .bar { height: 8px; border-radius: 999px; }
 .progress-label { font-size: 20px; font-weight: 400; }
+
+/* ── settings: theme picker ───────────────────────────────────────── */
+
+.theme-choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.theme-choice {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "radio swatch" "name name" "help help";
+  gap: 4px 10px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+}
+.theme-choice:has(input:checked) {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 18%, transparent);
+}
+.theme-choice input { grid-area: radio; margin: 0; }
+.theme-choice .swatch {
+  grid-area: swatch;
+  height: 34px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+}
+.theme-choice .swatch.system { background: linear-gradient(135deg, #0e1116 50%, #ffffff 50%); }
+.theme-choice .swatch.light  { background: #ffffff; }
+.theme-choice .swatch.dark   { background: #0e1116; }
+.theme-choice strong { grid-area: name; }
+.theme-choice small  { grid-area: help; color: var(--text-dim); }
+
+@media (max-width: 760px) {
+  .theme-choices { grid-template-columns: 1fr; }
+}

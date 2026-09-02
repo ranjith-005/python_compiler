@@ -122,6 +122,21 @@ def profile_page(request: Request, user=Depends(get_optional_user)):
     )
 
 
+@app.get("/settings", include_in_schema=False)
+def settings_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "user": user,
+            "name": display_name(user),
+            "back": home_for(user["role"]),
+        },
+    )
+
+
 # Literal routes, not /trainer/{section}. A single-segment path parameter here
 # matches every future /trainer/<page>, swallowing it before its own route is
 # reached -- which is exactly what happened when the modules pages arrived.

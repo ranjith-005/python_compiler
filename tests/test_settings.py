@@ -179,3 +179,21 @@ def test_dashboard_greets_by_name_not_email(client):
     html = client.get("/student").text
     assert "Kuttyxkutty123" in html
     assert "kuttyxkutty123@gmail.com" not in html
+
+
+def test_settings_page_renders_for_both_roles(client):
+    register_trainer(client)
+    assert client.get("/settings").status_code == 200
+    client.cookies.clear()
+
+    register(client, email="s@example.com")
+    page = client.get("/settings")
+    assert page.status_code == 200
+    for label in ("Appearance", "System", "Light", "Dark", "Change password", "Your details"):
+        assert label in page.text
+
+
+def test_settings_page_redirects_when_signed_out(client):
+    response = client.get("/settings", follow_redirects=False)
+    assert response.status_code == 302
+    assert response.headers["location"] == "/login"
