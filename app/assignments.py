@@ -29,6 +29,18 @@ router = APIRouter(prefix="/api", tags=["assignments"])
 # runaway loop in a student's code cannot tie up a request.
 RUN_TIMEOUT_SEC = min(settings.CELL_TIMEOUT_SEC, 15)
 
+# A runaway `while True: print(x)` can emit hundreds of megabytes inside the
+# timeout. Truncate before it reaches memory-resident JSON; the student only
+# needs enough output to see what their program did.
+MAX_RUN_OUTPUT_CHARS = 64_000
+
+
+def _clip(text: str) -> tuple[str, bool]:
+    """Return the text capped for display, and whether it was cut."""
+    if len(text) <= MAX_RUN_OUTPUT_CHARS:
+        return text, False
+    return text[:MAX_RUN_OUTPUT_CHARS], True
+
 
 def _display(row: dict, name_key: str, email_key: str = "email") -> str:
     """`display_name` for a joined row that carries only a name and an email."""
@@ -432,10 +444,13 @@ def run_solution(
         stdout, stderr, timed_out = "", f"Timed out after {RUN_TIMEOUT_SEC}s.", True
 
     duration_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+    stdout, out_clipped = _clip(stdout)
+    stderr, err_clipped = _clip(stderr)
     return {
         "stdout": stdout,
         "stderr": stderr,
         "timed_out": timed_out,
+        "truncated": out_clipped or err_clipped,
         "duration_ms": duration_ms,
     }
 

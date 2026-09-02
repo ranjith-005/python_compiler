@@ -127,6 +127,15 @@ def test_run_reports_an_error_without_raising(client):
     assert body["timed_out"] is False
 
 
+def test_run_truncates_runaway_output(client):
+    assignment_id = _make_assignment(client)
+    body = client.post(f"/api/assignments/{assignment_id}/run", json={
+        "code": "for _ in range(200000): print('x' * 100)", "stdin": "",
+    }).json()
+    assert body["truncated"] is True
+    assert len(body["stdout"]) <= 64_000
+
+
 def test_code_autosaves_and_survives_a_reload(client):
     assignment_id = _make_assignment(client)
     saved = client.patch(f"/api/assignments/{assignment_id}/code", json={
