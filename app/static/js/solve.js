@@ -39,37 +39,57 @@
     saveState.textContent = "Saved";
   }
 
+  // Actual save. Throws on failure so a caller (Submit) can refuse to
+  // proceed on stale/unsaved code rather than silently grading whatever
+  // is already in the database.
   async function save() {
     if (!dirty) return;
     try {
       await D.api(`/api/assignments/${id}/code`, {
         method: "PATCH",
+        keepalive: true, // survives a navigation/tab-close that fires this from visibilitychange
         body: JSON.stringify({ code: code.value, stdin: stdin.value }),
       });
       dirty = false;
       saveState.textContent = "Saved";
     } catch (err) {
       saveState.textContent = "Not saved";
+      throw err;
     }
+  }
+
+  // Every save path funnels through here so requests are always issued in
+  // order — a slow earlier save can never land after a newer one and
+  // clobber it (the PATCH is a blind UPDATE with no version guard).
+  let saveChain = Promise.resolve();
+
+  function queueSave() {
+    saveChain = saveChain.then(save, save);
+    return saveChain;
   }
 
   function markDirty() {
     dirty = true;
     saveState.textContent = "Saving…";
     clearTimeout(saveTimer);
-    saveTimer = setTimeout(save, 900);
+    saveTimer = setTimeout(() => queueSave().catch(() => {}), 900);
   }
 
   code.addEventListener("input", markDirty);
   stdin.addEventListener("input", markDirty);
   // A refresh or a closed tab must not lose work.
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") save();
+    if (document.visibilityState === "hidden") queueSave().catch(() => {});
   });
 
-  // Tab indents rather than leaving the editor.
+  // Tab indents rather than leaving the editor; Shift+Tab and Escape are
+  // the keyboard-only way out (WCAG 2.1.2).
   code.addEventListener("keydown", (e) => {
-    if (e.key !== "Tab") return;
+    if (e.key === "Escape") {
+      code.blur();
+      return;
+    }
+    if (e.key !== "Tab" || e.shiftKey) return;
     e.preventDefault();
     const start = code.selectionStart;
     code.setRangeText("    ", start, code.selectionEnd, "end");
@@ -78,6 +98,7 @@
 
   document.getElementById("run-btn").addEventListener("click", async () => {
     output.textContent = "Running…";
+    const sent = code.value;
     try {
       const r = await D.api(`/api/assignments/${id}/run`, {
         method: "POST",
@@ -89,8 +110,12 @@
       output.textContent = text;
       output.classList.toggle("err", Boolean(r.stderr) || r.timed_out);
       document.getElementById("run-time").textContent = `${r.duration_ms} ms`;
-      dirty = false;
-      saveState.textContent = "Saved";
+      // A run can take up to 15s; only clear dirty if nothing changed
+      // underneath it, or a pending edit's save would silently no-op.
+      if (code.value === sent) {
+        dirty = false;
+        saveState.textContent = "Saved";
+      }
     } catch (err) {
       output.textContent = err.message;
       output.classList.add("err");
@@ -98,7 +123,15 @@
   });
 
   document.getElementById("submit-btn").addEventListener("click", async () => {
-    await save();
+    try {
+      await queueSave();
+    } catch (err) {
+      D.flash(
+        "Could not save your code, so it was not submitted. Check your connection and try again.",
+        "error"
+      );
+      return;
+    }
     try {
       const v = await D.api(`/api/assignments/${id}/submit`, { method: "POST" });
       D.flash(

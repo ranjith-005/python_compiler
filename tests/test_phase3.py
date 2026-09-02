@@ -158,10 +158,20 @@ def test_submit_evaluates_the_saved_solution_not_a_notebook(client):
 
 
 def test_submitting_an_empty_solution_is_rejected_clearly(client):
+    from app.db import get_conn
+
     assignment_id = _make_assignment(client)
     response = client.post(f"/api/assignments/{assignment_id}/submit")
     assert response.status_code == 409
     assert "before submitting" in response.json()["detail"].lower()
+
+    # A rejected submit (unsaved/empty code) must not leave a submission
+    # row behind — nothing was actually graded.
+    with get_conn() as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM submissions WHERE assignment_id = ?", (assignment_id,)
+        ).fetchone()[0]
+    assert count == 0
 
 
 def test_another_students_assignment_is_not_reachable(client):
