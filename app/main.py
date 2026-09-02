@@ -19,7 +19,23 @@ from .kernel import registry
 from .names import display_name
 
 APP_DIR = Path(__file__).resolve().parent
-templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
+
+
+def theme_context(request: Request) -> dict:
+    """Put the signed-in user's theme in every template.
+
+    The theme has to be on <html> before the first paint, and 9 of 24 templates
+    never load dashboard_common.js, so a script-only reconcile left those pages
+    permanently on the default. One processor covers every page instead.
+    """
+    user = get_optional_user(request)
+    theme = user["theme"] if user else "system"
+    return {"theme": theme if theme in ("system", "light", "dark") else "system"}
+
+
+templates = Jinja2Templates(
+    directory=str(APP_DIR / "templates"), context_processors=[theme_context]
+)
 
 
 def asset_version() -> str:

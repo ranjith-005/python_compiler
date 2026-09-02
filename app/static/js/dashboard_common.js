@@ -4,22 +4,6 @@ window.Dash = (function () {
   const toastEl = document.getElementById("toast");
   let toastTimer = null;
 
-  // The head script applied whatever this browser remembered. The account is
-  // the source of truth across devices, so correct it once on load.
-  async function syncTheme() {
-    try {
-      const me = await fetch("/auth/me").then((r) => (r.ok ? r.json() : null));
-      if (!me || !me.theme) return;
-      if (localStorage.getItem("theme") !== me.theme) {
-        localStorage.setItem("theme", me.theme);
-        document.documentElement.setAttribute("data-theme", me.theme);
-      }
-    } catch (e) {
-      /* offline or signed out: keep what the head script applied */
-    }
-  }
-  syncTheme();
-
   function toast(message, isError) {
     toastEl.textContent = message;
     toastEl.classList.toggle("err", !!isError);
