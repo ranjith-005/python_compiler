@@ -20,7 +20,7 @@ from .dashboards import OPEN_STATUSES
 from .db import create_notebook, get_conn, notify, record_activity, utcnow
 from .deps import get_current_user, require_student, require_trainer
 from .names import display_name
-from .schemas import AssignIn, ExerciseIn, QueryIn, QueryReplyIn, ReviewIn
+from .schemas import AssignIn, ExerciseIn, QueryIn, QueryReplyIn, ReviewIn, SolutionIn
 from .workspace import workspace_dir
 
 router = APIRouter(prefix="/api", tags=["assignments"])
@@ -85,16 +85,6 @@ def _exercise_cells(row: sqlite3.Row, tests: list[sqlite3.Row]) -> list[tuple[st
         ("markdown", "\n".join(explanation)),
         ("code", "# Step 3: improve your solution, then run and submit it.\n"),
     ]
-
-
-def _notebook_code(conn: sqlite3.Connection, notebook_id: int) -> str:
-    """The student's solution: every code cell in their assignment notebook."""
-    rows = conn.execute(
-        "SELECT source FROM cells WHERE notebook_id = ? AND cell_type = 'code'"
-        " ORDER BY position",
-        (notebook_id,),
-    ).fetchall()
-    return "\n\n".join(r["source"] for r in rows if r["source"].strip())
 
 
 def _evaluate(code: str, tests: list[sqlite3.Row], cwd) -> dict:
@@ -410,6 +400,64 @@ def open_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_stud
     return {"notebook_id": notebook_id, "status": status_next}
 
 
+@router.post("/assignments/{assignment_id}/run")
+def run_solution(
+    assignment_id: int, body: SolutionIn, user: sqlite3.Row = Depends(require_student)
+) -> dict:
+    """Run the editor's code against the student's own input.
+
+    Deliberately does NOT record a submission: this is the try-it button, and a
+    student may press it as often as they like.
+    """
+    student_id = int(user["id"])
+    with get_conn() as conn:
+        _load_assignment(conn, assignment_id, student_id)
+        conn.execute(
+            "UPDATE assignments SET solution_code = ?, last_stdin = ? WHERE id = ?",
+            (body.code, body.stdin, assignment_id),
+        )
+
+    started = datetime.now(timezone.utc)
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-c", body.code],
+            input=body.stdin,
+            capture_output=True,
+            text=True,
+            timeout=RUN_TIMEOUT_SEC,
+            cwd=str(workspace_dir(student_id)),
+        )
+        stdout, stderr, timed_out = proc.stdout, proc.stderr, False
+    except subprocess.TimeoutExpired:
+        stdout, stderr, timed_out = "", f"Timed out after {RUN_TIMEOUT_SEC}s.", True
+
+    duration_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+    return {
+        "stdout": stdout,
+        "stderr": stderr,
+        "timed_out": timed_out,
+        "duration_ms": duration_ms,
+    }
+
+
+@router.patch("/assignments/{assignment_id}/code")
+def save_solution(
+    assignment_id: int, body: SolutionIn, user: sqlite3.Row = Depends(require_student)
+) -> dict:
+    """Autosave the editor, so a refresh never loses work."""
+    student_id = int(user["id"])
+    now = utcnow()
+    with get_conn() as conn:
+        row = _load_assignment(conn, assignment_id, student_id)
+        status_next = "in_progress" if row["status"] == "assigned" else row["status"]
+        conn.execute(
+            "UPDATE assignments SET solution_code = ?, last_stdin = ?,"
+            " last_opened_at = ?, status = ? WHERE id = ?",
+            (body.code, body.stdin, now, status_next, assignment_id),
+        )
+    return {"ok": True}
+
+
 @router.post("/assignments/{assignment_id}/submit")
 def submit_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_student)) -> dict:
     """Submit the notebook's code and evaluate it automatically (SRS §11, §12)."""
@@ -419,10 +467,12 @@ def submit_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_st
         row = _load_assignment(conn, assignment_id, student_id)
         if row["status"] in ("approved", "completed"):
             raise HTTPException(status_code=409, detail="This exercise is already closed.")
-        if row["notebook_id"] is None:
-            raise HTTPException(status_code=409, detail="Open the exercise before submitting.")
 
-        code = _notebook_code(conn, int(row["notebook_id"]))
+        code = row["solution_code"] or ""
+        if not code.strip():
+            raise HTTPException(
+                status_code=409, detail="Write some code before submitting."
+            )
         tests = conn.execute(
             "SELECT stdin, expected_output, is_hidden FROM test_cases"
             " WHERE exercise_id = ? ORDER BY position",
@@ -545,6 +595,8 @@ def assignment_detail(assignment_id: int, user: sqlite3.Row = Depends(get_curren
         "status": row["status"],
         "due_date": row["due_date"],
         "notebook_id": row["notebook_id"],
+        "solution_code": row["solution_code"],
+        "last_stdin": row["last_stdin"],
         "exercise": exercise,
         "public_tests": public_tests,
         "hidden_tests": hidden,

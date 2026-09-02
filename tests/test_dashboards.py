@@ -210,11 +210,8 @@ def test_a_student_cannot_open_someone_elses_assignment(client):
 
 
 def solve(client, assignment_id, code):
-    """Write `code` into the assignment's notebook and submit it."""
-    notebook_id = client.post(f"/api/assignments/{assignment_id}/open").json()["notebook_id"]
-    cells = client.get(f"/api/notebooks/{notebook_id}").json()["cells"]
-    code_cell = next(c for c in cells if c["cell_type"] == "code")
-    client.put(f"/api/notebooks/{notebook_id}/cells/{code_cell['id']}", json={"source": code})
+    """Save `code` as the assignment's solution and submit it."""
+    client.patch(f"/api/assignments/{assignment_id}/code", json={"code": code, "stdin": ""})
     return client.post(f"/api/assignments/{assignment_id}/submit").json()
 
 

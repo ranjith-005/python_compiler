@@ -112,3 +112,10 @@ class RunIn(BaseModel):
     """One practice snippet from a module's code section (req 14)."""
 
     code: str = Field(default="", max_length=100_000)
+
+
+class SolutionIn(BaseModel):
+    """The student's current editor contents, autosaved as they work."""
+
+    code: str = Field(default="", max_length=200_000)
+    stdin: str = Field(default="", max_length=100_000)

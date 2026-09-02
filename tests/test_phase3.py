@@ -77,3 +77,90 @@ def test_the_backfill_copies_notebook_code_in_order_and_skips_markdown(client):
         ).fetchone()["solution_code"]
 
     assert carried == "a = 1\n\nprint(a)"
+
+
+def _make_assignment(client):
+    """A trainer creates and assigns one exercise; returns (assignment_id, student_client)."""
+    register_trainer(client, email="t@example.com")
+    students = client.get("/api/students").json()
+    if not students:
+        client.cookies.clear()
+        register(client, email="learner@example.com")
+        client.cookies.clear()
+        register_trainer(client, email="t2@example.com")
+        students = client.get("/api/students").json()
+    client.post("/api/exercises", json={
+        "title": "Echo", "problem_statement": "Read a line and print it.",
+        "sample_input": "hi", "sample_output": "hi", "status": "published",
+        "test_cases": [{"stdin": "hi\n", "expected_output": "hi", "is_hidden": False}],
+        "assign_to": [students[0]["id"]],
+    })
+    client.cookies.clear()
+    client.post("/auth/login", json={"email": "learner@example.com", "password": "password123"})
+    assignment = client.get("/api/dashboard/student").json()["assignments"][0]
+    return assignment["id"]
+
+
+def test_run_executes_against_custom_stdin_without_recording_a_submission(client):
+    assignment_id = _make_assignment(client)
+    before = len(client.get("/api/dashboard/student").json()["assignments"])
+
+    result = client.post(f"/api/assignments/{assignment_id}/run", json={
+        "code": "print(input().upper())", "stdin": "hello\n",
+    })
+    assert result.status_code == 200
+    body = result.json()
+    assert body["stdout"].strip() == "HELLO"
+    assert body["timed_out"] is False
+
+    after = client.get("/api/dashboard/student").json()["assignments"][0]
+    assert after["submission_id"] is None, "run must not create a submission"
+    assert before == 1
+
+
+def test_run_reports_an_error_without_raising(client):
+    assignment_id = _make_assignment(client)
+    body = client.post(f"/api/assignments/{assignment_id}/run", json={
+        "code": "raise ValueError('boom')", "stdin": "",
+    }).json()
+    assert "boom" in body["stderr"]
+    assert body["timed_out"] is False
+
+
+def test_code_autosaves_and_survives_a_reload(client):
+    assignment_id = _make_assignment(client)
+    saved = client.patch(f"/api/assignments/{assignment_id}/code", json={
+        "code": "x = 1", "stdin": "7\n",
+    })
+    assert saved.status_code == 200
+    detail = client.get(f"/api/assignments/{assignment_id}").json()
+    assert detail["solution_code"] == "x = 1"
+    assert detail["last_stdin"] == "7\n"
+
+
+def test_submit_evaluates_the_saved_solution_not_a_notebook(client):
+    assignment_id = _make_assignment(client)
+    client.patch(f"/api/assignments/{assignment_id}/code", json={
+        "code": "print(input())", "stdin": "",
+    })
+    verdict = client.post(f"/api/assignments/{assignment_id}/submit").json()
+    assert verdict["result"] == "accepted"
+    assert verdict["passed"] == verdict["total"] == 1
+
+
+def test_submitting_an_empty_solution_is_rejected_clearly(client):
+    assignment_id = _make_assignment(client)
+    response = client.post(f"/api/assignments/{assignment_id}/submit")
+    assert response.status_code == 409
+    assert "before submitting" in response.json()["detail"].lower()
+
+
+def test_another_students_assignment_is_not_reachable(client):
+    assignment_id = _make_assignment(client)
+    client.cookies.clear()
+    register(client, email="intruder@example.com")
+    for call in (
+        lambda: client.post(f"/api/assignments/{assignment_id}/run", json={"code": "1", "stdin": ""}),
+        lambda: client.patch(f"/api/assignments/{assignment_id}/code", json={"code": "1", "stdin": ""}),
+    ):
+        assert call().status_code in (403, 404)
