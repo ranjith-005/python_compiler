@@ -3,7 +3,7 @@
 // queue, exercises, completed).
 (function () {
   const D = window.Dash;
-  const { el, pill, fill } = D;
+  const { el } = D;
 
   let data = null;
 
@@ -32,52 +32,12 @@
     cards.forEach((c) =>
       host.append(
         el("a", { class: `stat ${c.tone || ""}`, href: c.href },
+          el("span", { class: "accent" }),
           el("span", { class: "label", text: c.label }),
           el("strong", { class: "value", text: String(c.value) }),
           el("span", { class: "sub", text: c.sub })
         )
       )
-    );
-  }
-
-  // ── student progress (§16) ────────────────────────────────────────────────
-
-  function renderStudents() {
-    document.getElementById("student-count").textContent = data.students.length;
-    fill(
-      document.getElementById("student-list"),
-      data.students.map((s) => {
-        const name = s.display;
-        return el(
-          "div",
-          { class: "row student-row" },
-          el(
-            "div",
-            { class: "who" },
-            el("span", { class: "avatar" }, name.slice(0, 2).toUpperCase()),
-            el(
-              "div",
-              {},
-              el("div", { class: "title" }, name),
-              el(
-                "div",
-                { class: "meta" },
-                el("span", {}, `${s.assigned} assigned`),
-                el("span", { class: "dot-sep" }, `${s.completed} done`),
-                s.awaiting ? pill(`${s.awaiting} to review`, "amber") : null,
-                s.is_active ? null : pill("Inactive", "red")
-              )
-            )
-          ),
-          el("span", { class: "tests" }, `${s.progress}%`),
-          el(
-            "div",
-            { class: `bar ${s.progress === 100 ? "done" : ""}` },
-            el("span", { style: `width:${s.progress}%` })
-          )
-        );
-      }),
-      "No students registered yet."
     );
   }
 

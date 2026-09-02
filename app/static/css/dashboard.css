@@ -128,7 +128,6 @@
 }
 .stat:hover { border-color: var(--blue); box-shadow: 0 2px 10px color-mix(in srgb, var(--blue) 14%, transparent); }
 .stat:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.stat[aria-pressed="true"] { border-color: var(--blue); background: color-mix(in srgb, var(--blue) 4%, transparent); }
 .stat .label {
   display: block;
   font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
@@ -191,6 +190,8 @@
 }
 .row:last-child { border-bottom: 0; }
 .row:hover { background: var(--cell-bg); }
+a.row { color: var(--text); text-decoration: none; }
+a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .row .title { font-size: 13.5px; font-weight: 500; }
 .row .meta { margin-top: 3px; font-size: 12px; color: var(--text-dim); display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .row .meta .dot-sep::before { content: "·"; margin-right: 8px; }
@@ -256,39 +257,6 @@
 .feed .icon.amber { background: color-mix(in srgb, var(--amber) 14%, transparent); }
 .feed .icon.red   { background: color-mix(in srgb, var(--red) 10%, transparent); }
 .feed time { display: block; margin-top: 2px; font-size: 11.5px; color: var(--text-dim); }
-
-/* ───────────────────────── resume card (student) ───────────────────────── */
-
-.resume {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-  padding: 20px 22px;
-  margin-bottom: 20px;
-  border-radius: 12px;
-  background: linear-gradient(120deg, var(--accent-fill), var(--accent-fill-2));
-  color: var(--on-accent);
-  box-shadow: 0 6px 20px color-mix(in srgb, var(--blue) 25%, transparent);
-}
-.resume .grow { flex: 1; min-width: 240px; }
-.resume .eyebrow {
-  font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
-  color: var(--on-accent);
-  opacity: .85;
-}
-.resume h2 { margin: 6px 0 6px; font-size: 21px; font-weight: 500; color: var(--on-accent); }
-.resume p { margin: 0; font-size: 13px; color: var(--on-accent); opacity: .9; line-height: 1.5; }
-.resume .cb-btn {
-  background: #fff; border-color: #fff; color: var(--accent-fill); font-weight: 600;
-  padding: 9px 18px;
-}
-.resume .cb-btn:hover { background: #eef3ff; color: var(--accent-fill); }
-.resume .cb-btn.hollow { background: transparent; border-color: color-mix(in srgb, var(--on-accent) 60%, transparent); color: var(--on-accent); }
-.resume .cb-btn.hollow:hover { background: rgba(255,255,255,.14); color: var(--on-accent); }
-.resume.empty-state { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); border: 1px solid var(--border); }
-.resume.empty-state .eyebrow { color: var(--text-dim); }
-.resume.empty-state p { color: var(--text-dim); }
 
 /* ───────────────────────── assignment cards (student) ───────────────────────── */
 
@@ -548,7 +516,7 @@
 /* The exercise detail page's two-step delete confirm: armed state reads as
    an unmistakable "about to happen", never a silent browser confirm(). */
 .cb-btn.danger { background: var(--danger-fill); border-color: var(--danger-fill); color: var(--on-accent); }
-.cb-btn.danger:hover { background: var(--red); border-color: var(--red); color: var(--on-accent); }
+.cb-btn.danger:hover { background: color-mix(in srgb, var(--danger-fill) 85%, black); border-color: color-mix(in srgb, var(--danger-fill) 85%, black); color: var(--on-accent); }
 
 /* Date range filters in a panel header (req 3). */
 .date-filter {

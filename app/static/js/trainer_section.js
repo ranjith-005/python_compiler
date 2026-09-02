@@ -85,11 +85,17 @@
       );
     },
     completed(data) {
-      const rows = (data.students || []).filter((s) => s.completed > 0);
+      const rows = data.completed || [];
       if (!rows.length) return empty("No completed work yet.");
-      rows.forEach((s) =>
+      rows.forEach((x) =>
         list.append(
-          row(s.display, [`${s.completed} of ${s.assigned} completed`], `/trainer/students/${s.id}`)
+          row(
+            x.exercise,
+            [x.display,
+             x.tests_total ? `${x.tests_passed}/${x.tests_total} tests` : null,
+             when(x.submitted_at)],
+            x.student_id ? `/trainer/students/${x.student_id}` : null
+          )
         )
       );
     },

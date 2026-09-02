@@ -133,7 +133,7 @@ class Connection:
 @router.websocket("/ws/kernel/{notebook_id}")
 async def kernel_socket(websocket: WebSocket, notebook_id: int) -> None:
     user = user_from_token(websocket.cookies.get(settings.COOKIE_NAME))
-    if user is None or not user["is_active"]:
+    if user is None:
         await websocket.close(code=4401)
         return
     user_id = int(user["id"])

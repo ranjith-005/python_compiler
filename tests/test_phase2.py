@@ -149,17 +149,6 @@ def test_new_trainer_pages_are_guarded_and_render(client):
         assert r.status_code == 302 and r.headers["location"] == "/student"
 
 
-def test_student_detail_counts_late_submissions(client):
-    # An assignment submitted after its due date is late; one with no due date never is.
-    register_trainer(client)
-    students = client.get("/api/students").json()
-    detail_keys = ("late", "on_time_rate", "assigned", "completed", "pending", "awaiting")
-    if students:
-        detail = client.get(f"/api/students/{students[0]['id']}").json()
-        for key in detail_keys:
-            assert key in detail, key
-
-
 def test_student_detail_late_arithmetic(client):
     """The shape-only test above never submits anything; this exercises the
     actual computation: one exercise assigned with a due date in the past

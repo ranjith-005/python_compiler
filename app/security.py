@@ -41,15 +41,6 @@ def create_token(user_id: int) -> str:
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
 
-def decode_token(token: str) -> int | None:
-    """Return the user id, or None if the token is missing/invalid/expired."""
-    try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
-        return int(payload["sub"])
-    except (jwt.PyJWTError, KeyError, TypeError, ValueError):
-        return None
-
-
 def decode_token_full(token: str) -> dict | None:
     """The whole payload, for callers that need `iat` as well as `sub`."""
     try:

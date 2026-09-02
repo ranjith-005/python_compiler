@@ -36,6 +36,8 @@ def user_from_token(token: str | None) -> sqlite3.Row | None:
         ).fetchone()
     if user is None:
         return None
+    if not user["is_active"]:
+        return None
     # A password change stamps sessions_valid_from; tokens minted before it die.
     # Both sides are microsecond-resolution ISO strings (see create_token's
     # `session_started` claim and db.utcnow_precise), so same-second races

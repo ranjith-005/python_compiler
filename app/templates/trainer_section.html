@@ -2,9 +2,9 @@
 {% from "_topbar.html" import topbar %}
 {% set META = {
      'exercises': ('Coding exercises', 'Everything you have written, published or draft.', 'exercises'),
-     'queue':     ('Awaiting review',  'Submissions waiting on your verdict.',            'dashboard'),
-     'pending':   ('Pending submissions', 'Assigned, not yet submitted.',                 'dashboard'),
-     'completed': ('Completed',        'Work your students have finished.',               'dashboard')
+     'queue':     ('Awaiting review',  'Submissions waiting on your verdict.',            none),
+     'pending':   ('Pending submissions', 'Assigned, not yet submitted.',                 none),
+     'completed': ('Completed',        'Work your students have finished.',               none)
    } %}
 {% set title, blurb, nav = META.get(section, META['exercises']) %}
 {% block title %}{{ title }} · Python Learning Platform{% endblock %}
@@ -22,6 +22,7 @@
   <section class="panel">
     {% if section in ('exercises', 'pending') %}
     <header>
+      <h2>{{ title }}</h2>
       <span class="spacer"></span>
       <label class="date-filter">From
         <input type="date" id="filter-from"></label>

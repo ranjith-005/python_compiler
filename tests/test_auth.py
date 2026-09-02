@@ -1,5 +1,18 @@
 from conftest import register
 
+from app.db import get_conn
+
+
+def test_deactivated_account_loses_http_access(client):
+    response = register(client)
+    user_id = response.json()["id"]
+    assert client.get("/auth/me").status_code == 200
+
+    with get_conn() as conn:
+        conn.execute("UPDATE users SET is_active = 0 WHERE id = ?", (user_id,))
+
+    assert client.get("/auth/me").status_code == 401
+
 
 def test_register_sets_session_cookie_and_welcome_notebook(client):
     response = register(client)

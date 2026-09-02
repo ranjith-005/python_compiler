@@ -136,7 +136,7 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
                 " JOIN exercises e ON e.id = s.exercise_id"
                 " JOIN users u ON u.id = s.student_id"
                 " WHERE e.trainer_id = ? AND s.review_status = 'pending'"
-                " ORDER BY s.submitted_at ASC, s.id ASC LIMIT 20",
+                " ORDER BY s.submitted_at ASC, s.id ASC",
                 (trainer_id,),
             )
         )
@@ -152,7 +152,7 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
                 " JOIN exercises e ON e.id = a.exercise_id"
                 " JOIN users u ON u.id = a.student_id"
                 f" WHERE e.trainer_id = ? AND a.status IN ({OPEN_LIST})"
-                " ORDER BY a.due_date IS NULL, a.due_date ASC LIMIT 20",
+                " ORDER BY a.due_date IS NULL, a.due_date ASC",
                 (trainer_id, *OPEN_STATUSES),
             )
         )
@@ -160,21 +160,23 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
             row["overdue"] = bool(row["due_date"] and row["due_date"] < now)
             row["display"] = _display(row, "student", "student_email")
 
-        deadlines = _rows(
+        completed_rows = _rows(
             conn.execute(
-                "SELECT e.id, e.title, e.due_date,"
-                "       COUNT(a.id) AS assigned,"
-                "       SUM(CASE WHEN a.status IN ('submitted', 'approved', 'completed')"
-                "                THEN 1 ELSE 0 END) AS submitted"
-                " FROM exercises e"
-                " LEFT JOIN assignments a ON a.exercise_id = e.id"
-                " WHERE e.trainer_id = ? AND e.due_date IS NOT NULL AND e.status = 'published'"
-                " GROUP BY e.id ORDER BY e.due_date ASC LIMIT 8",
+                "SELECT a.id, a.status, a.due_date,"
+                "       u.id AS student_id, u.full_name AS student, u.email AS student_email,"
+                "       e.title AS exercise,"
+                "       s.submitted_at, s.tests_passed, s.tests_total"
+                " FROM assignments a"
+                " JOIN exercises e ON e.id = a.exercise_id"
+                " JOIN users u ON u.id = a.student_id"
+                f"{LATEST_SUBMISSION}"
+                " WHERE e.trainer_id = ? AND a.status = 'completed'"
+                " ORDER BY s.submitted_at DESC",
                 (trainer_id,),
             )
         )
-        for row in deadlines:
-            row["overdue"] = bool(row["due_date"] and row["due_date"] < now)
+        for row in completed_rows:
+            row["display"] = _display(row, "student", "student_email")
 
         students = _rows(
             conn.execute(
@@ -205,7 +207,7 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
                 " FROM exercises e"
                 " LEFT JOIN assignments a ON a.exercise_id = e.id"
                 " WHERE e.trainer_id = ?"
-                " GROUP BY e.id ORDER BY e.updated_at DESC LIMIT 20",
+                " GROUP BY e.id ORDER BY e.updated_at DESC",
                 (trainer_id,),
             )
         )
@@ -232,7 +234,7 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
         "queries": queries,
         "review_queue": review_queue,
         "pending": pending,
-        "deadlines": deadlines,
+        "completed": completed_rows,
         "students": students,
         "exercises": exercises,
         "now": now,

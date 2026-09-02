@@ -128,11 +128,6 @@ window.Dash = (function () {
     if (event.target.classList && event.target.classList.contains("sheet")) {
       event.target.hidden = true;
     }
-    const jump = event.target.closest("[data-jump]");
-    if (jump) {
-      const target = document.getElementById(jump.dataset.jump);
-      if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
   });
 
   document.addEventListener("keydown", (event) => {
