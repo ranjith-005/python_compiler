@@ -570,7 +570,7 @@ html:has(body.colab) { background: var(--bg); height: auto; }
 }
 
 .cb-menu-wrap { position: relative; display: inline-block; }
-.cb-menu-btn { background: none; border: 0; font: inherit; }
+.cb-menu-btn { background: none; border: 0; font: inherit; font-size: 13px; color: var(--blue); padding: 0; }
 .cb-menu-btn .caret { font-size: 10px; margin-left: 2px; }
 .cb-menu {
   position: absolute;
@@ -580,7 +580,7 @@ html:has(body.colab) { background: var(--bg); height: auto; }
   padding: 6px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--surface);
+  background: var(--cell-bg);
   box-shadow: var(--shadow-card);
   z-index: 50;
 }
@@ -592,4 +592,4 @@ html:has(body.colab) { background: var(--bg); height: auto; }
   text-decoration: none;
   font-size: 13px;
 }
-.cb-menu-item:hover { background: var(--cell-bg); }
+.cb-menu-item:hover { background: var(--surface); }

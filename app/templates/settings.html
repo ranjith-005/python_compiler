@@ -20,7 +20,7 @@
 
   <section class="panel">
     <header><h2>Appearance</h2></header>
-    <div class="panel-body">
+    <div class="panel-body pad">
       <div class="theme-choices" id="theme-choices">
         <label class="theme-choice">
           <input type="radio" name="theme" value="system">
@@ -46,7 +46,7 @@
 
   <section class="panel">
     <header><h2>Your details</h2></header>
-    <div class="panel-body">
+    <div class="panel-body pad">
       <div class="field-row">
         <div class="field">
           <label for="first-name">First name</label>
@@ -61,8 +61,8 @@
         <label for="phone">Phone</label>
         <input id="phone" autocomplete="tel">
       </div>
-      <p class="help">Your email is {{ user['email'] }} and cannot be changed here.</p>
-      <div class="row-actions">
+      <p class="hint">Your email is {{ user['email'] }} and cannot be changed here.</p>
+      <div class="row-actions page-actions">
         <button class="cb-btn primary" id="save-profile">Save details</button>
       </div>
     </div>
@@ -70,7 +70,7 @@
 
   <section class="panel">
     <header><h2>Change password</h2></header>
-    <div class="panel-body">
+    <div class="panel-body pad">
       <div class="field">
         <label for="current-password">Current password</label>
         <input id="current-password" type="password" autocomplete="current-password">
@@ -85,8 +85,8 @@
           <input id="confirm-password" type="password" autocomplete="new-password">
         </div>
       </div>
-      <p class="help">At least 8 characters.</p>
-      <div class="row-actions">
+      <p class="hint">At least 8 characters.</p>
+      <div class="row-actions page-actions">
         <button class="cb-btn primary" id="save-password">Change password</button>
       </div>
     </div>

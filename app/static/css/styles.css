@@ -39,6 +39,7 @@
   --radius:        9px;
   --mono: "JetBrains Mono", "Cascadia Code", "Fira Code", Consolas, monospace;
   --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
 }
 
 :root[data-theme="light"] {
@@ -58,6 +59,7 @@
   --shadow-card:   0 1px 3px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .04);
   --shadow-card-hover: 0 4px 12px rgba(15, 23, 42, .14), 0 2px 4px rgba(15, 23, 42, .08);
   --overlay:       rgba(15, 23, 42, .35);
+  color-scheme: light;
 }
 
 /* Duplicated deliberately: CSS cannot share one block between a plain selector
@@ -80,6 +82,7 @@
     --shadow-card:   0 1px 3px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .04);
     --shadow-card-hover: 0 4px 12px rgba(15, 23, 42, .14), 0 2px 4px rgba(15, 23, 42, .08);
     --overlay:       rgba(15, 23, 42, .35);
+    color-scheme: light;
   }
 }
 

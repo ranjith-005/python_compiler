@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class Credentials(BaseModel):
@@ -44,6 +44,18 @@ class ProfileIn(BaseModel):
     first_name: str = Field(default="", max_length=60)
     last_name: str = Field(default="", max_length=60)
     phone: str = Field(default="", max_length=30)
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def _no_markup(cls, value: str) -> str:
+        """These names reach a trainer's page; keep markup out of them.
+
+        The rendering path still needs escaping at the sink -- this only closes
+        the self-service write path that Settings opened.
+        """
+        if "<" in value or ">" in value:
+            raise ValueError("Names cannot contain < or >.")
+        return value
 
 
 class TestCaseIn(BaseModel):

@@ -197,3 +197,12 @@ def test_settings_page_redirects_when_signed_out(client):
     response = client.get("/settings", follow_redirects=False)
     assert response.status_code == 302
     assert response.headers["location"] == "/login"
+
+
+def test_profile_rejects_markup_in_names(client):
+    register(client)
+    response = client.patch(
+        "/api/settings/profile",
+        json={"first_name": "<script>alert(1)</script>", "last_name": "X", "phone": ""},
+    )
+    assert response.status_code == 422
