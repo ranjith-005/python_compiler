@@ -105,3 +105,40 @@ def test_password_change_rejects_reusing_the_current_password(client):
 
 def test_password_change_requires_a_session(client):
     assert _change_password(client).status_code == 401
+
+
+def test_theme_persists_to_the_account(client):
+    register(client)
+    response = client.patch("/api/settings/theme", json={"theme": "light"})
+    assert response.status_code == 200
+    assert response.json()["theme"] == "light"
+    assert client.get("/auth/me").json()["theme"] == "light"
+
+
+def test_theme_rejects_an_unknown_value(client):
+    register(client)
+    assert client.patch("/api/settings/theme", json={"theme": "sepia"}).status_code == 422
+
+
+def test_theme_requires_a_session(client):
+    assert client.patch("/api/settings/theme", json={"theme": "dark"}).status_code == 401
+
+
+def test_profile_update_recomputes_the_full_name(client):
+    register(client)
+    response = client.patch(
+        "/api/settings/profile",
+        json={"first_name": "Nishanth", "last_name": "Kumar", "phone": "9876543210"},
+    )
+    assert response.status_code == 200
+    assert response.json()["full_name"] == "Nishanth Kumar"
+    assert client.get("/auth/me").json()["full_name"] == "Nishanth Kumar"
+
+
+def test_profile_update_gives_a_named_display_name(client):
+    register(client)
+    client.patch(
+        "/api/settings/profile",
+        json={"first_name": "Nishanth", "last_name": "Kumar", "phone": ""},
+    )
+    assert client.get("/api/settings/profile").json()["display_name"] == "Nishanth Kumar"

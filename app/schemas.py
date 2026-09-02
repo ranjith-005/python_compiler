@@ -28,6 +28,24 @@ class PasswordChangeIn(BaseModel):
     confirm_password: str = Field(min_length=8, max_length=72)
 
 
+class ThemeIn(BaseModel):
+    """Appearance preference (settings requirement 6)."""
+
+    theme: Literal["system", "light", "dark"]
+
+
+class ProfileIn(BaseModel):
+    """Your own name and phone, edited from Settings.
+
+    Names exist so the portals can show a person rather than an email
+    address; most seeded accounts have none.
+    """
+
+    first_name: str = Field(default="", max_length=60)
+    last_name: str = Field(default="", max_length=60)
+    phone: str = Field(default="", max_length=30)
+
+
 class TestCaseIn(BaseModel):
     stdin: str = ""
     expected_output: str = ""
