@@ -91,3 +91,28 @@ def test_no_api_response_exposes_an_email_as_a_name(client):
     for row in roster:
         assert row["display"] == "Nameless Student"
         assert "@" not in row["display"]
+
+
+def test_section_pages_highlight_their_own_nav_section(client):
+    register_trainer(client)
+    # The queue is not the Exercises section; it must not mark Exercises active.
+    queue = client.get("/trainer/queue").text
+    assert 'class="cb-link active" href="/trainer/students"' not in queue
+    exercises = client.get("/trainer/exercises").text
+    assert "active" in exercises
+
+
+def test_exercise_titles_are_not_interpolated_as_html(client):
+    register_trainer(client)
+    client.post("/api/exercises", json={
+        "title": "<img src=x onerror=alert(1)>",
+        "problem_statement": "safe",
+        "status": "published",
+        "test_cases": [], "assign_to": [],
+    })
+    # The page is a shell; the title must not appear in the served HTML at all,
+    # and the script must build rows with el(), never innerHTML.
+    page = client.get("/trainer/exercises").text
+    assert "onerror" not in page
+    script = open("app/static/js/trainer_section.js", encoding="utf-8").read()
+    assert "innerHTML" not in script

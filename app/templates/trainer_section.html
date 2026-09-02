@@ -1,10 +1,34 @@
 {% extends "base.html" %}
 {% from "_topbar.html" import topbar %}
-{% block title %}{{ section|title }} · Python Learning Platform{% endblock %}
+{% set META = {
+     'exercises': ('Coding exercises', 'Everything you have written, published or draft.', 'exercises'),
+     'queue':     ('Awaiting review',  'Submissions waiting on your verdict.',            'dashboard'),
+     'pending':   ('Pending submissions', 'Assigned, not yet submitted.',                 'dashboard'),
+     'completed': ('Completed',        'Work your students have finished.',               'dashboard')
+   } %}
+{% set title, blurb, nav = META.get(section, META['exercises']) %}
+{% block title %}{{ title }} · Python Learning Platform{% endblock %}
 {% block body_class %}colab dash{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}"><link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
 {% block content %}
-{{ topbar('trainer', name, back='/trainer', heading=section|title, current='exercises') }}
-<main class="dash-main"><section class="panel"><header><h2 id="section-title">{{ section|title }}</h2></header><div class="panel-body" id="section-list"></div></section></main><div class="toast" id="toast" hidden></div>
-<script>window.SECTION={{ section|tojson }};</script><script src="/static/js/trainer_section.js?v={{ asset_v() }}"></script>
+{{ topbar('trainer', name, back='/trainer', heading=title, current=nav) }}
+
+<main class="dash-main">
+  <div class="dash-head"><div><h1>{{ title }}</h1><p>{{ blurb }}</p></div></div>
+  <section class="panel">
+    <div class="panel-body" id="section-list"></div>
+  </section>
+</main>
+
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.SECTION = {{ section|tojson }};</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/trainer_section.js?v={{ asset_v() }}"></script>
 {% endblock %}
