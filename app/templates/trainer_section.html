@@ -4,7 +4,7 @@
 {% block body_class %}colab dash{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}"><link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">{% endblock %}
 {% block content %}
-{{ topbar('trainer', name, back='/trainer', heading=section|title) }}
+{{ topbar('trainer', name, back='/trainer', heading=section|title, current='exercises') }}
 <main class="dash-main"><section class="panel"><header><h2 id="section-title">{{ section|title }}</h2></header><div class="panel-body" id="section-list"></div></section></main><div class="toast" id="toast" hidden></div>
 <script>window.SECTION={{ section|tojson }};</script><script src="/static/js/trainer_section.js?v={{ asset_v() }}"></script>
 {% endblock %}

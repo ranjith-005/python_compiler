@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-{{ topbar(user['role'], user['full_name'] or user['email'], back=back, heading='My profile') }}
+{{ topbar(user['role'], name, back=back, heading='My profile') }}
 
 <main class="dash-main narrow">
   <div class="dash-head">

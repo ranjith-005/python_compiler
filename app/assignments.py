@@ -18,6 +18,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from .config import settings
 from .db import create_notebook, get_conn, notify, record_activity, utcnow
 from .deps import get_current_user, require_student, require_trainer
+from .names import display_name
 from .schemas import AssignIn, ExerciseIn, QueryIn, QueryReplyIn, ReviewIn
 from .workspace import workspace_dir
 
@@ -268,7 +269,7 @@ def create_exercise(body: ExerciseIn, user: sqlite3.Row = Depends(require_traine
                     conn,
                     student_id,
                     "assigned",
-                    f"{user['full_name'] or user['email']} assigned \"{body.title.strip()}\"",
+                    f"{display_name(user)} assigned \"{body.title.strip()}\"",
                     trainer_id,
                     "/student",
                 )
@@ -444,14 +445,14 @@ def submit_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_st
             conn,
             int(row["trainer_id"]),
             "submitted",
-            f"{user['full_name'] or user['email']} submitted \"{title}\"",
+            f"{display_name(user)} submitted \"{title}\"",
             "/trainer",
         )
         record_activity(
             conn,
             int(row["trainer_id"]),
             "submitted",
-            f"{user['full_name'] or user['email']} submitted \"{title}\""
+            f"{display_name(user)} submitted \"{title}\""
             f" - {verdict['passed']}/{verdict['total']} tests passed",
             student_id,
             "/trainer",
@@ -691,7 +692,7 @@ def assign_exercise(
             )
         }
         title = row["title"]
-        actor = user["full_name"] or user["email"]
+        actor = display_name(user)
         assigned = 0
         for student_id in dict.fromkeys(body.assign_to):
             if int(student_id) not in valid:
@@ -732,7 +733,7 @@ def raise_query(
             raise HTTPException(status.HTTP_404_NOT_FOUND, "No such assignment")
 
         title = row["title"]
-        actor = user["full_name"] or user["email"]
+        actor = display_name(user)
         cur = conn.execute(
             "INSERT INTO queries (assignment_id, trainer_id, student_id, severity,"
             " message, created_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -780,7 +781,7 @@ def reply_to_query(
             conn,
             row["trainer_id"],
             "reviewed",
-            f"{user['full_name'] or user['email']} replied to your query",
+            f"{display_name(user)} replied to your query",
             "/trainer",
         )
     return {"id": query_id, "reply": body.reply}

@@ -16,6 +16,7 @@ from .db import get_conn, init_db
 from .auth import home_for
 from .deps import get_optional_user
 from .kernel import registry
+from .names import display_name
 
 APP_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(APP_DIR / "templates"))
@@ -79,7 +80,7 @@ def trainer_page(request: Request, user=Depends(get_optional_user)):
     return templates.TemplateResponse(
         request,
         "trainer_dashboard.html",
-        {"email": user["email"], "name": user["full_name"] or user["email"]},
+        {"email": user["email"], "name": display_name(user)},
     )
 
 
@@ -92,7 +93,7 @@ def student_page(request: Request, user=Depends(get_optional_user)):
     return templates.TemplateResponse(
         request,
         "student_dashboard.html",
-        {"email": user["email"], "name": user["full_name"] or user["email"]},
+        {"email": user["email"], "name": display_name(user)},
     )
 
 
@@ -106,7 +107,7 @@ def trainer_students_page(request: Request, user=Depends(get_optional_user)):
     return templates.TemplateResponse(
         request,
         "trainer_students.html",
-        {"name": user["full_name"] or user["email"]},
+        {"name": display_name(user)},
     )
 
 
@@ -115,7 +116,9 @@ def profile_page(request: Request, user=Depends(get_optional_user)):
     if not user:
         return RedirectResponse("/login", status_code=302)
     return templates.TemplateResponse(
-        request, "profile.html", {"user": user, "back": home_for(user["role"])}
+        request,
+        "profile.html",
+        {"user": user, "name": display_name(user), "back": home_for(user["role"])},
     )
 
 
@@ -138,7 +141,7 @@ def student_exercises_page(request: Request, user=Depends(get_optional_user)):
         return RedirectResponse("/login", status_code=302)
     if user["role"] != "student":
         return RedirectResponse("/trainer", status_code=302)
-    return templates.TemplateResponse(request, "student_exercises.html", {"name": user["full_name"] or user["email"]})
+    return templates.TemplateResponse(request, "student_exercises.html", {"name": display_name(user)})
 
 
 @app.get("/activity", include_in_schema=False)
@@ -150,7 +153,7 @@ def activity_page(request: Request, user=Depends(get_optional_user)):
         "activity.html",
         {
             "back": home_for(user["role"]),
-            "name": user["full_name"] or user["email"],
+            "name": display_name(user),
             "role": user["role"],
         },
     )
@@ -167,7 +170,7 @@ def login_page(request: Request, user=Depends(get_optional_user)):
 def notebooks_page(request: Request, user=Depends(get_optional_user)):
     if not user:
         return RedirectResponse("/login", status_code=302)
-    return templates.TemplateResponse(request, "notebooks.html", {"name": user["full_name"] or user["email"]})
+    return templates.TemplateResponse(request, "notebooks.html", {"name": display_name(user)})
 
 
 @app.get("/nb/{notebook_id}", include_in_schema=False)
@@ -185,7 +188,7 @@ def notebook_page(notebook_id: int, request: Request, user=Depends(get_optional_
         request,
         "notebook.html",
         {
-            "name": user["full_name"] or user["email"],
+            "name": display_name(user),
             "notebook_id": row["id"],
             "notebook_name": row["name"],
             "cell_timeout": settings.CELL_TIMEOUT_SEC,
@@ -211,7 +214,7 @@ def _trainer_page(request: Request, user, template: str, extra: dict | None = No
         return RedirectResponse("/login", status_code=302)
     if user["role"] != "trainer":
         return RedirectResponse("/student", status_code=302)
-    context = {"name": user["full_name"] or user["email"]}
+    context = {"name": display_name(user)}
     context.update(extra or {})
     return templates.TemplateResponse(request, template, context)
 
@@ -286,7 +289,7 @@ def _student_page(request: Request, user, template: str, extra: dict | None = No
         return RedirectResponse("/login", status_code=302)
     if user["role"] != "student":
         return RedirectResponse("/trainer", status_code=302)
-    context = {"name": user["full_name"] or user["email"]}
+    context = {"name": display_name(user)}
     context.update(extra or {})
     return templates.TemplateResponse(request, template, context)
 

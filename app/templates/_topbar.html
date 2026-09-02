@@ -6,9 +6,12 @@
   everywhere.
 
   Usage:  {% from "_topbar.html" import topbar %}
-          {{ topbar('trainer', name, bell=true) }}
+          {{ topbar('trainer', name, bell=true, current='dashboard') }}
+
+  `current` marks the active nav section; it is one of 'dashboard',
+  'exercises', 'modules', 'students', 'activity', or None.
 #}
-{% macro topbar(role, name, back=None, heading=None, bell=False) %}
+{% macro topbar(role, name, back=None, heading=None, bell=False, current=None) %}
 {% set parts = (name or '?').split() %}
 {% set initials = ((parts[0][0] if parts else '?') ~ (parts[-1][0] if parts|length > 1 else ''))|upper %}
 {% set home = '/trainer' if role == 'trainer' else '/student' %}
@@ -26,15 +29,37 @@
   <div class="cb-spacer"></div>
 
   <nav class="cb-nav">
-    <a class="cb-link" href="{{ home }}">Dashboard</a>
+    <a class="cb-link {{ 'active' if current == 'dashboard' }}" href="{{ home }}">Dashboard</a>
+
     {% if role == 'trainer' %}
-      <a class="cb-link" href="/trainer/students">Students</a>
-      <a class="cb-link" href="/trainer/modules">Modules</a>
+      <a class="cb-link {{ 'active' if current == 'modules' }}" href="/trainer/modules">Modules</a>
+
+      {# Requirement 1: New exercise and Drafts live under Exercises, not beside
+         the profile avatar and not as dashboard buttons. #}
+      <div class="cb-menu-wrap">
+        <button class="cb-link cb-menu-btn {{ 'active' if current == 'exercises' }}"
+                id="ex-menu" type="button" aria-haspopup="true" aria-expanded="false">
+          Exercises <span class="caret">▾</span>
+        </button>
+        <div class="cb-menu" id="ex-menu-panel" hidden>
+          <a class="cb-menu-item" href="/trainer/exercises">All exercises</a>
+          <a class="cb-menu-item" href="/trainer/exercises/new">New exercise</a>
+          <a class="cb-menu-item" href="/trainer/exercises/drafts">Drafts</a>
+        </div>
+      </div>
+
+      <a class="cb-link {{ 'active' if current == 'students' }}" href="/trainer/students">Students</a>
     {% else %}
-      <a class="cb-link" href="/student/exercises">Exercises</a>
-      <a class="cb-link" href="/student/modules">Modules</a>
+      <a class="cb-link {{ 'active' if current == 'exercises' }}" href="/student/exercises">Exercises</a>
+      <a class="cb-link {{ 'active' if current == 'modules' }}" href="/student/modules">Modules</a>
     {% endif %}
-    <a class="cb-link" href="/activity">Activity</a>
+
+    <a class="cb-link {{ 'active' if current == 'activity' }}" href="/activity">Activity</a>
+
+    {# Not built yet; present so the navigation is complete. #}
+    <span class="cb-link disabled" aria-disabled="true" title="Coming soon">
+      Online session <span class="soon">Soon</span>
+    </span>
   </nav>
 
   {% if bell %}
@@ -66,7 +91,7 @@
         </div>
       </div>
       <a class="avatar-item" href="/profile">My profile</a>
-      <a class="avatar-item" href="/activity">Activity history</a>
+      <a class="avatar-item" href="/settings">Settings</a>
       <button class="avatar-item danger" id="logout-btn" type="button">Log out</button>
     </div>
   </div>
@@ -92,6 +117,27 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") panel.hidden = true;
     });
+    // Guarded: the student bar has no Exercises dropdown but runs this script.
+    const exBtn = document.getElementById("ex-menu");
+    const exPanel = document.getElementById("ex-menu-panel");
+    if (exBtn && exPanel) {
+      exBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const open = exPanel.hidden;
+        exPanel.hidden = !open;
+        exBtn.setAttribute("aria-expanded", String(open));
+      });
+      document.addEventListener("click", (e) => {
+        if (!exPanel.hidden && !e.target.closest(".cb-menu-wrap")) {
+          exPanel.hidden = true;
+          exBtn.setAttribute("aria-expanded", "false");
+        }
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") exPanel.hidden = true;
+      });
+    }
+
     document.getElementById("logout-btn").addEventListener("click", async () => {
       try {
         await fetch("/auth/logout", { method: "POST" });

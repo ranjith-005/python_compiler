@@ -4,5 +4,5 @@
 {% block body_class %}colab dash{% endblock %}
 {% block head %}<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}"><link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">{% endblock %}
 {% block content %}
-{{ topbar('student', name, back='/student', heading='My exercises') }}<main class="dash-main"><section class="panel"><header><h2>Assigned exercises</h2></header><div class="panel-body" id="exercise-list"></div></section></main><script src="/static/js/student_exercises.js?v={{ asset_v() }}"></script>
+{{ topbar('student', name, back='/student', heading='My exercises', current='exercises') }}<main class="dash-main"><section class="panel"><header><h2>Assigned exercises</h2></header><div class="panel-body" id="exercise-list"></div></section></main><script src="/static/js/student_exercises.js?v={{ asset_v() }}"></script>
 {% endblock %}

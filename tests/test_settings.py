@@ -142,3 +142,40 @@ def test_profile_update_gives_a_named_display_name(client):
         json={"first_name": "Nishanth", "last_name": "Kumar", "phone": ""},
     )
     assert client.get("/api/settings/profile").json()["display_name"] == "Nishanth Kumar"
+
+
+def test_trainer_nav_carries_every_section(client):
+    register_trainer(client)
+    html = client.get("/trainer").text
+    for label in ("Dashboard", "Modules", "Exercises", "Students", "Activity", "Online session"):
+        assert label in html
+
+
+def test_student_nav_carries_every_section(client):
+    register(client)
+    html = client.get("/student").text
+    for label in ("Dashboard", "Exercises", "Modules", "Activity", "Online session"):
+        assert label in html
+    # Students is a trainer-only section.
+    assert ">Students<" not in html
+
+
+def test_online_session_is_present_but_not_a_link(client):
+    register_trainer(client)
+    html = client.get("/trainer").text
+    assert 'aria-disabled="true"' in html
+    assert 'href="/online-session"' not in html
+
+
+def test_avatar_menu_offers_settings_and_drops_activity_history(client):
+    register_trainer(client)
+    html = client.get("/trainer").text
+    assert 'href="/settings"' in html
+    assert "Activity history" not in html
+
+
+def test_dashboard_greets_by_name_not_email(client):
+    register(client, email="kuttyxkutty123@gmail.com")
+    html = client.get("/student").text
+    assert "Kuttyxkutty123" in html
+    assert "kuttyxkutty123@gmail.com" not in html
