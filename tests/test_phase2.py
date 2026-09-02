@@ -47,3 +47,31 @@ def test_password_change_signs_out_other_devices(client):
     with TestClient(app) as elsewhere:
         elsewhere.cookies.update(stale)
         assert elsewhere.get("/auth/me").status_code == 401
+
+
+def test_password_change_closes_the_kernel_socket_too(client):
+    register(client)
+    notebook_id = client.get("/api/notebooks").json()[0]["id"]
+    stale = dict(client.cookies)
+
+    # The socket works before the change.
+    with client.websocket_connect(f"/ws/kernel/{notebook_id}"):
+        pass
+
+    client.post("/auth/password", json={
+        "current_password": "password123",
+        "new_password": "newpassword456",
+        "confirm_password": "newpassword456",
+    })
+
+    # A device still holding the old cookie cannot open a kernel.
+    from fastapi.testclient import TestClient
+    from app.main import app
+    import pytest
+    from starlette.websockets import WebSocketDisconnect
+
+    with TestClient(app) as elsewhere:
+        elsewhere.cookies.update(stale)
+        with pytest.raises(WebSocketDisconnect):
+            with elsewhere.websocket_connect(f"/ws/kernel/{notebook_id}"):
+                pass

@@ -13,8 +13,8 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from .config import settings
 from .db import get_conn, utcnow
+from .deps import user_from_token
 from .kernel import registry
-from .security import decode_token
 
 router = APIRouter()
 
@@ -132,11 +132,11 @@ class Connection:
 
 @router.websocket("/ws/kernel/{notebook_id}")
 async def kernel_socket(websocket: WebSocket, notebook_id: int) -> None:
-    token = websocket.cookies.get(settings.COOKIE_NAME)
-    user_id = decode_token(token) if token else None
-    if user_id is None:
+    user = user_from_token(websocket.cookies.get(settings.COOKIE_NAME))
+    if user is None or not user["is_active"]:
         await websocket.close(code=4401)
         return
+    user_id = int(user["id"])
 
     with get_conn() as conn:
         owned = conn.execute(

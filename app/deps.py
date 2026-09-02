@@ -11,8 +11,13 @@ from .db import get_conn
 from .security import decode_token_full
 
 
-def _user_from_request(request: Request) -> sqlite3.Row | None:
-    token = request.cookies.get(settings.COOKIE_NAME)
+def user_from_token(token: str | None) -> sqlite3.Row | None:
+    """Resolve a session token to its user, honouring the password-change cutoff.
+
+    Shared by the HTTP path and the websocket handshake. The socket used to call
+    decode_token directly, which skipped the cutoff entirely and left the
+    code-execution channel open to a cookie the password change had revoked.
+    """
     if not token:
         return None
     payload = decode_token_full(token)
@@ -43,6 +48,10 @@ def _user_from_request(request: Request) -> sqlite3.Row | None:
         if issued < cutoff:
             return None
     return user
+
+
+def _user_from_request(request: Request) -> sqlite3.Row | None:
+    return user_from_token(request.cookies.get(settings.COOKIE_NAME))
 
 
 def get_current_user(request: Request) -> sqlite3.Row:
