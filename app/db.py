@@ -273,6 +273,8 @@ def init_db() -> None:
         conn.executescript(SCHEMA)
         conn.executescript(PLATFORM_SCHEMA)
         _migrate_user_columns(conn)
+        _migrate_platform_columns(conn)
+        _backfill_solution_code(conn)
         _migrate_snippets_to_notebooks(conn)
 
 
@@ -337,6 +339,49 @@ def _migrate_user_columns(conn: sqlite3.Connection) -> None:
         "last_name = COALESCE(NULLIF(last_name, ''), "
         "trim(substr(full_name, instr(full_name || ' ', ' ') + 1)))"
     )
+
+
+def _migrate_platform_columns(conn: sqlite3.Connection) -> None:
+    """Additive columns for tables in PLATFORM_SCHEMA.
+
+    Mirrors _migrate_user_columns; the platform tables had no equivalent because
+    every earlier change could be expressed in CREATE TABLE IF NOT EXISTS.
+    """
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(assignments)")}
+    for column, ddl in (
+        ("solution_code", "TEXT NOT NULL DEFAULT ''"),
+        ("last_stdin", "TEXT NOT NULL DEFAULT ''"),
+    ):
+        if column not in existing:
+            conn.execute(f"ALTER TABLE assignments ADD COLUMN {column} {ddl}")
+
+
+def _backfill_solution_code(conn: sqlite3.Connection) -> None:
+    """Carry each assignment's notebook code into its own solution column.
+
+    The exercise solve surface moves off notebooks in this phase. Without this,
+    every student with work in progress would open the new editor and find it
+    empty.
+    """
+    key = "notebook_code_to_solution_v1"
+    if conn.execute("SELECT 1 FROM migrations WHERE key = ?", (key,)).fetchone():
+        return
+    rows = conn.execute(
+        "SELECT id, notebook_id FROM assignments"
+        " WHERE notebook_id IS NOT NULL AND solution_code = ''"
+    ).fetchall()
+    for row in rows:
+        cells = conn.execute(
+            "SELECT source FROM cells WHERE notebook_id = ? AND cell_type = 'code'"
+            " ORDER BY position",
+            (row["notebook_id"],),
+        ).fetchall()
+        code = "\n\n".join(c["source"] for c in cells if c["source"].strip())
+        if code:
+            conn.execute(
+                "UPDATE assignments SET solution_code = ? WHERE id = ?", (code, row["id"])
+            )
+    conn.execute("INSERT INTO migrations (key, applied_at) VALUES (?, ?)", (key, utcnow()))
 
 
 def notify(conn: sqlite3.Connection, user_id: int, kind: str, title: str, link: str = "") -> None:
