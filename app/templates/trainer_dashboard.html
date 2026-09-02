@@ -16,59 +16,9 @@
       <h1>Welcome back, {{ name }}</h1>
       <p>Everything across your students, exercises and submissions.</p>
     </div>
-    <div class="quick">
-      <a class="cb-btn primary" href="/trainer/exercises/new">+ New exercise</a>
-      <a class="cb-btn" href="/trainer/exercises/drafts">Drafts</a>
-    </div>
   </div>
 
   <section class="stat-grid" id="stats"></section>
-
-  <div class="panel-grid">
-    <div>
-      <section class="panel" id="review-panel">
-        <header>
-          <h2>Submissions awaiting review</h2>
-          <span class="count" id="review-count">0</span>
-        </header>
-        <div class="panel-body" id="review-list"></div>
-      </section>
-
-      <section class="panel" id="pending-panel">
-        <header>
-          <h2>Pending submissions</h2>
-          <span class="count" id="pending-count">0</span>
-          <span class="spacer"></span>
-          <span class="cb-hint">Assigned, not yet submitted</span>
-          <label class="date-filter">From
-            <input type="date" id="pending-from"></label>
-          <label class="date-filter">To
-            <input type="date" id="pending-to"></label>
-        </header>
-        <div class="panel-body" id="pending-list"></div>
-      </section>
-
-      <section class="panel" id="exercises-panel">
-        <header>
-          <h2>Coding exercises</h2>
-          <span class="count" id="exercise-count">0</span>
-          <span class="spacer"></span>
-          <label class="date-filter">From
-            <input type="date" id="exercise-from"></label>
-          <label class="date-filter">To
-            <input type="date" id="exercise-to"></label>
-        </header>
-        <div class="panel-body" id="exercise-list"></div>
-      </section>
-    </div>
-
-    <div>
-      <section class="panel" id="deadlines-panel">
-        <header><h2>Upcoming deadlines</h2></header>
-        <div class="panel-body" id="deadline-list"></div>
-      </section>
-    </div>
-  </div>
 </main>
 
 <div class="toast" id="toast" hidden></div>

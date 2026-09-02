@@ -188,13 +188,3 @@ def test_review_has_its_own_page_and_the_modal_is_gone(client):
     assert 'id="exercise-sheet"' not in html, "the new-exercise modal should be a page now"
     assert 'id="review-sheet"' not in html, "the review modal should be a page now"
     assert 'href="/trainer/exercises/new"' in html
-
-
-# ── requirement 3: date filters on the two panels ──────────────────────────
-
-
-def test_the_dashboard_offers_date_filters(client):
-    register_trainer(client)
-    html = client.get("/trainer").text
-    for field in ("pending-from", "pending-to", "exercise-from", "exercise-to"):
-        assert f'id="{field}"' in html, f"missing date filter {field}"

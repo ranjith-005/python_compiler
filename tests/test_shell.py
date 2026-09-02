@@ -44,18 +44,26 @@ def test_login_page_carries_the_new_brand(client):
     assert "PyCompiler" not in html
 
 
-# ── requirement 1: only two stat cards ──────────────────────────────────────
+# ── Phase 2 Task 5: five linked cards, replacing the old two ────────────────
+# (superseded from the Phase A "only two stat cards" requirement below: the
+# dashboard now links out to five pages instead of duplicating their content
+# inline, so all five labels are expected here rather than excluded.)
 
 
-def test_only_pending_and_awaiting_review_cards_remain(client):
+def test_five_dashboard_cards_link_to_their_own_pages(client):
     html = trainer_page(client)
     # The cards are built in JS, so the card set is asserted against the script.
     js = client.get("/static/js/trainer_dashboard.js").text
     cards = js[js.index("const cards = ["): js.index("const host")]
-    assert "Pending submissions" in cards
-    assert "Awaiting review" in cards
-    for gone in ('label: "Students"', "Coding exercises", '"Completed"'):
-        assert gone not in cards, f"{gone} should no longer be a card"
+    for label, href in (
+        ("Students", "/trainer/students"),
+        ("Pending submissions", "/trainer/pending"),
+        ("Awaiting review", "/trainer/queue"),
+        ("Exercises", "/trainer/exercises"),
+        ("Completed", "/trainer/completed"),
+    ):
+        assert f'label: "{label}"' in cards, f"{label} card missing"
+        assert f'href: "{href}"' in cards, f"{label} card missing its href"
     assert "stat-grid" in html
 
 
@@ -73,30 +81,11 @@ def test_awaiting_review_has_no_search_box(client):
 def test_a_single_students_link_and_no_duplicate_shortcuts(client):
     html = trainer_page(client)
     assert html.count('href="/trainer/students"') == 1, "expected exactly one Students link"
-    head = html[html.index('class="quick"'): html.index("stat-grid")]
-    assert "New exercise" in head, "the quick row should still offer New exercise"
-    # Requirement 11: the shortcuts duplicated by dashboard panels are gone.
-    assert "/trainer/queue" not in head
-    assert "/trainer/students" not in head
-    # Phase B: the only /trainer/exercises links here are the new-exercise and
-    # drafts pages, never the old Exercises shortcut.
-    assert 'href="/trainer/exercises"' not in head
-
-
-# ── requirements 7 and 10: deadlines lose the bar and the x/y counter ───────
-
-
-def test_deadlines_have_no_progress_bar_or_counter(client):
-    trainer_page(client)
-    js = client.get("/static/js/trainer_dashboard.js").text
-    start = js.index("function renderDeadlines")
-    # Slice to the *next* section banner after the function, not the first one
-    # in the file -- the header comment also mentions student progress.
-    end = js.index("  // ──", start)
-    block = js[start:end]
-    assert block.strip(), "failed to isolate renderDeadlines"
-    assert "submitted`" not in block, "the x/y submitted counter should be gone"
-    assert "class: `bar" not in block, "the progress bar should be gone"
+    # Phase 2 Task 5 removed the quick row and the panel-grid entirely (the
+    # cards render client-side, so their hrefs never land in this server HTML
+    # at all); the topbar nav is the only place these shortcuts render now.
+    assert 'class="quick"' not in html
+    assert html.count('href="/trainer/queue"') == 0
 
 
 # ── requirement 9 + shared 4: avatar dropdown, options open real pages ──────

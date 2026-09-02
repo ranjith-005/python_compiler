@@ -116,3 +116,16 @@ def test_exercise_titles_are_not_interpolated_as_html(client):
     assert "onerror" not in page
     script = open("app/static/js/trainer_section.js", encoding="utf-8").read()
     assert "innerHTML" not in script
+
+
+def test_trainer_dashboard_is_cards_only(client):
+    register_trainer(client)
+    html = client.get("/trainer").text
+    for gone in ("Submissions awaiting review", "Pending submissions",
+                 "Coding exercises", "Upcoming deadlines", "+ New exercise"):
+        assert gone not in html, gone
+    # The topbar's Exercises dropdown legitimately has a "Drafts" link (it is
+    # unrelated to this page and stays); the dashboard's own quick row, which
+    # used to duplicate it, is what must be gone.
+    assert 'class="quick"' not in html
+    assert 'id="stats"' in html
