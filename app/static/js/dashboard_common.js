@@ -18,10 +18,18 @@ window.Dash = (function () {
   // Requirement: confirmation appears in the centre after an action, and is not
   // a pop-up. Non-modal, does not trap focus, does not block interaction.
   function flash(message, kind) {
+    // toast() dereferences toastEl with no null guard, so this fallback would
+    // throw on a page with neither a #flash nor a #toast region. No such page
+    // exists today; keep both regions in sync if that ever changes.
     if (!flashEl) return toast(message, kind === "error");
-    flashEl.textContent = message;
+    // Role before content: the element must already be a live region when the
+    // text changes, or a screen reader can miss the first announcement — and
+    // several call sites flash once and then navigate away.
+    const isError = kind === "error";
+    flashEl.setAttribute("role", isError ? "alert" : "status");
+    flashEl.setAttribute("aria-live", isError ? "assertive" : "polite");
     flashEl.className = `flash ${kind || "success"}`;
-    flashEl.setAttribute("role", kind === "error" ? "alert" : "status");
+    flashEl.textContent = message;
     flashEl.hidden = false;
     clearTimeout(flashTimer);
     flashTimer = setTimeout(() => (flashEl.hidden = true), 3200);

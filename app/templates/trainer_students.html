@@ -12,7 +12,7 @@
   <div class="dash-head"><div><h1>Students</h1><p>Progress and assignment status for every student.</p></div><a class="cb-btn" href="/trainer">Back to dashboard</a></div>
   <section class="panel student-directory"><header><h2>Student roster</h2><span class="count" id="student-count">0</span><span class="spacer"></span><input class="dash-search" id="student-search" type="search" placeholder="Search students"></header><div class="panel-body" id="student-list"></div></section>
 </main>
-<div class="flash" id="flash" hidden></div>
+<div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
 <div class="toast" id="toast" hidden></div>
 {% endblock %}
 {% block scripts %}
