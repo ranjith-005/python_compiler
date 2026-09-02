@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from conftest import register, register_trainer
 from test_dashboards import make_exercise, solve, student_id
+from test_modules import a_module_and_student, login
 
 
 def test_pages_render_the_accounts_theme_server_side(client):
@@ -286,3 +287,78 @@ def test_student_dashboard_trainer_name_never_falls_back_to_a_raw_email(client):
     row = next(a for a in assignments if a["title"] == "Trainer display name check")
     assert row["trainer"] == "Blankname"
     assert "@" not in row["trainer"]
+
+
+# ── task 8: the exercise form trim and module progress bars ────────────────
+
+
+def test_exercise_form_drops_the_retired_fields(client):
+    register_trainer(client)
+    html = client.get("/trainer/exercises/new").text
+    for gone in ("Input format", "Output format", "Constraints", "View drafts"):
+        assert gone not in html, gone
+    assert "Assign" in html
+    assert "Assign to" not in html
+
+
+def test_exercise_still_accepts_the_retained_fields(client):
+    register_trainer(client)
+    r = client.post("/api/exercises", json={
+        "title": "Sum", "problem_statement": "Add two numbers",
+        "sample_input": "1 2", "sample_output": "3",
+        "status": "published", "test_cases": [], "assign_to": [],
+    })
+    assert r.status_code == 201
+
+
+def test_exercise_detail_stops_rendering_the_retired_fields(client):
+    # The schema and the columns keep the three fields (existing exercises
+    # still hold data there); only the display path should stop showing them.
+    register_trainer(client)
+    r = client.post("/api/exercises", json={
+        "title": "Legacy", "problem_statement": "Old style",
+        "input_format": "n on one line", "output_format": "n on one line",
+        "constraints": "0 <= n <= 10", "sample_input": "1", "sample_output": "1",
+        "status": "published", "test_cases": [], "assign_to": [],
+    })
+    exercise_id = r.json()["id"]
+    detail = client.get(f"/api/exercises/{exercise_id}").json()
+    # The API still carries the columns (nothing was dropped from the schema)...
+    assert detail["input_format"] == "n on one line"
+    assert detail["output_format"] == "n on one line"
+    assert detail["constraints"] == "0 <= n <= 10"
+    # ...but the trainer_detail.js display path no longer renders them.
+    script = open("app/static/js/trainer_detail.js", encoding="utf-8").read()
+    assert 'block("Input format"' not in script
+    assert 'block("Output format"' not in script
+    assert 'block("Constraints"' not in script
+
+
+def test_exercise_form_picker_lists_students_by_display_name(client):
+    register_trainer(client)
+    script = open("app/static/js/trainer_detail.js", encoding="utf-8").read()
+    picker_block = script[script.index("async function exerciseForm") : script.index("$(\"pick-all\")")]
+    assert '"span", {}, s.display' in picker_block
+    assert "s.email" not in picker_block
+
+
+def test_student_module_cards_carry_a_progress_bar_matching_run_ok_blocks(client):
+    sid, mod = a_module_and_student(client)
+    blocks = [
+        b for b in client.get(f"/api/modules/{mod['id']}").json()["blocks"] if b["kind"] == "code"
+    ]
+    assert len(blocks) == 2
+
+    login(client, "s1@example.com")
+    client.post(
+        f"/api/modules/{mod['id']}/blocks/{blocks[0]['id']}/run", json={"code": "print(1)"}
+    )
+
+    listing = client.get("/api/modules").json()
+    item = next(m for m in listing if m["id"] == mod["id"])
+    # Same figure as assignments.py's student_detail: ran_ok blocks over total.
+    assert item["completed_blocks"] == 1
+    assert item["progress"] == 50
+
+    script = open("app/static/js/modules.js", encoding="utf-8").read()
+    assert "progressBar(m.progress)" in script

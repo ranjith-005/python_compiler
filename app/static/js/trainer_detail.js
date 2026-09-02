@@ -239,11 +239,8 @@
       $("question"),
       [
         block("Problem statement", x.problem_statement),
-        block("Input format", x.input_format),
-        block("Output format", x.output_format),
         block("Sample input", x.sample_input),
         block("Sample output", x.sample_output),
-        block("Constraints", x.constraints),
         block("Explanation", x.explanation),
       ].filter(Boolean),
       "This exercise has no question text."
@@ -460,11 +457,8 @@
           body: JSON.stringify({
             title: value("ex-title"),
             problem_statement: value("ex-statement"),
-            input_format: value("ex-input"),
-            output_format: value("ex-output"),
             sample_input: value("ex-sample-in"),
             sample_output: value("ex-sample-out"),
-            constraints: value("ex-constraints"),
             due_date: $("ex-due").value || null,
             status: $("ex-status").value,
             test_cases,
