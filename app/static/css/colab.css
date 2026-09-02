@@ -86,7 +86,7 @@ html:has(body.colab) { background: var(--bg); height: auto; }
   box-shadow: var(--shadow-card);
   transition: background .12s, color .12s, border-color .12s, box-shadow .12s;
 }
-.cb-btn:hover { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); }
+.cb-btn:hover { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card-hover); }
 .cb-btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
 .cb-btn.primary:hover { background: var(--blue-dark); color: #fff; }
 .cb-btn.ghost { border-color: transparent; }
