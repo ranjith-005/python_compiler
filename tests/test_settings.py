@@ -62,10 +62,18 @@ def test_password_change_succeeds_and_the_new_password_works(client):
     assert login.status_code == 200
 
 
+def test_password_change_reissues_the_session_cookie(client):
+    register(client)
+    response = _change_password(client)
+    assert response.status_code == 200
+    # Asserting that /auth/me still works would prove nothing: the register-time
+    # cookie is still valid either way. The reissue is only observable here.
+    assert "session=" in response.headers.get("set-cookie", "")
+
+
 def test_password_change_keeps_the_session_alive(client):
     register(client)
     _change_password(client)
-    # No re-login: the endpoint reissues the cookie.
     assert client.get("/auth/me").status_code == 200
 
 
