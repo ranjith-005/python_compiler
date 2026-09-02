@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from .db import WELCOME_CELLS, create_notebook, get_conn, utcnow
 from .deps import get_current_user
-from .schemas import Credentials
+from .schemas import Credentials, PasswordChangeIn
 from .security import (
     clear_session_cookie,
     hash_password,
@@ -87,6 +87,45 @@ def login(creds: Credentials, response: Response) -> dict:
 @router.post("/logout")
 def logout(response: Response) -> dict:
     clear_session_cookie(response)
+    return {"ok": True}
+
+
+@router.post("/password")
+def change_password(
+    body: PasswordChangeIn,
+    response: Response,
+    user: sqlite3.Row = Depends(get_current_user),
+) -> dict:
+    """Change your own password (settings requirement 6, both roles)."""
+    if body.new_password != body.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The new passwords do not match.",
+        )
+    if body.new_password == body.current_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Choose a password different from your current one.",
+        )
+
+    with get_conn() as conn:
+        # get_current_user deliberately does not carry the hash around.
+        row = conn.execute(
+            "SELECT password_hash FROM users WHERE id = ?", (user["id"],)
+        ).fetchone()
+        # 400, not 401: a wrong password here is a form error, not an expired session.
+        if row is None or not verify_password(body.current_password, row["password_hash"]):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Your current password is not correct.",
+            )
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (hash_password(body.new_password), user["id"]),
+        )
+
+    # Keep the user signed in on this device.
+    set_session_cookie(response, int(user["id"]))
     return {"ok": True}
 
 

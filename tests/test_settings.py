@@ -38,3 +38,62 @@ def test_registration_leaves_the_name_empty_for_display_name_to_resolve(client):
     me = client.get("/auth/me").json()
     assert me["full_name"] == ""
     assert display_name(me) == "Kuttyxkutty123"
+
+
+def _change_password(client, current="password123", new="newpassword456", confirm=None):
+    return client.post(
+        "/auth/password",
+        json={
+            "current_password": current,
+            "new_password": new,
+            "confirm_password": new if confirm is None else confirm,
+        },
+    )
+
+
+def test_password_change_succeeds_and_the_new_password_works(client):
+    register(client)
+    assert _change_password(client).status_code == 200
+
+    client.cookies.clear()
+    login = client.post(
+        "/auth/login", json={"email": "user@example.com", "password": "newpassword456"}
+    )
+    assert login.status_code == 200
+
+
+def test_password_change_keeps_the_session_alive(client):
+    register(client)
+    _change_password(client)
+    # No re-login: the endpoint reissues the cookie.
+    assert client.get("/auth/me").status_code == 200
+
+
+def test_password_change_rejects_a_wrong_current_password(client):
+    register(client)
+    response = _change_password(client, current="notmypassword")
+    assert response.status_code == 400
+    assert "current password" in response.json()["detail"].lower()
+
+
+def test_password_change_rejects_a_mismatched_confirmation(client):
+    register(client)
+    response = _change_password(client, new="newpassword456", confirm="different12345")
+    assert response.status_code == 400
+    assert "match" in response.json()["detail"].lower()
+
+
+def test_password_change_rejects_a_short_new_password(client):
+    register(client)
+    assert _change_password(client, new="short").status_code == 422
+
+
+def test_password_change_rejects_reusing_the_current_password(client):
+    register(client)
+    response = _change_password(client, new="password123")
+    assert response.status_code == 400
+    assert "different" in response.json()["detail"].lower()
+
+
+def test_password_change_requires_a_session(client):
+    assert _change_password(client).status_code == 401
