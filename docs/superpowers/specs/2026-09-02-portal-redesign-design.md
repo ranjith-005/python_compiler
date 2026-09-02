@@ -55,18 +55,45 @@ Three layers change, in dependency order.
 
 ### Layer 1 - design tokens and theme
 
-`app/static/css/styles.css` already defines a `:root` token block, and the three
-stylesheets use CSS variables for roughly 90% of their colour values (287
-variable references against 74 hardcoded hex literals). Light mode is therefore
-a second token block plus the conversion of those 74 literals.
+The stylesheets are already variable-driven - 287 variable references against 74
+hardcoded hex literals - but they are **not** currently themeable, because there
+are two competing token blocks defining the same names with opposite palettes:
 
-Token sets:
+- `styles.css` `:root` defines a **dark** palette. It governs the login page.
+- `colab.css` redefines `--bg`, `--border`, `--text`, `--text-dim`, `--green`,
+  `--red`, `--amber`, `--mono` and `--sans` on the **`.colab` body class** with a
+  **light** palette, and adds `--surface`, `--cell-bg`, `--border-strong`,
+  `--blue` and `--blue-dark`. Because `.colab` is on the body of every dashboard
+  page and loads after `styles.css`, light wins there.
 
-    :root, :root[data-theme="dark"]  { /* dark palette (current values) */ }
-    :root[data-theme="light"]        { /* light palette */ }
+That is why the login page is dark and every dashboard is light today, and it is
+why simply adding a `[data-theme]` block would not work: the `.colab` class would
+override it regardless of the theme chosen.
+
+Phase 1 therefore has to unify the two vocabularies before it can theme
+anything. The `.colab` names win as canonical, because they carry 257 of the 287
+references against 30 for the `styles.css` names. `--bg-elev` and `--panel`
+collapse into `--surface`, `--accent` into `--blue`, `--accent-2` into
+`--blue-dark`, `--border-soft` into `--border-strong`, and `--bg-inset` into
+`--cell-bg`. `--text-mute` and `--radius` have no equivalent and are kept.
+
+The unified set then moves off `.colab` and onto the root element, so it can
+respond to `data-theme`:
+
+    :root, :root[data-theme="system"]  { /* dark palette */ }
+    :root[data-theme="dark"]           { /* dark palette */ }
+    :root[data-theme="light"]          { /* light palette */ }
     @media (prefers-color-scheme: light) {
-      :root[data-theme="system"]     { /* light palette */ }
+      :root[data-theme="system"]       { /* light palette */ }
     }
+
+`.colab` keeps its layout properties and loses its colour definitions. The
+`html:has(body.colab) { background: #ffffff }` rule becomes `var(--bg)`.
+
+Note the consequence: the dashboards are light today and the default theme is
+`system`, which resolves to dark unless the operating system asks for light. The
+out-of-box appearance of the dashboards therefore changes from light to dark,
+which is what "system (default black)" asks for.
 
 `system` resolves to light only when the operating system actively reports a
 light preference; with no preference expressed it stays dark. This matches the
