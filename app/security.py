@@ -32,6 +32,11 @@ def create_token(user_id: int) -> str:
         "sub": str(user_id),
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(days=settings.SESSION_DAYS)).timestamp()),
+        # Microsecond-resolution mint time, for session invalidation only.
+        # `iat` above is second-resolution (standard JWT NumericDate) and is
+        # too coarse to reliably order against a password-change cutoff that
+        # can land in the very same second.
+        "session_started": now.isoformat(timespec="microseconds"),
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=ALGORITHM)
 
@@ -42,6 +47,14 @@ def decode_token(token: str) -> int | None:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
         return int(payload["sub"])
     except (jwt.PyJWTError, KeyError, TypeError, ValueError):
+        return None
+
+
+def decode_token_full(token: str) -> dict | None:
+    """The whole payload, for callers that need `iat` as well as `sub`."""
+    try:
+        return jwt.decode(token, settings.SECRET_KEY, algorithms=[ALGORITHM])
+    except jwt.PyJWTError:
         return None
 
 

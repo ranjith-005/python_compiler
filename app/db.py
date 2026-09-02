@@ -234,6 +234,17 @@ def utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
+def utcnow_precise() -> str:
+    """Microsecond-resolution timestamp.
+
+    Plain `utcnow()` truncates to the second, which is too coarse to order two
+    events that can land in the same second (e.g. a password-change session
+    cutoff versus a token minted moments before or after it). Used only for
+    `sessions_valid_from`.
+    """
+    return datetime.now(timezone.utc).isoformat(timespec="microseconds")
+
+
 def connect() -> sqlite3.Connection:
     conn = sqlite3.connect(settings.DB_PATH, timeout=15.0)
     conn.row_factory = sqlite3.Row
@@ -314,6 +325,7 @@ def _migrate_user_columns(conn: sqlite3.Connection) -> None:
         ("phone", "TEXT NOT NULL DEFAULT ''"),
         ("is_active", "INTEGER NOT NULL DEFAULT 1"),
         ("theme", "TEXT NOT NULL DEFAULT 'system'"),
+        ("sessions_valid_from", "TEXT NOT NULL DEFAULT ''"),
     ):
         if column not in existing:
             conn.execute(f"ALTER TABLE users ADD COLUMN {column} {ddl}")

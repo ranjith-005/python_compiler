@@ -8,23 +8,41 @@ from fastapi import Depends, HTTPException, Request, status
 
 from .config import settings
 from .db import get_conn
-from .security import decode_token
+from .security import decode_token_full
 
 
 def _user_from_request(request: Request) -> sqlite3.Row | None:
     token = request.cookies.get(settings.COOKIE_NAME)
     if not token:
         return None
-    user_id = decode_token(token)
-    if user_id is None:
+    payload = decode_token_full(token)
+    if not payload:
+        return None
+    try:
+        user_id = int(payload["sub"])
+    except (KeyError, TypeError, ValueError):
         return None
     with get_conn() as conn:
-        return conn.execute(
+        user = conn.execute(
             "SELECT id, email, created_at, role, full_name, first_name, last_name, phone,"
-            " is_active, theme"
+            " is_active, theme, sessions_valid_from"
             " FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
+    if user is None:
+        return None
+    # A password change stamps sessions_valid_from; tokens minted before it die.
+    # Both sides are microsecond-resolution ISO strings (see create_token's
+    # `session_started` claim and db.utcnow_precise), so same-second races
+    # between the cutoff and a token's mint time still compare correctly.
+    # A token from before this claim existed has no `session_started` and is
+    # treated as arbitrarily old, i.e. invalidated by any cutoff.
+    cutoff = user["sessions_valid_from"]
+    if cutoff:
+        issued = payload.get("session_started") or ""
+        if issued < cutoff:
+            return None
+    return user
 
 
 def get_current_user(request: Request) -> sqlite3.Row:

@@ -6,7 +6,7 @@ import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from .db import WELCOME_CELLS, create_notebook, get_conn, utcnow
+from .db import WELCOME_CELLS, create_notebook, get_conn, utcnow, utcnow_precise
 from .deps import get_current_user
 from .schemas import Credentials, PasswordChangeIn
 from .security import (
@@ -120,8 +120,8 @@ def change_password(
                 detail="Your current password is not correct.",
             )
         conn.execute(
-            "UPDATE users SET password_hash = ? WHERE id = ?",
-            (hash_password(body.new_password), user["id"]),
+            "UPDATE users SET password_hash = ?, sessions_valid_from = ? WHERE id = ?",
+            (hash_password(body.new_password), utcnow_precise(), user["id"]),
         )
 
     # Keep the user signed in on this device.

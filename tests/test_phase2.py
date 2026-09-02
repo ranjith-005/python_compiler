@@ -26,3 +26,24 @@ def test_theme_change_is_reflected_on_the_next_page_load(client):
     assert 'data-theme="system"' in client.get("/student").text
     client.patch("/api/settings/theme", json={"theme": "dark"})
     assert 'data-theme="dark"' in client.get("/student").text
+
+
+def test_password_change_signs_out_other_devices(client):
+    register(client)
+    stale = dict(client.cookies)          # this browser's cookie, captured before the change
+
+    client.post("/auth/password", json={
+        "current_password": "password123",
+        "new_password": "newpassword456",
+        "confirm_password": "newpassword456",
+    })
+    # The device that changed it stays signed in (it got a fresh cookie).
+    assert client.get("/auth/me").status_code == 200
+
+    # A different device still holding the old cookie is rejected.
+    from fastapi.testclient import TestClient
+    from app.main import app
+
+    with TestClient(app) as elsewhere:
+        elsewhere.cookies.update(stale)
+        assert elsewhere.get("/auth/me").status_code == 401
