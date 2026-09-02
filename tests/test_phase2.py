@@ -223,3 +223,66 @@ def test_date_filters_restored_on_exercises_and_pending_only(client):
         html = client.get(path).text
         assert 'id="filter-from"' not in html, path
         assert 'id="filter-to"' not in html, path
+
+
+# ── Task 7: student dashboard down to cards + deadlines; exercises absorbs
+#    the assignments list, its filters, search and the queries sidebar ──────
+
+
+def test_student_dashboard_keeps_only_cards_and_deadlines(client):
+    register(client)
+    html = client.get("/student").text
+    assert 'id="stats"' in html
+    assert "Upcoming deadlines" in html
+    for gone in ("Assigned exercises", "From your trainer"):
+        assert gone not in html, gone
+
+
+def test_student_exercises_page_absorbs_the_list_and_queries(client):
+    register(client)
+    html = client.get("/student/exercises").text
+    assert "Assigned exercises" in html
+    assert "From your trainer" in html
+    for tab in ("All", "To do", "In progress", "Submitted", "Changes requested", "Completed"):
+        assert tab in html, tab
+
+
+def test_dashboard_stat_cards_are_links_with_the_fixed_filter_mapping(client):
+    script = open("app/static/js/student_dashboard.js", encoding="utf-8").read()
+    assert "innerHTML" not in script
+    # Cards navigate, so they must be built as <a>, never <button>.
+    assert 'el(\n          "a",\n          { class: `stat' in script
+    assert "/student/exercises?filter=${c.filter}" in script
+    for filter_key in ("all", "in_progress", "submitted", "changes_requested", "completed"):
+        assert f'filter: "{filter_key}"' in script
+
+
+def test_dashboard_stat_cards_use_the_shared_stat_classes(client):
+    script = open("app/static/js/student_dashboard.js", encoding="utf-8").read()
+    for cls in ('"label"', '"value"', '"sub"'):
+        assert cls in script
+
+
+def test_student_dashboard_trainer_name_never_falls_back_to_a_raw_email(client):
+    # register_trainer() defaults to a non-empty name; register() directly
+    # with role="trainer" and name="" is what actually reproduces an empty
+    # full_name, which is what a.trainer's fallback logic must survive.
+    register(client, email="blankname@example.com", role="trainer", name="")
+    client.cookies.clear()
+    register(client, email="learner@example.com")
+    client.cookies.clear()
+    client.post(
+        "/auth/login",
+        json={"email": "blankname@example.com", "password": "password123"},
+    )
+    sid = student_id(client, "learner@example.com")
+    make_exercise(client, [sid], title="Trainer display name check")
+
+    client.cookies.clear()
+    client.post(
+        "/auth/login", json={"email": "learner@example.com", "password": "password123"}
+    )
+    assignments = client.get("/api/dashboard/student").json()["assignments"]
+    row = next(a for a in assignments if a["title"] == "Trainer display name check")
+    assert row["trainer"] == "Blankname"
+    assert "@" not in row["trainer"]

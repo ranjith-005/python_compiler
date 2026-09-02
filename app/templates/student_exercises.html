@@ -2,7 +2,69 @@
 {% from "_topbar.html" import topbar %}
 {% block title %}Exercises · Python Learning Platform{% endblock %}
 {% block body_class %}colab dash{% endblock %}
-{% block head %}<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}"><link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/colab.css?v={{ asset_v() }}">
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
 {% block content %}
-{{ topbar('student', name, back='/student', heading='My exercises', current='exercises') }}<main class="dash-main"><section class="panel"><header><h2>Assigned exercises</h2></header><div class="panel-body" id="exercise-list"></div></section></main><script src="/static/js/student_exercises.js?v={{ asset_v() }}"></script>
+{{ topbar('student', name, back='/student', heading='My exercises', current='exercises') }}
+
+<main class="dash-main">
+  <div class="panel-grid">
+    <div>
+      <section class="panel" id="assignments-panel">
+        <header>
+          <h2>Assigned exercises</h2>
+          <span class="count" id="assign-count">0</span>
+          <span class="spacer"></span>
+          <input class="dash-search" id="assign-search" type="search" placeholder="Search exercises">
+        </header>
+        <div class="panel-body pad" style="padding-bottom:0">
+          <div class="filters" id="filters">
+            <button class="active" data-filter="all">All</button>
+            <button data-filter="open">To do</button>
+            <button data-filter="in_progress">In progress</button>
+            <button data-filter="submitted">Submitted</button>
+            <button data-filter="changes_requested">Changes requested</button>
+            <button data-filter="completed">Completed</button>
+          </div>
+        </div>
+        <div class="panel-body" id="assign-list"></div>
+      </section>
+    </div>
+
+    <div>
+      <!-- Requirement 12: queries and warnings your trainer raised. -->
+      <section class="panel" id="queries-panel">
+        <header>
+          <h2>From your trainer</h2>
+          <span class="count" id="query-count">0</span>
+        </header>
+        <div class="panel-body" id="query-list"></div>
+      </section>
+    </div>
+  </div>
+</main>
+
+<!-- Submission result (SRS §12) -->
+<div class="sheet" id="result-sheet" hidden>
+  <div class="sheet-card">
+    <header>
+      <h2 id="result-title">Submission result</h2>
+      <button class="icon-btn" data-close="result-sheet" aria-label="Close">✕</button>
+    </header>
+    <div class="sheet-body" id="result-body"></div>
+    <div class="sheet-foot">
+      <button class="cb-btn primary" data-close="result-sheet">Done</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/student_exercises.js?v={{ asset_v() }}"></script>
 {% endblock %}

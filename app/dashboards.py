@@ -253,7 +253,7 @@ def student_dashboard(user: sqlite3.Row = Depends(require_student)) -> dict:
                 "       a.notebook_id, e.id AS exercise_id, e.title, e.problem_statement,"
                 "       s.id AS submission_id, s.result, s.tests_passed, s.tests_total,"
                 "       s.review_status, s.comment, s.submitted_at, s.reviewed_at,"
-                "       t.full_name AS trainer"
+                "       t.full_name AS trainer, t.email AS trainer_email"
                 " FROM assignments a"
                 " JOIN exercises e ON e.id = a.exercise_id"
                 " JOIN users t ON t.id = e.trainer_id"
@@ -270,6 +270,8 @@ def student_dashboard(user: sqlite3.Row = Depends(require_student)) -> dict:
             # Trim the statement down to a dashboard-sized preview.
             statement = (row.pop("problem_statement") or "").strip()
             row["preview"] = statement[:180] + ("..." if len(statement) > 180 else "")
+            # A trainer's full_name is often empty (SRS: never show a raw email).
+            row["trainer"] = _display(row, "trainer", "trainer_email")
 
         stats = {
             "assigned": len(assignments),
