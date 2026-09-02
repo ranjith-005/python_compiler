@@ -690,3 +690,27 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .statement { margin: 0; white-space: pre-wrap; }
 
 @media (max-width: 980px) { .solve-grid { grid-template-columns: 1fr; } }
+
+/* ── centred status message ───────────────────────────────────────── */
+
+.flash {
+  position: fixed;
+  top: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  max-width: min(560px, calc(100vw - 32px));
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-card-hover);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+}
+.flash.success { border-color: var(--green); }
+.flash.error   { border-color: var(--red); }
+.flash.info    { border-color: var(--blue); }

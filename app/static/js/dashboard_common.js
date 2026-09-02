@@ -12,6 +12,22 @@ window.Dash = (function () {
     toastTimer = setTimeout(() => (toastEl.hidden = true), 2800);
   }
 
+  const flashEl = document.getElementById("flash");
+  let flashTimer = null;
+
+  // Requirement: confirmation appears in the centre after an action, and is not
+  // a pop-up. Non-modal, does not trap focus, does not block interaction.
+  function flash(message, kind) {
+    if (!flashEl) return toast(message, kind === "error");
+    flashEl.textContent = message;
+    flashEl.className = `flash ${kind || "success"}`;
+    flashEl.setAttribute("role", kind === "error" ? "alert" : "status");
+    flashEl.hidden = false;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => (flashEl.hidden = true), 3200);
+  }
+  if (flashEl) flashEl.addEventListener("click", () => (flashEl.hidden = true));
+
   async function api(path, options = {}) {
     const res = await fetch(path, {
       headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
@@ -233,6 +249,7 @@ window.Dash = (function () {
   return {
     api,
     toast,
+    flash,
     when,
     ago,
     due,

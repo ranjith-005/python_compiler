@@ -2,7 +2,7 @@
 // this dispatches on that kind so the seven pages share one set of helpers.
 (function () {
   const D = window.Dash;
-  const { api, el, fill, pill, toast } = D;
+  const { api, el, fill, pill, flash } = D;
   const PAGE = window.PAGE || {};
   const $ = (id) => document.getElementById(id);
 
@@ -217,7 +217,7 @@
         await api(`/api/exercises/${exerciseId}`, { method: "DELETE" });
         window.location.href = "/trainer/exercises";
       } catch (err) {
-        toast(err.message, true);
+        flash(err.message, "error");
         disarm();
       }
     });
@@ -341,16 +341,16 @@
                         .split(",")
                         .map((n) => parseInt(n.trim(), 10))
                         .filter((n) => !isNaN(n));
-                if (!ids.length) return toast("No students chosen", true);
+                if (!ids.length) return flash("No students chosen", "error");
                 try {
                   const res = await api(`/api/exercises/${x.id}/assign`, {
                     method: "POST",
                     body: JSON.stringify({ assign_to: ids }),
                   });
-                  toast(`Published and assigned to ${res.assigned} student(s)`);
+                  flash(`Published and assigned to ${res.assigned} student(s)`, "success");
                   setTimeout(() => window.location.reload(), 900);
                 } catch (err) {
-                  toast(err.message, true);
+                  flash(err.message, "error");
                 }
               },
             },
@@ -394,10 +394,10 @@
           method: "POST",
           body: JSON.stringify({ action, comment: $("comment").value }),
         });
-        toast(action === "approve" ? "Approved" : "Changes requested");
+        flash(action === "approve" ? "Reviewed — approved" : "Reviewed — changes requested", "success");
         setTimeout(() => (window.location.href = "/trainer"), 800);
       } catch (err) {
-        toast(err.message, true);
+        flash(err.message, "error");
       }
     }
     $("approve-btn").addEventListener("click", () => verdict("approve"));
@@ -442,7 +442,7 @@
 
     const value = (id) => $(id).value.trim();
     $("save-exercise").addEventListener("click", async () => {
-      if (!value("ex-title")) return toast("A title is required", true);
+      if (!value("ex-title")) return flash("A title is required", "error");
       const test_cases = [...rows.querySelectorAll(".test-row")].map((r) => {
         const inputs = r.querySelectorAll("input");
         return {
@@ -465,10 +465,10 @@
             assign_to: [...picker.querySelectorAll("input:checked")].map((b) => Number(b.value)),
           }),
         });
-        toast("Exercise created");
+        flash($("ex-status").value === "draft" ? "Draft saved" : "Exercise created", "success");
         setTimeout(() => (window.location.href = "/trainer"), 800);
       } catch (err) {
-        toast(err.message, true);
+        flash(err.message, "error");
       }
     });
   }
@@ -485,6 +485,6 @@
 
   const run = ROUTES[PAGE.kind];
   if (run) {
-    run().catch((err) => toast(err.message || "Unable to load this page", true));
+    run().catch((err) => flash(err.message || "Unable to load this page", "error"));
   }
 })();

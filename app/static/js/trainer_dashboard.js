@@ -45,7 +45,7 @@
     try {
       data = await D.api("/api/dashboard/trainer");
     } catch (err) {
-      if (err.message !== "unauthenticated") D.toast(err.message, true);
+      if (err.message !== "unauthenticated") D.flash(err.message, "error");
       return;
     }
     renderStats();

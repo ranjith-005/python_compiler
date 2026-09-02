@@ -34,9 +34,9 @@
         method: "PATCH",
         body: JSON.stringify({ theme: value }),
       });
-      D.toast("Theme saved");
+      D.flash("Theme saved", "success");
     } catch (err) {
-      D.toast(`Saved on this device only: ${err.message}`, true);
+      D.flash(`Saved on this device only: ${err.message}`, "error");
     }
   });
 
@@ -63,9 +63,9 @@
           phone: phone.value,
         }),
       });
-      D.toast(`Saved — you appear as ${saved.display_name}`);
+      D.flash("Profile saved", "success");
     } catch (err) {
-      D.toast(err.message, true);
+      D.flash(err.message, "error");
     }
   });
 
@@ -74,8 +74,8 @@
   const confirm = document.getElementById("confirm-password");
 
   document.getElementById("save-password").addEventListener("click", async () => {
-    if (next.value !== confirm.value) return D.toast("The new passwords do not match.", true);
-    if (next.value.length < 8) return D.toast("Use at least 8 characters.", true);
+    if (next.value !== confirm.value) return D.flash("The new passwords do not match.", "error");
+    if (next.value.length < 8) return D.flash("Use at least 8 characters.", "error");
     try {
       await D.api("/auth/password", {
         method: "POST",
@@ -86,9 +86,9 @@
         }),
       });
       current.value = next.value = confirm.value = "";
-      D.toast("Password changed");
+      D.flash("Password changed", "success");
     } catch (err) {
-      D.toast(err.message, true);
+      D.flash(err.message, "error");
     }
   });
 })();

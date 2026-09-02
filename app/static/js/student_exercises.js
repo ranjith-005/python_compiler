@@ -143,19 +143,19 @@
       await D.api(`/api/assignments/${a.id}/open`, { method: "POST" });
       window.location.href = `/student/assignments/${a.id}/solve`;
     } catch (err) {
-      D.toast(err.message, true);
+      D.flash(err.message, "error");
     }
   }
 
   async function submit(a) {
     if (!window.confirm(`Submit your solution for "${a.title}"?`)) return;
-    D.toast("Running your solution against the test cases…");
+    D.flash("Running your solution against the test cases…", "info");
     try {
       const result = await D.api(`/api/assignments/${a.id}/submit`, { method: "POST" });
       showResult(a, result);
       load();
     } catch (err) {
-      D.toast(err.message, true);
+      D.flash(err.message, "error");
     }
   }
 
@@ -230,16 +230,16 @@
           {
             class: "cb-btn primary",
             onclick: async () => {
-              if (!box.value.trim()) return D.toast("Write a reply first", true);
+              if (!box.value.trim()) return D.flash("Write a reply first", "error");
               try {
                 await D.api(`/api/queries/${q.id}/reply`, {
                   method: "POST",
                   body: JSON.stringify({ reply: box.value.trim() }),
                 });
-                D.toast("Reply sent");
+                D.flash("Reply sent", "success");
                 load();
               } catch (err) {
-                D.toast(err.message, true);
+                D.flash(err.message, "error");
               }
             },
           },
@@ -258,7 +258,7 @@
     try {
       data = await D.api("/api/dashboard/student");
     } catch (err) {
-      if (err.message !== "unauthenticated") D.toast(err.message, true);
+      if (err.message !== "unauthenticated") D.flash(err.message, "error");
       return;
     }
     renderAssignments();

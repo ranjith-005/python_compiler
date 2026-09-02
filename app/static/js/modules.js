@@ -2,7 +2,7 @@
 // Templates set window.PAGE = { kind, ... }; this dispatches on it.
 (function () {
   const D = window.Dash;
-  const { api, el, fill, pill, toast } = D;
+  const { api, el, fill, pill, flash } = D;
   const PAGE = window.PAGE || {};
   const $ = (id) => document.getElementById(id);
 
@@ -103,19 +103,19 @@
 
     $("m-upload").addEventListener("click", async () => {
       const file = $("m-file").files[0];
-      if (!file) return toast("Choose a .ipynb file first", true);
+      if (!file) return flash("Choose a .ipynb file first", "error");
       const form = new FormData();
       form.append("file", file);
       form.append("title", $("m-title").value.trim());
       form.append("description", $("m-desc").value.trim());
       try {
         const res = await api("/api/modules", { method: "POST", body: form });
-        toast(`Uploaded "${res.title}" — ${res.code_blocks} practice sections`);
+        flash(`Uploaded "${res.title}" — ${res.code_blocks} practice sections`, "success");
         $("m-title").value = $("m-desc").value = "";
         $("m-file").value = "";
         refresh();
       } catch (err) {
-        toast(err.message, true);
+        flash(err.message, "error");
       }
     });
 
@@ -190,16 +190,16 @@
         picked.trim().toLowerCase() === "all"
           ? students.map((s) => s.id)
           : picked.split(",").map((n) => parseInt(n.trim(), 10)).filter((n) => !isNaN(n));
-      if (!ids.length) return toast("No students chosen", true);
+      if (!ids.length) return flash("No students chosen", "error");
       try {
         const res = await api(`/api/modules/${m.id}/assign`, {
           method: "POST",
           body: JSON.stringify({ assign_to: ids }),
         });
-        toast(`Assigned to ${res.assigned} student(s)`);
+        flash(`Assigned to ${res.assigned} student(s)`, "success");
         setTimeout(() => window.location.reload(), 900);
       } catch (err) {
-        toast(err.message, true);
+        flash(err.message, "error");
       }
     });
   }
@@ -337,5 +337,5 @@
   };
 
   const run = ROUTES[PAGE.kind];
-  if (run) run().catch((err) => toast(err.message || "Unable to load this page", true));
+  if (run) run().catch((err) => flash(err.message || "Unable to load this page", "error"));
 })();

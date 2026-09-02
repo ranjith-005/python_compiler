@@ -215,3 +215,18 @@ def test_someone_elses_assignment_redirects_rather_than_erroring(client):
     )
     assert response.status_code == 302
     assert response.headers["location"] == "/student/exercises"
+
+
+def test_pages_render_a_flash_region_and_no_page_calls_toast(client):
+    register(client)
+    assert 'id="flash"' in client.get("/student").text
+
+    from pathlib import Path
+
+    offenders = []
+    for path in Path("app/static/js").glob("*.js"):
+        if path.name in ("dashboard_common.js", "notebook.js"):
+            continue  # the definer, and the notebook keeps its own local toast
+        if "D.toast(" in path.read_text(encoding="utf-8"):
+            offenders.append(path.name)
+    assert offenders == [], f"still calling D.toast: {offenders}"
