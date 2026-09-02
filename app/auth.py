@@ -39,8 +39,7 @@ def register(creds: Credentials, response: Response) -> dict:
                     now,
                     creds.role,
                     f"{creds.first_name.strip()} {creds.last_name.strip()}".strip()
-                    or creds.full_name.strip()
-                    or email.split("@")[0],
+                    or creds.full_name.strip(),
                     creds.first_name.strip(),
                     creds.last_name.strip(),
                     creds.phone.strip(),
@@ -101,5 +100,6 @@ def me(user: sqlite3.Row = Depends(get_current_user)) -> dict:
         "first_name": user["first_name"],
         "last_name": user["last_name"],
         "phone": user["phone"],
+        "theme": user["theme"],
         "home": home_for(user["role"]),
     }

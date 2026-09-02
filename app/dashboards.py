@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends
 
 from .db import get_conn, utcnow
 from .deps import get_current_user, require_student, require_trainer
+from .names import display_name
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 
@@ -208,7 +209,7 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
         feed = _feed(conn, trainer_id)
 
     return {
-        "user": {"name": user["full_name"] or user["email"], "email": user["email"]},
+        "user": {"name": display_name(user), "email": user["email"]},
         "stats": stats,
         "queries": queries,
         "review_queue": review_queue,
@@ -287,7 +288,7 @@ def student_dashboard(user: sqlite3.Row = Depends(require_student)) -> dict:
         feed = _feed(conn, student_id)
 
     return {
-        "user": {"name": user["full_name"] or user["email"], "email": user["email"]},
+        "user": {"name": display_name(user), "email": user["email"]},
         "stats": stats,
         "queries": queries,
         "assignments": assignments,

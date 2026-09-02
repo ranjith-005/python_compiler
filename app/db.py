@@ -313,6 +313,7 @@ def _migrate_user_columns(conn: sqlite3.Connection) -> None:
         ("last_name", "TEXT NOT NULL DEFAULT ''"),
         ("phone", "TEXT NOT NULL DEFAULT ''"),
         ("is_active", "INTEGER NOT NULL DEFAULT 1"),
+        ("theme", "TEXT NOT NULL DEFAULT 'system'"),
     ):
         if column not in existing:
             conn.execute(f"ALTER TABLE users ADD COLUMN {column} {ddl}")
