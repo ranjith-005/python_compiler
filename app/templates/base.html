@@ -1,9 +1,18 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Python Learning Platform{% endblock %}</title>
+  <script>
+    // Before first paint: no flash of the previous palette. The account's own
+    // preference arrives later over /auth/me and reconciles this.
+    (function () {
+      var theme = "system";
+      try { theme = localStorage.getItem("theme") || "system"; } catch (e) {}
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>&#128013;</text></svg>">
   <link rel="stylesheet" href="/static/css/styles.css?v={{ asset_v() }}">
   {% block head %}{% endblock %}

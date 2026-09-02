@@ -4,24 +4,9 @@
    `height: auto` matters: styles.css sets html/body to height:100%, which caps a
    sticky header's containing block at one viewport - it would scroll out of view
    on a long notebook. */
-html:has(body.colab) { background: #ffffff; height: auto; }
+html:has(body.colab) { background: var(--bg); height: auto; }
 
 .colab {
-  --bg: #ffffff;
-  --surface: #f8fafc;
-  --cell-bg: #f8fafc;
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
-  --text: #0f172a;
-  --text-dim: #64748b;
-  --blue: #2563eb;
-  --blue-dark: #1d4ed8;
-  --green: #15803d;
-  --red: #dc2626;
-  --amber: #d97706;
-  --mono: "Roboto Mono", "Cascadia Mono", Consolas, monospace;
-  --sans: "Google Sans", Roboto, -apple-system, "Segoe UI", sans-serif;
-
   margin: 0;
   height: auto;
   min-height: 100%;
@@ -77,7 +62,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   font-size: 12.5px;
   color: var(--text-dim);
 }
-.cb-runtime .dot { width: 8px; height: 8px; border-radius: 50%; background: #9aa0a6; }
+.cb-runtime .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
 .cb-runtime[data-state="idle"] .dot { background: var(--green); }
 .cb-runtime[data-state="busy"] .dot { background: var(--amber); animation: pulse 1s infinite; }
 .cb-runtime[data-state="starting"] .dot { background: var(--blue); animation: pulse 1s infinite; }
@@ -98,10 +83,10 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   font: 500 13px var(--sans);
   text-decoration: none;
   cursor: pointer;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+  box-shadow: var(--shadow-card);
   transition: background .12s, color .12s, border-color .12s, box-shadow .12s;
 }
-.cb-btn:hover { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(15, 23, 42, .10); }
+.cb-btn:hover { background: var(--surface); color: var(--text); box-shadow: var(--shadow-card); }
 .cb-btn.primary { background: var(--blue); border-color: var(--blue); color: #fff; }
 .cb-btn.primary:hover { background: var(--blue-dark); color: #fff; }
 .cb-btn.ghost { border-color: transparent; }
@@ -134,7 +119,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   font-size: 15px; cursor: pointer;
   transition: background .12s, color .12s;
 }
-.icon-btn:hover { background: rgba(60,64,67,.09); color: var(--text); }
+.icon-btn:hover { background: var(--surface); color: var(--text); }
 
 .save-state { font-size: 12px; color: var(--text-dim); min-width: 54px; }
 
@@ -228,7 +213,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   border: 0; background: none; cursor: pointer;
   color: var(--text-dim); padding: 2px 4px; border-radius: 3px; font-size: 12px;
 }
-.file-list .f-actions button:hover { background: #e8eaed; color: var(--text); }
+.file-list .f-actions button:hover { background: var(--cell-bg); color: var(--text); }
 .file-list .f-actions button.danger:hover { color: var(--red); }
 
 /* ⋮ menu on each file row */
@@ -240,7 +225,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
 }
 .file-list li:hover .f-menu-btn,
 .file-list li.menu-open .f-menu-btn { visibility: visible; }
-.file-list .f-menu-btn:hover { background: #e8eaed; color: var(--text); }
+.file-list .f-menu-btn:hover { background: var(--cell-bg); color: var(--text); }
 .file-list li.menu-open { background: var(--surface); }
 
 .file-menu {
@@ -250,7 +235,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 6px;
-  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  box-shadow: 0 4px 16px var(--overlay);
   z-index: 80;
 }
 .file-menu button {
@@ -268,7 +253,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
 .file-menu .menu-heading {
   padding: 6px 14px 3px;
   font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
-  color: var(--text-mute, #80868b);
+  color: var(--text-mute);
 }
 .file-menu .ml { flex: 1; }
 .file-menu .mk { color: var(--text-dim); font-size: 11.5px; font-family: var(--mono); }
@@ -294,7 +279,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
 .modal {
   position: fixed; inset: 0;
   display: grid; place-items: center;
-  background: rgba(32,33,36,.45);
+  background: var(--overlay);
   z-index: 90;
   padding: 32px;
 }
@@ -304,7 +289,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   height: min(78vh, 100%);
   background: var(--bg);
   border-radius: 8px;
-  box-shadow: 0 12px 40px rgba(0,0,0,.35);
+  box-shadow: 0 12px 40px var(--overlay);
   overflow: hidden;
 }
 .modal-head {
@@ -335,7 +320,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
 .drop-overlay {
   position: absolute; inset: 0;
   display: grid; place-items: center;
-  background: rgba(26,115,232,.08);
+  background: color-mix(in srgb, var(--blue) 8%, transparent);
   border: 2px dashed var(--blue);
   border-radius: 6px;
   color: var(--blue); font-weight: 500; font-size: 14px;
@@ -357,7 +342,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   align-items: start;
 }
 .cell:hover { border-color: var(--border); }
-.cell.selected { border-color: var(--blue); box-shadow: 0 0 0 1px rgba(26,115,232,.18); }
+.cell.selected { border-color: var(--blue); box-shadow: 0 0 0 1px color-mix(in srgb, var(--blue) 18%, transparent); }
 
 .cell-gutter {
   display: flex;
@@ -376,7 +361,7 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   cursor: pointer;
   transition: background .12s;
 }
-.run-btn:hover { background: rgba(60,64,67,.1); color: var(--text); }
+.run-btn:hover { background: var(--surface); color: var(--text); }
 .cell.running .run-btn { color: var(--blue); animation: pulse 1.1s infinite; }
 .exec-count {
   font: 11px var(--mono);
@@ -465,10 +450,10 @@ html:has(body.colab) { background: #ffffff; height: auto; }
   max-height: 420px;
   overflow: auto;
 }
-.out.stderr { color: #b31412; background: #fce8e6; border-radius: 4px; }
+.out.stderr { color: var(--red); background: color-mix(in srgb, var(--red) 12%, transparent); border-radius: 4px; }
 .out.error {
-  color: #b31412;
-  background: #fce8e6;
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
   border-radius: 4px;
   padding: 8px 10px;
 }
@@ -551,9 +536,9 @@ html:has(body.colab) { background: #ffffff; height: auto; }
 
 .colab .toast {
   position: fixed; top: 20px; right: 20px;
-  background: #0f172a; color: #fff;
+  background: var(--text); color: var(--bg);
   padding: 12px 16px; border-radius: 8px; font-size: 13px;
-  box-shadow: 0 10px 25px rgba(15, 23, 42, .18); z-index: 60;
+  box-shadow: 0 10px 25px var(--overlay); z-index: 60;
   border: 1px solid rgba(255, 255, 255, .12);
 }
 .colab .toast.err { background: var(--red); }
