@@ -1,9 +1,9 @@
 """Exercises, assignments, submissions and review (SRS §5, §6, §10-§14).
 
 These are the writes the two dashboards drive: a trainer creates an exercise
-and assigns it, a student opens it (which gives them a notebook to work in) and
-submits, and the trainer reviews what comes back. Every one of them moves a
-number on a dashboard, so they live next to the aggregation in dashboards.py.
+and assigns it, a student opens it and submits, and the trainer reviews what
+comes back. Every one of them moves a number on a dashboard, so they live next
+to the aggregation in dashboards.py.
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from .config import settings
 from .dashboards import OPEN_STATUSES
-from .db import create_notebook, get_conn, notify, record_activity, utcnow
+from .db import get_conn, notify, record_activity, utcnow
 from .deps import get_current_user, require_student, require_trainer
 from .names import display_name
 from .schemas import AssignIn, ExerciseIn, QueryIn, QueryReplyIn, ReviewIn, SolutionIn
@@ -68,35 +68,6 @@ def _due(value: str | None) -> str | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc).isoformat(timespec="seconds")
-
-
-def _exercise_cells(row: sqlite3.Row, tests: list[sqlite3.Row]) -> list[tuple[str, str]]:
-    """The notebook a student gets when they open an assignment (SRS §7, §8)."""
-    intro = [f"# {row['title']}", "", "## Question", "", row["problem_statement"] or "Work through the steps below."]
-    if row["due_date"]:
-        intro += ["", f"> Due: {row['due_date']}"]
-    context = ["## Understand the input and output"]
-    if row["input_format"]:
-        context += ["", "**Input**", "", row["input_format"]]
-    if row["output_format"]:
-        context += ["", "**Output**", "", row["output_format"]]
-    if row["constraints"]:
-        context += ["", "**Constraints**", "", row["constraints"]]
-    if row["sample_input"] or row["sample_output"]:
-        context += ["", "**Example**", "", "Input:", "```", row["sample_input"] or "", "```", "Output:", "```", row["sample_output"] or "", "```"]
-    explanation = ["## Plan your solution", "", row["explanation"] or "Break the problem into small steps, then test each step.", "", "> `input()` returns text. Use `int(input())` before arithmetic with numbers."]
-    public = [t for t in tests if not t["is_hidden"]]
-    if public:
-        explanation += ["", f"There are {len(public)} public test case(s) available when you submit."]
-    starter = row["starter_code"] or "# Write your solution here.\n"
-    return [
-        ("markdown", "\n".join(intro)),
-        ("code", starter),
-        ("markdown", "\n".join(context)),
-        ("code", "# Step 2: add a small test or helper while you work.\n"),
-        ("markdown", "\n".join(explanation)),
-        ("code", "# Step 3: improve your solution, then run and submit it.\n"),
-    ]
 
 
 def _evaluate(code: str, tests: list[sqlite3.Row], cwd) -> dict:
@@ -377,39 +348,21 @@ def _load_assignment(conn: sqlite3.Connection, assignment_id: int, student_id: i
 
 @router.post("/assignments/{assignment_id}/open")
 def open_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_student)) -> dict:
-    """Open the exercise, creating the working notebook on first visit (SRS §3, §8)."""
+    """Mark the exercise opened. The work now happens on the solve page.
+
+    This used to create a notebook seeded with the question. Exercises left the
+    notebook in Phase 3; notebooks remain for modules and free practice.
+    """
     student_id = int(user["id"])
     now = utcnow()
     with get_conn() as conn:
         row = _load_assignment(conn, assignment_id, student_id)
-        notebook_id = row["notebook_id"]
-
-        # A deleted notebook should not strand the assignment - recreate it.
-        if notebook_id is not None:
-            exists = conn.execute(
-                "SELECT 1 FROM notebooks WHERE id = ? AND user_id = ?",
-                (notebook_id, student_id),
-            ).fetchone()
-            if not exists:
-                notebook_id = None
-
-        if notebook_id is None:
-            tests = conn.execute(
-                "SELECT stdin, expected_output, is_hidden FROM test_cases"
-                " WHERE exercise_id = ? ORDER BY position",
-                (row["exercise_id"],),
-            ).fetchall()
-            notebook_id = create_notebook(
-                conn, student_id, f"{row['title']}.ipynb", _exercise_cells(row, tests)
-            )
-
         status_next = "in_progress" if row["status"] == "assigned" else row["status"]
         conn.execute(
-            "UPDATE assignments SET notebook_id = ?, last_opened_at = ?, status = ? WHERE id = ?",
-            (notebook_id, now, status_next, assignment_id),
+            "UPDATE assignments SET last_opened_at = ?, status = ? WHERE id = ?",
+            (now, status_next, assignment_id),
         )
-
-    return {"notebook_id": notebook_id, "status": status_next}
+    return {"assignment_id": assignment_id, "status": status_next}
 
 
 @router.post("/assignments/{assignment_id}/run")

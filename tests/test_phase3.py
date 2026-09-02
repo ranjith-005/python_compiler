@@ -173,3 +173,11 @@ def test_another_students_assignment_is_not_reachable(client):
         lambda: client.patch(f"/api/assignments/{assignment_id}/code", json={"code": "1", "stdin": ""}),
     ):
         assert call().status_code in (403, 404)
+
+
+def test_opening_an_exercise_no_longer_creates_a_notebook(client):
+    assignment_id = _make_assignment(client)
+    before = len(client.get("/api/notebooks").json())
+    client.post(f"/api/assignments/{assignment_id}/open")
+    after = client.get("/api/notebooks").json()
+    assert len(after) == before, "opening an exercise must not create a notebook"

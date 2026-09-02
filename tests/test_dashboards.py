@@ -163,7 +163,7 @@ def test_overdue_work_is_flagged(client):
     assert data["stats"]["overdue"] == 1
 
 
-def test_opening_an_assignment_creates_a_notebook_once(client):
+def test_opening_an_assignment_moves_it_to_in_progress_without_a_notebook(client):
     register(client, "a@example.com")
     client.post("/auth/logout")
     register_trainer(client)
@@ -173,15 +173,16 @@ def test_opening_an_assignment_creates_a_notebook_once(client):
     client.post("/auth/login", json={"email": "a@example.com", "password": "password123"})
     assignment_id = client.get("/api/dashboard/student").json()["assignments"][0]["id"]
 
+    before = len(client.get("/api/notebooks").json())
     first = client.post(f"/api/assignments/{assignment_id}/open").json()
     assert first["status"] == "in_progress"
+    assert first["assignment_id"] == assignment_id
     again = client.post(f"/api/assignments/{assignment_id}/open").json()
-    assert again["notebook_id"] == first["notebook_id"]
+    assert again["assignment_id"] == first["assignment_id"]
+    assert again["status"] == "in_progress"
 
-    cells = client.get(f"/api/notebooks/{first['notebook_id']}").json()["cells"]
-    assert cells[0]["cell_type"] == "markdown"
-    assert "Sum of two numbers" in cells[0]["source"]
-    assert cells[1]["source"].startswith("a = int(input())")
+    after = client.get("/api/notebooks").json()
+    assert len(after) == before, "opening an exercise must not create a notebook"
 
     data = client.get("/api/dashboard/student").json()
     assert data["stats"]["in_progress"] == 1
