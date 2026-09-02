@@ -44,14 +44,22 @@
   // is already in the database.
   async function save() {
     if (!dirty) return;
+    const sentCode = code.value;
+    const sentStdin = stdin.value;
     try {
       await D.api(`/api/assignments/${id}/code`, {
         method: "PATCH",
         keepalive: true, // survives a navigation/tab-close that fires this from visibilitychange
-        body: JSON.stringify({ code: code.value, stdin: stdin.value }),
+        body: JSON.stringify({ code: sentCode, stdin: sentStdin }),
       });
-      dirty = false;
-      saveState.textContent = "Saved";
+      if (code.value === sentCode && stdin.value === sentStdin) {
+        dirty = false;
+        saveState.textContent = "Saved";
+      } else {
+        // Changed while the request was in flight: still unsaved, go again.
+        // markDirty() (not queueSave()) so a fast typist can't recurse the chain.
+        markDirty();
+      }
     } catch (err) {
       saveState.textContent = "Not saved";
       throw err;
