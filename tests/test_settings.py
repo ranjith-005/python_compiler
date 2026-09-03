@@ -147,15 +147,18 @@ def test_profile_update_gives_a_named_display_name(client):
 def test_trainer_nav_carries_every_section(client):
     register_trainer(client)
     html = client.get("/trainer").text
-    for label in ("Dashboard", "Modules", "Exercises", "Students", "Activity", "Online session"):
+    for label in ("Dashboard", "Modules", "Exercises", "Students", "Online session"):
         assert label in html
+    # Activity left the bar: the dashboard carries the same feed, paged.
+    assert 'href="/activity"' not in html
 
 
 def test_student_nav_carries_every_section(client):
     register(client)
     html = client.get("/student").text
-    for label in ("Dashboard", "Exercises", "Modules", "Activity", "Online session"):
+    for label in ("Dashboard", "Exercises", "Modules", "Online session"):
         assert label in html
+    assert 'href="/activity"' not in html
     # Students is a trainer-only section.
     assert ">Students<" not in html
 

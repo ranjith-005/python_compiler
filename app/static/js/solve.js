@@ -1,5 +1,9 @@
 // The exercise solve page: description on top, editor left, input and output
 // right. Replaces the notebook for graded work.
+//
+// The editor is Monaco (code_editor.js), which mirrors everything typed into
+// the #code textarea — so the save, run and submit paths below still read one
+// value, whether Monaco loaded or the textarea fallback is in use.
 (function () {
   const D = window.Dash;
   const { el } = D;
@@ -15,6 +19,18 @@
   let saveTimer = null;
   let dirty = false;
 
+  const editorReady = window.CodeEditor.mount({
+    host: document.getElementById("editor-host"),
+    textarea: code,
+    language: "python",
+    onChange: () => markDirty(),
+  }).then((editor) => {
+    document.getElementById("editor-kind").textContent = editor.monaco
+      ? "Python · Monaco"
+      : "Python";
+    return editor;
+  });
+
   function field(label, value) {
     if (!value) return null;
     return el("div", { class: "field-block" },
@@ -24,11 +40,11 @@
   }
 
   async function load() {
-    const a = await D.api(`/api/assignments/${id}`);
+    const [a, editor] = await Promise.all([D.api(`/api/assignments/${id}`), editorReady]);
     const ex = a.exercise || {};
     document.getElementById("ex-title").textContent = ex.title;
-    document.getElementById("ex-meta").textContent =
-      a.due_date ? `Due ${D.due(a.due_date)}` : "No due date";
+    // D.due() already reads "Due <when> (<in x>)", or "No due date".
+    document.getElementById("ex-meta").textContent = D.due(a.due_date);
     document.getElementById("ex-status").textContent = (a.status || "").replace(/_/g, " ");
 
     const body = document.getElementById("problem-body");
@@ -37,12 +53,16 @@
     [field("Sample input", ex.sample_input), field("Sample output", ex.sample_output),
      field("Explanation", ex.explanation)].forEach((n) => n && body.append(n));
 
-    code.value = a.solution_code || ex.starter_code || "";
+    editor.setValue(a.solution_code || ex.starter_code || "");
     stdin.value = a.last_stdin || ex.sample_input || "";
+    // setValue fires the editor's change handler, which marks the page dirty
+    // over code the server just gave us. Clear that here, after the write.
+    clearTimeout(saveTimer);
     dirty = false;
     saveState.textContent = "Saved";
 
     const closed = a.status === "approved" || a.status === "completed";
+    editor.setReadOnly(closed);
     runBtn.disabled = closed;
     submitBtn.disabled = closed;
     closedNote.hidden = !closed;
@@ -94,29 +114,15 @@
     saveTimer = setTimeout(() => queueSave().catch(() => {}), 900);
   }
 
-  code.addEventListener("input", markDirty);
   stdin.addEventListener("input", markDirty);
   // A refresh or a closed tab must not lose work.
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") queueSave().catch(() => {});
   });
 
-  // Tab indents rather than leaving the editor; Shift+Tab and Escape are
-  // the keyboard-only way out (WCAG 2.1.2).
-  code.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      code.blur();
-      return;
-    }
-    if (e.key !== "Tab" || e.shiftKey) return;
-    e.preventDefault();
-    const start = code.selectionStart;
-    code.setRangeText("    ", start, code.selectionEnd, "end");
-    markDirty();
-  });
-
   runBtn.addEventListener("click", async () => {
     output.textContent = "Running…";
+    output.classList.remove("err");
     // Wait out any in-flight save so the run can't race it and read a
     // pre-save value while a newer one is still on the wire.
     await saveChain.catch(() => {});
@@ -125,12 +131,12 @@
     try {
       const r = await D.api(`/api/assignments/${id}/run`, {
         method: "POST",
-        body: JSON.stringify({ code: code.value, stdin: stdin.value }),
+        body: JSON.stringify({ code: sent, stdin: sentStdin }),
       });
       let text = (r.stdout || "") + (r.stderr ? `\n${r.stderr}` : "");
       if (r.truncated) text += "\n[output truncated]";
       if (r.timed_out) text += "\n[timed out]";
-      output.textContent = text;
+      output.textContent = text || "(no output)";
       output.classList.toggle("err", Boolean(r.stderr) || r.timed_out);
       document.getElementById("run-time").textContent = `${r.duration_ms} ms`;
       // A run can take up to 15s; only clear dirty if nothing changed

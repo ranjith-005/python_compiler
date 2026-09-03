@@ -28,6 +28,13 @@ def home_for(role: str) -> str:
 def register(creds: Credentials, response: Response) -> dict:
     email = creds.email.strip().lower()
     now = utcnow()
+    # A caller may send either the parts or one full name. Split the full name
+    # when the parts are missing, so the personal-information page does not end
+    # up showing "Sarah Miller" as a first name with no last name at all.
+    first, last = creds.first_name.strip(), creds.last_name.strip()
+    if not first and not last and creds.full_name.strip():
+        first, _, last = creds.full_name.strip().partition(" ")
+        last = last.strip()
     try:
         with get_conn() as conn:
             cur = conn.execute(
@@ -38,10 +45,9 @@ def register(creds: Credentials, response: Response) -> dict:
                     hash_password(creds.password),
                     now,
                     creds.role,
-                    f"{creds.first_name.strip()} {creds.last_name.strip()}".strip()
-                    or creds.full_name.strip(),
-                    creds.first_name.strip(),
-                    creds.last_name.strip(),
+                    f"{first} {last}".strip() or creds.full_name.strip(),
+                    first,
+                    last,
                     creds.phone.strip(),
                 ),
             )

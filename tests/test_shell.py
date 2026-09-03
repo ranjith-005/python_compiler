@@ -102,13 +102,20 @@ def test_profile_is_an_avatar_dropdown_on_both_portals(client):
         assert 'href="/profile"' in html
 
 
-# ── shared 5: activity leaves the dashboard, becomes a top button ───────────
+# ── activity returns to the dashboard, paged, and leaves the top bar ────────
+# (supersedes the earlier "activity is a top button" requirement: both
+# dashboards now show the same feed ten at a time, so a second route to it in
+# the navigation was redundant.)
 
 
-def test_activity_is_a_top_button_not_a_dashboard_panel(client):
-    html = trainer_page(client)
-    assert "Recent activity" not in html, "the activity panel should be gone"
-    assert 'href="/activity"' in html, "activity should be reachable from the top bar"
+def test_activity_is_a_paged_dashboard_panel_not_a_nav_button(client):
+    for html in (trainer_page(client), None):
+        if html is None:
+            client.post("/auth/logout")
+            html = student_page(client)
+        assert "Recent activity" in html, "the dashboard should carry the activity panel"
+        assert 'id="activity-pager"' in html, "the panel should page through history"
+        assert 'href="/activity"' not in html, "activity should be off the top bar"
 
 
 # ── shared 3: sections that need search have it ─────────────────────────────
@@ -116,5 +123,6 @@ def test_activity_is_a_top_button_not_a_dashboard_panel(client):
 
 def test_history_and_roster_offer_search(client):
     register_trainer(client)
+    # /activity is no longer linked from the bar but remains the full history.
     assert 'id="activity-search"' in client.get("/activity").text
     assert 'id="student-search"' in client.get("/trainer/students").text

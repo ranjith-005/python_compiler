@@ -265,11 +265,15 @@ def create_exercise(body: ExerciseIn, user: sqlite3.Row = Depends(require_traine
                     "/student",
                 )
 
+        # Named, like every other line in the feed: the reference design's
+        # activity list reads "<who> did <what>", and a trainer's own history
+        # is the same feed a co-trainer would read.
         record_activity(
             conn,
             trainer_id,
             "created",
-            f"Created \"{body.title.strip()}\" and assigned it to {assigned} student(s)",
+            f"{display_name(user)} created \"{body.title.strip()}\""
+            f" and assigned it to {assigned} student(s)",
             trainer_id,
             "/trainer",
         )

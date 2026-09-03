@@ -7,8 +7,9 @@ tables, so the two pages never have to agree on how a count is derived.
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from .db import get_conn, utcnow
 from .deps import get_current_user, require_student, require_trainer
@@ -19,6 +20,13 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 # Statuses that mean "the student still owes work on this assignment".
 OPEN_STATUSES = ("assigned", "in_progress", "changes_requested")
 OPEN_LIST = ",".join("?" * len(OPEN_STATUSES))
+
+# How recently a student must have been seen for the roster to call them
+# online. Long enough that reading a page does not flicker them offline.
+PRESENCE_WINDOW_MIN = 5
+
+# The dashboards page their activity feed ten at a time.
+ACTIVITY_PAGE = 10
 
 # One row per assignment: its most recent submission, or NULLs if never submitted.
 LATEST_SUBMISSION = """
@@ -53,25 +61,42 @@ def _display(row: dict, name_key: str, email_key: str = "email") -> str:
 
 
 def _feed(conn: sqlite3.Connection, user_id: int) -> dict:
-    """Notifications and recent activity - shared by both dashboards (§17)."""
+    """Notifications and recent activity - shared by both dashboards (§17).
+
+    The bell shows the five newest notifications, unread first, so a run of
+    older read ones can never bury something new; `unread` still counts every
+    unread row, not just the five on screen.
+
+    `activity` is the first page only. The dashboards page through the rest
+    against /api/dashboard/activity, which is the same feed with an offset.
+    """
     notifications = _rows(
         conn.execute(
             "SELECT id, kind, title, link, created_at, read_at FROM notifications"
-            " WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 12",
+            " WHERE user_id = ? ORDER BY read_at IS NOT NULL, created_at DESC, id DESC"
+            " LIMIT 5",
             (user_id,),
         )
+    )
+    unread = _scalar(
+        conn,
+        "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL",
+        (user_id,),
     )
     activity = _rows(
         conn.execute(
             "SELECT id, kind, summary, link, created_at FROM activities"
-            " WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 12",
-            (user_id,),
+            " WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
+            (user_id, ACTIVITY_PAGE),
         )
     )
     return {
         "notifications": notifications,
-        "unread": sum(1 for n in notifications if not n["read_at"]),
+        "unread": unread,
         "activity": activity,
+        "activity_total": _scalar(
+            conn, "SELECT COUNT(*) FROM activities WHERE user_id = ?", (user_id,)
+        ),
     }
 
 
@@ -180,7 +205,7 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
 
         students = _rows(
             conn.execute(
-                "SELECT u.id, u.full_name AS name, u.email, u.is_active,"
+                "SELECT u.id, u.full_name AS name, u.email, u.is_active, u.last_seen_at,"
                 "       COUNT(a.id) AS assigned,"
                 "       SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) AS completed,"
                 f"      SUM(CASE WHEN a.status IN ({OPEN_LIST}) THEN 1 ELSE 0 END) AS pending,"
@@ -193,11 +218,15 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
                 (*OPEN_STATUSES, trainer_id),
             )
         )
+        online_after = (
+            datetime.now(timezone.utc) - timedelta(minutes=PRESENCE_WINDOW_MIN)
+        ).isoformat(timespec="seconds")
         for row in students:
             row["progress"] = (
                 round(100 * row["completed"] / row["assigned"]) if row["assigned"] else 0
             )
             row["display"] = _display(row, "name", "email")
+            row["online"] = bool(row["last_seen_at"] and row["last_seen_at"] >= online_after)
 
         exercises = _rows(
             conn.execute(
@@ -332,6 +361,26 @@ def mark_notifications_read(user: sqlite3.Row = Depends(get_current_user)) -> di
 
 
 @router.get("/activity")
-def full_activity(user: sqlite3.Row = Depends(get_current_user)) -> list[dict]:
+def full_activity(
+    limit: int = Query(ACTIVITY_PAGE, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    user: sqlite3.Row = Depends(get_current_user),
+) -> dict:
+    """One page of the signed-in account's activity, newest first.
+
+    Both dashboards show ten at a time and step through with Next, so the
+    total travels with the page; the history page asks for a large limit and
+    filters what it gets client-side.
+    """
     with get_conn() as conn:
-        return _rows(conn.execute("SELECT id, kind, summary, link, created_at FROM activities WHERE user_id = ? ORDER BY created_at DESC, id DESC", (user["id"],)))
+        items = _rows(
+            conn.execute(
+                "SELECT id, kind, summary, link, created_at FROM activities"
+                " WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
+                (user["id"], limit, offset),
+            )
+        )
+        total = _scalar(
+            conn, "SELECT COUNT(*) FROM activities WHERE user_id = ?", (user["id"],)
+        )
+    return {"items": items, "total": total, "limit": limit, "offset": offset}

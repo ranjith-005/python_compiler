@@ -19,6 +19,17 @@
 
 <main class="dash-main">
   <div class="dash-head"><div><h1>{{ title }}</h1><p>{{ blurb }}</p></div></div>
+
+  {% if section == 'exercises' %}
+  {# Requirement: New exercise sits top-left with Drafts immediately to its
+     right, and the full list of exercises follows underneath. Both open real
+     pages — the Exercises dropdown they replaced is gone from the nav. #}
+  <div class="page-toolbar">
+    <a class="cb-btn primary" href="/trainer/exercises/new">+ New exercise</a>
+    <a class="cb-btn" href="/trainer/exercises/drafts">Drafts</a>
+  </div>
+  {% endif %}
+
   <section class="panel">
     {% if section in ('exercises', 'pending') %}
     <header>

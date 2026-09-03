@@ -20,13 +20,18 @@
     return pill(text, tone);
   }
 
-  function stat(label, value, sub, tone) {
+  // A card the trainer can act on is an <a>; a card that is only a figure is a
+  // <div>. Requirement: on-time rate, average tests passed and last active go
+  // nowhere, everything else opens the matching view.
+  function stat(label, value, sub, tone, opts) {
+    const { icon = "•", href = null, active = false } = opts || {};
+    const classes = `stat ${tone || ""} ${active ? "active" : ""}`.trim();
     return el(
-      "div",
-      { class: `stat ${tone || ""}` },
-      el("span", { class: "accent" }),
-      el("span", { class: "label" }, label),
+      href ? "a" : "div",
+      href ? { class: classes, href } : { class: classes },
+      el("span", { class: "stat-icon" }, icon),
       el("span", { class: "value" }, value),
+      el("span", { class: "label" }, label),
       el("span", { class: "sub" }, sub)
     );
   }
@@ -55,6 +60,22 @@
 
   // ── requirement 2: one student ───────────────────────────────────────────
 
+  // Which assignment rows each clickable card narrows the list to.
+  const CARD_FILTERS = {
+    all: () => true,
+    completed: (e) => e.status === "completed",
+    open: (e) => ["assigned", "in_progress", "changes_requested"].includes(e.status),
+    submitted: (e) => e.status === "submitted",
+    late: (e) => e.late,
+  };
+  const CARD_TITLES = {
+    all: "every exercise",
+    completed: "completed exercises",
+    open: "exercises still open",
+    submitted: "exercises awaiting your review",
+    late: "exercises submitted late",
+  };
+
   async function studentDetail() {
     const data = await api(`/api/students/${PAGE.studentId}`);
     const s = data.student;
@@ -62,18 +83,33 @@
     $("student-sub").textContent = s.email;
     $("personal-link").href = `/trainer/students/${PAGE.studentId}/profile`;
 
+    const requested = new URLSearchParams(window.location.search).get("view");
+    const view = CARD_FILTERS[requested] ? requested : "all";
+    const card = (key) => `/trainer/students/${PAGE.studentId}?view=${key}`;
+
     fill($("stats"), [
-      stat("Assigned", data.assigned, "Exercises from you"),
-      stat("Completed", data.completed, "Marked done", "good"),
-      stat("Pending", data.pending, "Still open"),
-      stat("Awaiting review", data.awaiting, "Submitted, not yet reviewed"),
-      stat("Late", data.late, "Submitted after the due date", data.late ? "bad" : ""),
-      stat("On-time rate", `${data.on_time_rate}%`, "Of what was submitted"),
-      stat("Avg tests passed", `${data.avg_tests}%`, "Across graded submissions"),
-      stat("Last active", data.last_active ? D.when(data.last_active) : "Never", "Most recent activity"),
+      stat("Assigned", data.assigned, "Exercises from you", "", {
+        icon: "📘", href: card("all"), active: view === "all" }),
+      stat("Completed", data.completed, "Marked done", "good", {
+        icon: "✅", href: card("completed"), active: view === "completed" }),
+      stat("Pending", data.pending, "Still open", "", {
+        icon: "⏳", href: card("open"), active: view === "open" }),
+      stat("Awaiting review", data.awaiting, "Submitted, not yet reviewed", "", {
+        icon: "📤", href: card("submitted"), active: view === "submitted" }),
+      stat("Late", data.late, "Submitted after the due date", data.late ? "bad" : "", {
+        icon: "⏰", href: card("late"), active: view === "late" }),
+      // The three figures below are read-only by requirement: no href, so
+      // nothing about them invites a click.
+      stat("On-time rate", `${data.on_time_rate}%`, "Of what was submitted", "", { icon: "🎯" }),
+      stat("Avg tests passed", `${data.avg_tests}%`, "Across graded submissions", "", { icon: "🧪" }),
+      stat("Last active", data.last_active ? D.when(data.last_active) : "Never",
+           "Most recent activity", "", { icon: "🕑" }),
     ]);
 
-    const items = data.exercises.map((e) => ({
+    $("ex-heading").textContent =
+      view === "all" ? "Assigned exercises" : `Assigned exercises · ${CARD_TITLES[view]}`;
+
+    const items = data.exercises.filter(CARD_FILTERS[view]).map((e) => ({
       text: `${e.title} ${e.status}`,
       node: row(
         e.title,
@@ -98,7 +134,13 @@
         }
       ),
     }));
-    wireSearch("ex-search", items, $("ex-list"), "Nothing assigned yet.", "ex-count");
+    wireSearch(
+      "ex-search",
+      items,
+      $("ex-list"),
+      view === "all" ? "Nothing assigned yet." : `Nothing here — no ${CARD_TITLES[view]}.`,
+      "ex-count"
+    );
 
     $("q-count").textContent = data.queries.length;
     fill(
@@ -120,8 +162,29 @@
     $("student-name").textContent = s.display;
     $("back-link").href = `/trainer/students/${PAGE.studentId}`;
 
+    // Identity first, then the fields as a card grid — the old two-column
+    // key/value strip ran names and emails together and read as a dump.
+    const parts = String(s.display || "?").trim().split(/\s+/);
+    const initials = (
+      (parts[0][0] || "?") + (parts.length > 1 ? parts[parts.length - 1][0] : "")
+    ).toUpperCase();
+
+    fill($("hero"), [
+      el("span", { class: "avatar" }, initials),
+      el(
+        "div",
+        {},
+        el("h2", {}, s.display),
+        el("div", { class: "sub" }, s.email)
+      ),
+      el("span", { class: "spacer" }),
+      pill(s.is_active ? "Active" : "Disabled", s.is_active ? "green" : "grey"),
+    ]);
+
     const field = (label, value) =>
-      el("div", {}, el("span", {}, label), el("strong", {}, value || "—"));
+      el("div", { class: "info-item" },
+        el("span", { class: "k" }, label),
+        el("span", { class: "v" }, value || "—"));
     fill($("fields"), [
       field("First name", s.first_name || s.full_name),
       field("Last name", s.last_name),
@@ -129,6 +192,8 @@
       field("Phone", s.phone),
       field("Account status", s.is_active ? "Active" : "Disabled"),
       field("Joined", D.when(s.created_at)),
+      field("Exercises assigned", String(data.assigned)),
+      field("Exercises completed", String(data.completed)),
     ]);
   }
 

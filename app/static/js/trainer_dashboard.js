@@ -1,6 +1,7 @@
-// Trainer dashboard (SRS §2): five linked overview cards. Everything the
-// cards used to show inline now lives on its own page (students, pending,
-// queue, exercises, completed).
+// Trainer dashboard (SRS §2): five linked overview cards, the activity feed
+// ten at a time, and the placeholder for online sessions. Everything the
+// cards used to show inline lives on its own page (students, pending, queue,
+// exercises, completed).
 (function () {
   const D = window.Dash;
   const { el } = D;
@@ -13,18 +14,18 @@
     const s = data.stats;
     const cards = [
       { label: "Students", value: s.students, sub: "On your roster",
-        href: "/trainer/students" },
+        href: "/trainer/students", icon: "👥" },
       { label: "Pending submissions", value: s.pending,
         sub: s.overdue ? `${s.overdue} past due` : "Assigned, not yet in",
-        tone: s.overdue ? "bad" : "", href: "/trainer/pending" },
+        tone: s.overdue ? "bad" : "", href: "/trainer/pending", icon: "⏳" },
       { label: "Awaiting review", value: s.awaiting_review,
         sub: "Submitted, needs your verdict",
-        tone: s.awaiting_review ? "warn" : "", href: "/trainer/queue" },
+        tone: s.awaiting_review ? "warn" : "", href: "/trainer/queue", icon: "📝" },
       { label: "Exercises", value: s.exercises,
         sub: `${s.published} published · ${s.drafts} draft`,
-        href: "/trainer/exercises" },
+        href: "/trainer/exercises", icon: "📚" },
       { label: "Completed", value: s.completed, sub: "Finished by your students",
-        tone: "good", href: "/trainer/completed" },
+        tone: "good", href: "/trainer/completed", icon: "🏁" },
     ];
 
     const host = document.getElementById("stats");
@@ -32,9 +33,9 @@
     cards.forEach((c) =>
       host.append(
         el("a", { class: `stat ${c.tone || ""}`, href: c.href },
-          el("span", { class: "accent" }),
-          el("span", { class: "label", text: c.label }),
+          el("span", { class: "stat-icon" }, c.icon),
           el("strong", { class: "value", text: String(c.value) }),
+          el("span", { class: "label", text: c.label }),
           el("span", { class: "sub", text: c.sub })
         )
       )
@@ -53,5 +54,10 @@
   }
 
   D.initChrome(load);
-  load();
+  load().then(() => {
+    if (!data) return;
+    // Wired once: the pager owns its own paging from here, so a later reload
+    // of the cards must not stack a second set of click handlers on it.
+    D.activityPager("activity-list", "activity-pager", data.activity, data.activity_total);
+  });
 })();

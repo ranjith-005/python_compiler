@@ -1,5 +1,9 @@
 // Student exercises (moved off the dashboard, SRS §3): the full assignments
-// list, its search box and six filter tabs, and the trainer-queries sidebar.
+// list, its search box and filter tabs.
+//
+// A trainer's query used to sit in its own "From your trainer" sidebar. It is
+// raised against one assignment, so it now renders on that assignment's card —
+// the panel is gone, and the reply box goes with the work it is about.
 (function () {
   const D = window.Dash;
   const { el, pill, fill } = D;
@@ -23,7 +27,10 @@
     pending: "grey",
   };
   const OPEN = ["assigned", "in_progress", "changes_requested"];
-  const TAB_FILTERS = ["all", "open", "in_progress", "submitted", "changes_requested", "completed"];
+  // No "changes_requested" tab: the requirement dropped it from both this
+  // strip and the dashboard cards. Such work still lists under All and To do.
+  const TAB_FILTERS = ["all", "open", "in_progress", "submitted", "completed"];
+  const SEVERITY = { note: "grey", warning: "amber", urgent: "red" };
 
   function label(value) {
     return String(value || "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
@@ -56,11 +63,57 @@
     renderAssignments();
   }
 
+  // ── requirement 12: the trainer's query on this assignment, and one reply ──
+
+  function queryBlock(q) {
+    const body = el(
+      "div",
+      { class: "query-row" },
+      el(
+        "div",
+        { class: "meta" },
+        pill(q.severity, SEVERITY[q.severity] || "grey"),
+        el("span", {}, `From your trainer · ${D.ago(q.created_at)}`)
+      ),
+      el("div", {}, q.message)
+    );
+
+    if (q.reply) {
+      body.append(el("div", { class: "meta" }, `You replied: ${q.reply}`));
+      return body;
+    }
+
+    const box = el("textarea", { placeholder: "Reply to your trainer…" });
+    const send = el(
+      "button",
+      {
+        class: "cb-btn primary",
+        onclick: async () => {
+          if (!box.value.trim()) return D.flash("Write a reply first", "error");
+          try {
+            await D.api(`/api/queries/${q.id}/reply`, {
+              method: "POST",
+              body: JSON.stringify({ reply: box.value.trim() }),
+            });
+            D.flash("Reply sent", "success");
+            load();
+          } catch (err) {
+            D.flash(err.message, "error");
+          }
+        },
+      },
+      "Send"
+    );
+    body.append(el("div", { class: "query-reply" }, box, send));
+    return body;
+  }
+
   // ── assignment list ───────────────────────────────────────────────────────
 
   function renderAssignments() {
     const items = data.assignments.filter(matches);
     document.getElementById("assign-count").textContent = data.assignments.length;
+    const queries = data.queries || [];
 
     fill(
       document.getElementById("assign-list"),
@@ -128,6 +181,11 @@
             )
           );
         }
+
+        queries
+          .filter((q) => q.assignment_id === a.id)
+          .forEach((q) => card.append(el("div", { class: "feedback" }, queryBlock(q))));
+
         return card;
       }),
       filter === "all"
@@ -192,66 +250,6 @@
     D.openSheet("result-sheet");
   }
 
-  // ── requirement 12: the trainer's queries, and one reply each ───────────
-
-  const SEVERITY = { note: "grey", warning: "amber", urgent: "red" };
-
-  function renderQueries() {
-    const rows = data.queries || [];
-    document.getElementById("query-count").textContent = rows.length;
-    fill(
-      document.getElementById("query-list"),
-      rows.map((q) => {
-        const body = el(
-          "div",
-          { class: "query-row" },
-          el(
-            "div",
-            {},
-            el("div", { class: "title" }, q.exercise),
-            el(
-              "div",
-              { class: "meta" },
-              pill(q.severity, SEVERITY[q.severity] || "grey"),
-              el("span", {}, D.ago(q.created_at))
-            )
-          ),
-          el("div", {}, q.message)
-        );
-
-        if (q.reply) {
-          body.append(el("div", { class: "meta" }, `You replied: ${q.reply}`));
-          return el("div", { class: "row" }, body);
-        }
-
-        const box = el("textarea", { placeholder: "Reply to your trainer…" });
-        const send = el(
-          "button",
-          {
-            class: "cb-btn primary",
-            onclick: async () => {
-              if (!box.value.trim()) return D.flash("Write a reply first", "error");
-              try {
-                await D.api(`/api/queries/${q.id}/reply`, {
-                  method: "POST",
-                  body: JSON.stringify({ reply: box.value.trim() }),
-                });
-                D.flash("Reply sent", "success");
-                load();
-              } catch (err) {
-                D.flash(err.message, "error");
-              }
-            },
-          },
-          "Send"
-        );
-        body.append(el("div", { class: "query-reply" }, box, send));
-        return el("div", { class: "row" }, body);
-      }),
-      "Nothing from your trainer right now."
-    );
-  }
-
   // ── load ──────────────────────────────────────────────────────────────────
 
   async function load() {
@@ -262,7 +260,6 @@
       return;
     }
     renderAssignments();
-    renderQueries();
   }
 
   document

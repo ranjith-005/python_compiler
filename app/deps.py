@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime
 
 from fastapi import Depends, HTTPException, Request, status
 
 from .config import settings
-from .db import get_conn
+from .db import get_conn, utcnow
 from .security import decode_token_full
+
+# How stale a `last_seen_at` stamp may get before the next authenticated
+# request refreshes it. Presence on the roster is a five-minute window, so a
+# minute of drift costs nothing and keeps this off the write path of most
+# requests.
+PRESENCE_REFRESH_SEC = 60
 
 
 def user_from_token(token: str | None) -> sqlite3.Row | None:
@@ -30,7 +37,7 @@ def user_from_token(token: str | None) -> sqlite3.Row | None:
     with get_conn() as conn:
         user = conn.execute(
             "SELECT id, email, created_at, role, full_name, first_name, last_name, phone,"
-            " is_active, theme, sessions_valid_from"
+            " is_active, theme, sessions_valid_from, last_seen_at"
             " FROM users WHERE id = ?",
             (user_id,),
         ).fetchone()
@@ -49,7 +56,36 @@ def user_from_token(token: str | None) -> sqlite3.Row | None:
         issued = payload.get("session_started") or ""
         if issued < cutoff:
             return None
+    _touch_last_seen(user)
     return user
+
+
+def _touch_last_seen(user: sqlite3.Row) -> None:
+    """Refresh the presence stamp the trainer's roster reads.
+
+    Throttled: a stamp younger than PRESENCE_REFRESH_SEC is left alone, so a
+    page that fires several authenticated requests writes at most once.
+    """
+    now = utcnow()
+    previous = user["last_seen_at"] or ""
+    if previous:
+        try:
+            age = (
+                datetime.fromisoformat(now) - datetime.fromisoformat(previous)
+            ).total_seconds()
+        except ValueError:
+            age = PRESENCE_REFRESH_SEC + 1
+        if age < PRESENCE_REFRESH_SEC:
+            return
+    try:
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE users SET last_seen_at = ? WHERE id = ?", (now, user["id"])
+            )
+    except sqlite3.Error:
+        # Presence is decoration. A locked database must not fail the request
+        # that was only trying to read the page.
+        pass
 
 
 def _user_from_request(request: Request) -> sqlite3.Row | None:

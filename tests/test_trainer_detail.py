@@ -187,4 +187,9 @@ def test_review_has_its_own_page_and_the_modal_is_gone(client):
     html = client.get("/trainer").text
     assert 'id="exercise-sheet"' not in html, "the new-exercise modal should be a page now"
     assert 'id="review-sheet"' not in html, "the review modal should be a page now"
-    assert 'href="/trainer/exercises/new"' in html
+    # New exercise and Drafts are buttons on the exercises page now, not a
+    # dropdown in the top bar.
+    exercises = client.get("/trainer/exercises").text
+    assert 'href="/trainer/exercises/new"' in exercises
+    assert 'href="/trainer/exercises/drafts"' in exercises
+    assert 'id="ex-menu-panel"' not in html, "the Exercises dropdown should be gone"

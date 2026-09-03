@@ -9,7 +9,10 @@
           {{ topbar('trainer', name, bell=true, current='dashboard') }}
 
   `current` marks the active nav section; it is one of 'dashboard',
-  'exercises', 'modules', 'students', 'activity', or None.
+  'exercises', 'modules', 'students', or None.
+
+  Activity is deliberately absent: both dashboards carry a paged Recent
+  activity panel, so a second route to the same feed in the nav was redundant.
 #}
 {% macro topbar(role, name, back=None, heading=None, bell=False, current=None) %}
 {% set parts = (name or '?').split() %}
@@ -19,42 +22,31 @@
   {% if back %}<a class="cb-btn ghost back-btn" href="{{ back }}">← Back</a>{% endif %}
 
   <a class="cb-brand" href="{{ home }}">
-    <span class="cb-logo">◉</span>
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="9 8 5 12 9 16"></polyline>
+        <polyline points="15 8 19 12 15 16"></polyline>
+      </svg>
+    </span>
     <span class="cb-title">Python Learning Platform</span>
   </a>
 
   {% if heading %}<span class="cb-heading">{{ heading }}</span>{% endif %}
-  <span class="role-chip {{ 'student' if role == 'student' else '' }}">{{ role|title }}</span>
-
-  <div class="cb-spacer"></div>
 
   <nav class="cb-nav">
     <a class="cb-link {{ 'active' if current == 'dashboard' }}" href="{{ home }}">Dashboard</a>
 
     {% if role == 'trainer' %}
+      {# Requirement: Exercises is a plain page link, not a dropdown. New
+         exercise and Drafts are buttons on that page. #}
+      <a class="cb-link {{ 'active' if current == 'exercises' }}" href="/trainer/exercises">Exercises</a>
       <a class="cb-link {{ 'active' if current == 'modules' }}" href="/trainer/modules">Modules</a>
-
-      {# Requirement 1: New exercise and Drafts live under Exercises, not beside
-         the profile avatar and not as dashboard buttons. #}
-      <div class="cb-menu-wrap">
-        <button class="cb-link cb-menu-btn {{ 'active' if current == 'exercises' }}"
-                id="ex-menu" type="button" aria-haspopup="true" aria-expanded="false">
-          Exercises <span class="caret">▾</span>
-        </button>
-        <div class="cb-menu" id="ex-menu-panel" hidden>
-          <a class="cb-menu-item" href="/trainer/exercises">All exercises</a>
-          <a class="cb-menu-item" href="/trainer/exercises/new">New exercise</a>
-          <a class="cb-menu-item" href="/trainer/exercises/drafts">Drafts</a>
-        </div>
-      </div>
-
       <a class="cb-link {{ 'active' if current == 'students' }}" href="/trainer/students">Students</a>
     {% else %}
       <a class="cb-link {{ 'active' if current == 'exercises' }}" href="/student/exercises">Exercises</a>
       <a class="cb-link {{ 'active' if current == 'modules' }}" href="/student/modules">Modules</a>
     {% endif %}
-
-    <a class="cb-link {{ 'active' if current == 'activity' }}" href="/activity">Activity</a>
 
     {# Not built yet; present so the navigation is complete. #}
     <span class="cb-link disabled" aria-disabled="true" title="Coming soon">
@@ -62,10 +54,17 @@
     </span>
   </nav>
 
+  <div class="cb-spacer"></div>
+
   {% if bell %}
   <div class="bell-wrap">
     <button class="bell" id="bell-btn" title="Notifications" aria-label="Notifications">
-      🔔<span class="badge" id="bell-badge" hidden>0</span>
+      <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8"></path>
+        <path d="M13.7 21a2 2 0 0 1-3.4 0"></path>
+      </svg>
+      <span class="badge" id="bell-badge" hidden>0</span>
     </button>
     <div class="bell-panel" id="bell-panel" hidden>
       <header>
@@ -73,15 +72,21 @@
         <button class="link-btn" id="mark-read">Mark all read</button>
       </header>
       <ul id="bell-list"></ul>
+      <footer class="bell-foot" id="bell-foot" hidden></footer>
     </div>
   </div>
   {% endif %}
 
-  {# Requirement 9 + shared 4: the only profile control, an avatar dropdown.
-     Requirement 13: each option is a link to a real page, not an in-place panel. #}
+  {# Requirement 9 + shared 4: the only profile control, an avatar dropdown
+     showing the signed-in name beside it. Requirement 13: each option is a
+     link to a real page, not an in-place panel. #}
   <div class="avatar-wrap">
-    <button class="avatar" id="profile-menu" type="button"
-            aria-haspopup="true" aria-expanded="false" title="{{ name }}">{{ initials }}</button>
+    <button class="avatar-btn" id="profile-menu" type="button"
+            aria-haspopup="true" aria-expanded="false" title="{{ name }}">
+      <span class="avatar">{{ initials }}</span>
+      <span class="avatar-name">{{ name }}</span>
+      <span class="caret" aria-hidden="true">▾</span>
+    </button>
     <div class="avatar-panel" id="profile-panel" hidden>
       <div class="avatar-head">
         <span class="avatar big">{{ initials }}</span>
@@ -117,26 +122,6 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") panel.hidden = true;
     });
-    // Guarded: the student bar has no Exercises dropdown but runs this script.
-    const exBtn = document.getElementById("ex-menu");
-    const exPanel = document.getElementById("ex-menu-panel");
-    if (exBtn && exPanel) {
-      exBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const open = exPanel.hidden;
-        exPanel.hidden = !open;
-        exBtn.setAttribute("aria-expanded", String(open));
-      });
-      document.addEventListener("click", (e) => {
-        if (!exPanel.hidden && !e.target.closest(".cb-menu-wrap")) {
-          exPanel.hidden = true;
-          exBtn.setAttribute("aria-expanded", "false");
-        }
-      });
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") exPanel.hidden = true;
-      });
-    }
 
     document.getElementById("logout-btn").addEventListener("click", async () => {
       try {

@@ -1,5 +1,6 @@
-// Student dashboard (SRS §3): five overview cards, each a link into the
-// exercises page pre-filtered, plus the deadlines still open and due.
+// Student dashboard (SRS §3): four overview cards, each a link into the
+// exercises page pre-filtered, the deadlines still open and due, a placeholder
+// for online sessions, and the activity feed ten at a time.
 (function () {
   const D = window.Dash;
   const { el, pill, fill } = D;
@@ -8,13 +9,24 @@
 
   // The filter mapping is fixed by spec: card -> ?filter= key on
   // /student/exercises -> assignment status(es) it matches there.
+  //
+  // "Changes requested" is deliberately absent: the requirement removed both
+  // that card and its filter tab, so a card pointing at a tab that no longer
+  // exists would land on an unfiltered list.
   const CARDS = [
-    { key: "assigned", label: "Assigned", sub: "Exercises given to you", filter: "all" },
+    {
+      key: "assigned",
+      label: "Assigned",
+      sub: "Exercises given to you",
+      filter: "all",
+      icon: "📘",
+    },
     {
       key: "in_progress",
       label: "In progress",
       sub: "Opened, not submitted",
       filter: "in_progress",
+      icon: "✍️",
     },
     {
       key: "submitted",
@@ -22,13 +34,7 @@
       sub: "Submitted to your trainer",
       filter: "submitted",
       tone: "warn",
-    },
-    {
-      key: "changes_requested",
-      label: "Changes requested",
-      sub: "Needs a fix and resubmit",
-      filter: "changes_requested",
-      tone: "bad",
+      icon: "📤",
     },
     {
       key: "completed",
@@ -36,6 +42,7 @@
       sub: "Approved by your trainer",
       filter: "completed",
       tone: "good",
+      icon: "✅",
     },
   ];
 
@@ -53,9 +60,9 @@
         el(
           "a",
           { class: `stat ${tone}`, href: `/student/exercises?filter=${c.filter}` },
-          el("span", { class: "accent" }),
-          el("span", { class: "label" }, c.label),
+          el("span", { class: "stat-icon" }, c.icon),
           el("span", { class: "value" }, value),
+          el("span", { class: "label" }, c.label),
           el("span", { class: "sub" }, c.sub)
         )
       );
@@ -116,5 +123,10 @@
   }
 
   D.initChrome(load);
-  load();
+  load().then(() => {
+    if (!data) return;
+    // Wired once: the pager owns its own paging from here, so a later reload
+    // of the cards must not stack a second set of click handlers on it.
+    D.activityPager("activity-list", "activity-pager", data.activity, data.activity_total);
+  });
 })();

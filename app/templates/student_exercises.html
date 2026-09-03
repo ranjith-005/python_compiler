@@ -11,40 +11,26 @@
 {{ topbar('student', name, back='/student', heading='My exercises', current='exercises') }}
 
 <main class="dash-main">
-  <div class="panel-grid">
-    <div>
-      <section class="panel" id="assignments-panel">
-        <header>
-          <h2>Assigned exercises</h2>
-          <span class="count" id="assign-count">0</span>
-          <span class="spacer"></span>
-          <input class="dash-search" id="assign-search" type="search" placeholder="Search exercises">
-        </header>
-        <div class="panel-body pad" style="padding-bottom:0">
-          <div class="filters" id="filters">
-            <button class="active" data-filter="all">All</button>
-            <button data-filter="open">To do</button>
-            <button data-filter="in_progress">In progress</button>
-            <button data-filter="submitted">Submitted</button>
-            <button data-filter="changes_requested">Changes requested</button>
-            <button data-filter="completed">Completed</button>
-          </div>
-        </div>
-        <div class="panel-body" id="assign-list"></div>
-      </section>
+  {# Requirement: no separate "From your trainer" panel — a trainer's query
+     belongs to one assignment, so it is shown on that assignment's card. #}
+  <section class="panel" id="assignments-panel">
+    <header>
+      <h2>Assigned exercises</h2>
+      <span class="count" id="assign-count">0</span>
+      <span class="spacer"></span>
+      <input class="dash-search" id="assign-search" type="search" placeholder="Search exercises">
+    </header>
+    <div class="panel-body pad" style="padding-bottom:0">
+      <div class="filters" id="filters">
+        <button class="active" data-filter="all">All</button>
+        <button data-filter="open">To do</button>
+        <button data-filter="in_progress">In progress</button>
+        <button data-filter="submitted">Submitted</button>
+        <button data-filter="completed">Completed</button>
+      </div>
     </div>
-
-    <div>
-      <!-- Requirement 12: queries and warnings your trainer raised. -->
-      <section class="panel" id="queries-panel">
-        <header>
-          <h2>From your trainer</h2>
-          <span class="count" id="query-count">0</span>
-        </header>
-        <div class="panel-body" id="query-list"></div>
-      </section>
-    </div>
-  </div>
+    <div class="panel-body" id="assign-list"></div>
+  </section>
 </main>
 
 <!-- Submission result (SRS §12) -->

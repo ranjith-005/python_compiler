@@ -328,6 +328,8 @@ def _migrate_user_columns(conn: sqlite3.Connection) -> None:
         ("is_active", "INTEGER NOT NULL DEFAULT 1"),
         ("theme", "TEXT NOT NULL DEFAULT 'system'"),
         ("sessions_valid_from", "TEXT NOT NULL DEFAULT ''"),
+        # Presence for the trainer's roster: stamped on authenticated requests.
+        ("last_seen_at", "TEXT NOT NULL DEFAULT ''"),
     ):
         if column not in existing:
             conn.execute(f"ALTER TABLE users ADD COLUMN {column} {ddl}")

@@ -27,11 +27,15 @@
   <div class="solve-grid">
     <section class="panel">
       <header><h2>Your solution</h2><span class="spacer"></span>
-        <span class="cb-hint">Tab indents · Esc leaves the editor</span>
+        <span class="cb-hint" id="editor-kind">Python</span>
         <span class="cb-hint" id="save-state">Saved</span></header>
       <div class="panel-body pad">
+        {# Monaco mounts here. The textarea below is the real form control and
+           the fallback: if the editor cannot load, it is unhidden and used
+           directly, so the page is never left without somewhere to type. #}
+        <div class="editor-host" id="editor-host"></div>
         <textarea id="code" class="code-area" spellcheck="false"
-                  aria-label="Your solution"></textarea>
+                  aria-label="Your solution" hidden></textarea>
       </div>
     </section>
 
@@ -64,6 +68,8 @@
 
 {% block scripts %}
 <script>window.ASSIGNMENT_ID = {{ assignment_id }};</script>
+<script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.52.2/min/vs/loader.js"></script>
 <script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/code_editor.js?v={{ asset_v() }}"></script>
 <script src="/static/js/solve.js?v={{ asset_v() }}"></script>
 {% endblock %}

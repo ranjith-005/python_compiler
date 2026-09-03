@@ -174,6 +174,7 @@ window.Dash = (function () {
     changes_requested: "✏️",
     created: "✨",
     reviewed: "🔍",
+    query: "❓",
   };
   const TONES = {
     assigned: "blue",
@@ -186,20 +187,28 @@ window.Dash = (function () {
     changes_requested: "amber",
     created: "blue",
     reviewed: "blue",
+    query: "amber",
   };
+
+  // The bell shows five, newest first. The server already orders unread ahead
+  // of read, so slicing here can never hide something new behind old noise.
+  const NOTIFICATION_LIMIT = 5;
 
   function renderNotifications(items, unread) {
     const list = document.getElementById("bell-list");
     const badge = document.getElementById("bell-badge");
+    const foot = document.getElementById("bell-foot");
     badge.hidden = !unread;
-    badge.textContent = unread > 9 ? "9+" : String(unread || 0);
+    badge.textContent = String(unread || 0);
 
+    const shown = (items || []).slice(0, NOTIFICATION_LIMIT);
     list.textContent = "";
-    if (!items.length) {
+    if (!shown.length) {
       list.append(el("li", {}, el("span", { class: "meta" }, "Nothing yet.")));
+      if (foot) foot.hidden = true;
       return;
     }
-    items.forEach((n) => {
+    shown.forEach((n) => {
       const li = el(
         "li",
         { class: n.read_at ? "" : "unread" },
@@ -212,6 +221,11 @@ window.Dash = (function () {
       }
       list.append(li);
     });
+    if (foot) {
+      const extra = (unread || 0) - shown.filter((n) => !n.read_at).length;
+      foot.hidden = extra <= 0;
+      foot.textContent = `${extra} more unread`;
+    }
   }
 
   function renderActivity(items) {
@@ -231,6 +245,75 @@ window.Dash = (function () {
         )
       );
     });
+  }
+
+  // ── recent activity, ten at a time (both dashboards) ─────────────────────
+
+  const ACTIVITY_PAGE = 10;
+
+  // Renders one page of activity into `listId` and drives the Prev/Next pair
+  // in `pagerId`. The first page arrives with the dashboard payload, so the
+  // panel paints without a second round trip; Next fetches from there on.
+  function activityPager(listId, pagerId, firstPage, total) {
+    const list = document.getElementById(listId);
+    const pager = document.getElementById(pagerId);
+    const range = pager.querySelector(".range");
+    const prev = pager.querySelector("[data-prev]");
+    const next = pager.querySelector("[data-next]");
+    let offset = 0;
+    let busy = false;
+
+    function paint(items) {
+      list.textContent = "";
+      if (!items.length) {
+        list.append(el("li", { class: "empty-note" }, "No activity yet."));
+      }
+      items.forEach((a) => {
+        list.append(
+          el(
+            "li",
+            {},
+            el("span", { class: `dot ${TONES[a.kind] || ""}` }),
+            el(
+              "div",
+              {},
+              el("div", { class: "line" }, a.summary),
+              el("time", {}, ago(a.created_at))
+            )
+          )
+        );
+      });
+      const first = total ? offset + 1 : 0;
+      range.textContent = total
+        ? `Showing ${first}–${offset + items.length} of ${total}`
+        : "Nothing yet";
+      prev.disabled = busy || offset === 0;
+      next.disabled = busy || offset + ACTIVITY_PAGE >= total;
+      pager.hidden = total <= ACTIVITY_PAGE;
+    }
+
+    async function go(nextOffset) {
+      if (busy) return;
+      busy = true;
+      prev.disabled = next.disabled = true;
+      try {
+        const page = await api(
+          `/api/dashboard/activity?limit=${ACTIVITY_PAGE}&offset=${nextOffset}`
+        );
+        offset = page.offset;
+        total = page.total;
+        busy = false;
+        paint(page.items);
+      } catch (err) {
+        busy = false;
+        paint([]);
+        toast(err.message, true);
+      }
+    }
+
+    prev.addEventListener("click", () => go(Math.max(0, offset - ACTIVITY_PAGE)));
+    next.addEventListener("click", () => go(offset + ACTIVITY_PAGE));
+    paint(firstPage || []);
   }
 
   function initChrome(reload) {
@@ -270,6 +353,8 @@ window.Dash = (function () {
     initChrome,
     renderNotifications,
     renderActivity,
+    activityPager,
+    ACTIVITY_PAGE,
     ICONS,
     TONES,
   };

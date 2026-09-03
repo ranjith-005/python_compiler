@@ -51,7 +51,7 @@
           row(
             x.title,
             [x.status, `${x.assigned} assigned`, `${x.tests} test cases`,
-             x.due_date ? `Due ${due(x.due_date)}` : null],
+             x.due_date ? due(x.due_date) : null],
             `/trainer/exercises/${x.id}`
           )
         )
@@ -77,7 +77,7 @@
         list.append(
           row(
             x.exercise,
-            [x.display, x.due_date ? `Due ${due(x.due_date)}` : "No due date",
+            [x.display, x.due_date ? due(x.due_date) : "No due date",
              x.overdue ? "Overdue" : null],
             null
           )

@@ -145,7 +145,7 @@ async def upload_module(
             conn,
             int(user["id"]),
             "created",
-            f'Uploaded the module "{name}"',
+            f'{display_name(user)} uploaded the module "{name}"',
             int(user["id"]),
             "/trainer/modules",
         )
@@ -173,6 +173,7 @@ def assign_module(
             for r in conn.execute("SELECT id FROM users WHERE role = 'student' AND is_active = 1")
         }
         title = module["title"]
+        actor = display_name(user)
         assigned = 0
         for student_id in dict.fromkeys(body.assign_to):
             if int(student_id) not in valid:
@@ -184,6 +185,16 @@ def assign_module(
             )
             assigned += 1
             notify(conn, student_id, "assigned", f"New module: {title}", "/student/modules")
+            # Requirement: the student's history names the trainer who gave
+            # them the module, the same way an assigned exercise does.
+            record_activity(
+                conn,
+                student_id,
+                "assigned",
+                f'{actor} assigned the module "{title}"',
+                trainer_id,
+                "/student/modules",
+            )
     return {"id": module_id, "assigned": assigned}
 
 

@@ -5,10 +5,37 @@
 
 .dash {
   background: var(--cell-bg);
-  min-height: 100%;
+  /* 100% resolves against an auto-height <html> (colab.css), which left the
+     grey page stopping at the content and the viewport white below it. */
+  min-height: 100vh;
 }
 
-.dash .cb-topbar { background: var(--surface); }
+/* The reference design is white cards on a soft grey page. In the light token
+   set --surface is a near-white *hover* fill over a white page, which is what
+   the notebook views need; the dashboard needs the two pulled apart instead,
+   so it redefines them for its own subtree. Dark mode already separates them
+   and is left alone.
+
+   Duplicated deliberately: CSS cannot share one block between a plain
+   selector and one inside a media query. Keep the two in step. */
+:root[data-theme="light"] .dash {
+  --surface: #ffffff;
+  --cell-bg: #eef2f7;
+}
+@media (prefers-color-scheme: light) {
+  :root[data-theme="system"] .dash {
+    --surface: #ffffff;
+    --cell-bg: #eef2f7;
+  }
+}
+
+.dash .cb-topbar {
+  background: var(--surface);
+  height: 62px;
+  padding: 0 22px;
+  gap: 14px;
+  border-bottom: 1px solid var(--border);
+}
 
 .role-chip {
   display: inline-flex;
@@ -115,33 +142,49 @@
   display: block;
   width: 100%;
   text-align: left;
-  padding: 15px 16px;
+  padding: 20px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: var(--shadow-card);
   font: inherit;
   color: var(--text);
   text-decoration: none;
-  cursor: pointer;
   transition: border-color .12s, box-shadow .12s, transform .12s;
 }
-.stat:hover { border-color: var(--blue); box-shadow: 0 2px 10px color-mix(in srgb, var(--blue) 14%, transparent); }
-.stat:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
-.stat .label {
-  display: block;
-  font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
-  color: var(--text-dim);
+/* Only a card that goes somewhere behaves like one. On the student detail page
+   three of the eight cards are read-only figures (req: on-time rate, average
+   tests passed, last active), and they must not pretend to be clickable. */
+/* colab.css paints every <a> blue; a card is not a link's worth of blue. */
+.dash a.stat { color: var(--text); text-decoration: none; }
+a.stat, .stat.linked { cursor: pointer; }
+a.stat:hover, .stat.linked:hover {
+  border-color: color-mix(in srgb, var(--blue) 45%, var(--border));
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
 }
-.stat .value { display: block; margin-top: 8px; font-size: 30px; line-height: 1; font-weight: 400; }
-.stat .sub { display: block; margin-top: 7px; font-size: 12px; color: var(--text-dim); }
-.stat .accent { position: absolute; left: 0; top: 12px; bottom: 12px; width: 3px; border-radius: 0 3px 3px 0; background: var(--blue); }
-.stat.warn .accent { background: var(--amber); }
-.stat.good .accent { background: var(--green); }
-.stat.bad  .accent { background: var(--red); }
-.stat.warn .value { color: var(--amber); }
-.stat.bad  .value { color: var(--red); }
-.stat.good .value { color: var(--green); }
+.stat:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.stat.active { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 16%, transparent); }
+
+/* The tinted glyph tile the reference design leads each card with. */
+.stat .stat-icon {
+  display: grid; place-items: center;
+  width: 42px; height: 42px;
+  margin-bottom: 16px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+  font-size: 20px; line-height: 1;
+}
+.stat.warn .stat-icon { background: color-mix(in srgb, var(--amber) 16%, transparent); }
+.stat.good .stat-icon { background: color-mix(in srgb, var(--green) 14%, transparent); }
+.stat.bad  .stat-icon { background: color-mix(in srgb, var(--red) 12%, transparent); }
+
+.stat .value { display: block; font-size: 30px; line-height: 1.1; font-weight: 700; letter-spacing: -.02em; }
+.stat .label { display: block; margin-top: 6px; font-size: 13px; color: var(--text-dim); }
+.stat .sub { display: block; margin-top: 8px; font-size: 12px; color: var(--text-mute); }
+.stat.warn .sub { color: var(--amber); }
+.stat.bad  .sub { color: var(--red); }
+.stat.good .sub { color: var(--green); }
 
 /* ───────────────────────────── panels ───────────────────────────── */
 
@@ -155,17 +198,17 @@
 .panel {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 14px;
   box-shadow: var(--shadow-card);
-  margin-bottom: 16px;
+  margin-bottom: 18px;
   overflow: hidden;
 }
 .panel > header {
   display: flex; align-items: center; gap: 10px;
-  padding: 13px 16px;
+  padding: 16px 20px;
   border-bottom: 1px solid var(--border);
 }
-.panel > header h2 { margin: 0; font-size: 14.5px; font-weight: 500; }
+.panel > header h2 { margin: 0; font-size: 16px; font-weight: 600; letter-spacing: -.01em; }
 .panel > header .count {
   padding: 1px 8px;
   border-radius: 10px;
@@ -488,11 +531,11 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 
 /* Panels in a column share one rhythm; the last has no trailing gap. */
 .panel-grid > div > .panel:last-child { margin-bottom: 0; }
-.panel header { min-height: 46px; }
-.panel header h2 { font-size: 14px; font-weight: 500; margin: 0; }
+.panel header { min-height: 52px; }
+.panel header h2 { font-size: 16px; font-weight: 600; margin: 0; }
 
 /* Two cards should sit at a readable width, not stretch across the page. */
-.stat-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 320px)); }
+.stat-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
 
 /* The student dashboard's five overview cards: always one row, never the
    3-then-2 wrap `auto-fit` produces. Two classes beat the `.stat-grid` rules
@@ -719,3 +762,249 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .flash.success { border-color: var(--green); background: color-mix(in srgb, var(--green) 12%, var(--surface)); border-left: 4px solid var(--green); }
 .flash.error   { border-color: var(--red);   background: color-mix(in srgb, var(--red)   12%, var(--surface)); border-left: 4px solid var(--red); }
 .flash.info    { border-color: var(--blue);  background: color-mix(in srgb, var(--blue)  12%, var(--surface)); border-left: 4px solid var(--blue); }
+
+/* ══════════════════ Redesign pass: shell, dashboards, roster ══════════════
+   Everything below matches the reference design the requirements ship with:
+   a white bar over a soft grey page, pill navigation, icon-led stat cards,
+   and the Recent activity / Upcoming sessions pair under them. Colour still
+   comes from the one token set in styles.css, so dark mode follows along. */
+
+/* ── brand ── */
+.brand-mark {
+  display: grid; place-items: center;
+  width: 34px; height: 34px;
+  border-radius: 10px;
+  background: linear-gradient(140deg, var(--accent-fill), var(--accent-fill-2));
+  color: var(--on-accent);
+  flex: none;
+}
+.dash .cb-title {
+  font-size: 18px; font-weight: 700; letter-spacing: -.02em;
+  color: var(--blue);
+  white-space: nowrap;
+}
+
+/* ── navigation: pills, with the current section filled ── */
+.cb-nav { display: flex; align-items: center; gap: 4px; margin-left: 10px; flex-wrap: wrap; }
+.dash .cb-link {
+  padding: 8px 14px;
+  border-radius: 9px;
+  font-size: 14px; font-weight: 500;
+  color: var(--text-dim);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background .12s, color .12s;
+}
+.dash .cb-link:hover { background: var(--cell-bg); color: var(--text); }
+.dash .cb-link.active {
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+  color: var(--blue);
+  font-weight: 600;
+  /* colab.css underlines the active link for the notebook bar; the dashboard
+     marks it with the filled pill instead. */
+  box-shadow: none;
+}
+.dash .cb-link.disabled { color: var(--text-mute); cursor: default; }
+.dash .cb-link.disabled:hover { background: none; color: var(--text-mute); }
+.cb-link .soon {
+  margin-left: 6px; padding: 1px 6px;
+  border-radius: 8px;
+  background: var(--cell-bg);
+  font-size: 10px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+}
+
+/* ── bell: an icon, and a dot that only counts when it has to ── */
+.bell { width: 38px; height: 38px; border-radius: 10px; }
+.bell .badge {
+  top: 6px; right: 6px;
+  min-width: 9px; height: 9px; padding: 0;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  font-size: 0;                    /* the count is in the panel, not the dot */
+}
+.bell-foot {
+  padding: 9px 14px;
+  border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--text-dim); text-align: center;
+}
+
+/* ── profile control: avatar, name, caret ── */
+.avatar-btn {
+  display: flex; align-items: center; gap: 9px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid transparent; border-radius: 22px;
+  background: none; color: inherit; font: inherit;
+  cursor: pointer;
+}
+.avatar-btn:hover { background: var(--cell-bg); border-color: var(--border); }
+.avatar-btn:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.avatar-btn .avatar { width: 36px; height: 36px; font-size: 13px; border: 0; }
+.avatar-name {
+  font-size: 14px; font-weight: 500;
+  max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.avatar-btn .caret { color: var(--text-dim); font-size: 11px; }
+@media (max-width: 900px) { .avatar-name { display: none; } }
+
+/* ── page headings ── */
+.dash-head h1 { font-size: 30px; font-weight: 700; letter-spacing: -.025em; margin-bottom: 6px; }
+.dash-head p { font-size: 14.5px; }
+.dash-main { padding: 30px 22px 64px; }
+
+/* ── the dashboard lower pair: activity beside sessions ── */
+.dash-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.dash-split > .panel { margin-bottom: 0; }
+@media (max-width: 980px) { .dash-split { grid-template-columns: minmax(0, 1fr); } }
+
+/* ── activity feed: a status dot, the line, the age under it ── */
+.feed.timeline { padding: 0; }
+.feed.timeline li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+}
+.feed.timeline li:last-child { border-bottom: 0; }
+.feed.timeline .dot {
+  width: 9px; height: 9px; margin-top: 6px;
+  border-radius: 50%;
+  background: var(--text-mute);
+}
+.feed.timeline .dot.blue  { background: var(--blue); }
+.feed.timeline .dot.green { background: var(--green); }
+.feed.timeline .dot.amber { background: var(--amber); }
+.feed.timeline .dot.red   { background: var(--red); }
+.feed.timeline .line { font-size: 14px; line-height: 1.45; }
+.feed.timeline .line strong { font-weight: 600; }
+.feed.timeline time { display: block; margin-top: 5px; font-size: 12.5px; color: var(--text-dim); }
+
+/* ── ten at a time, with a way to the next ten ── */
+.pager {
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+}
+.pager .range { flex: 1; font-size: 12.5px; color: var(--text-dim); }
+
+/* ── upcoming sessions ── */
+.session-list { display: grid; gap: 14px; padding: 18px 20px; }
+.session-card {
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+.session-card .top { display: flex; align-items: flex-start; gap: 10px; }
+.session-card h3 { margin: 0; flex: 1; font-size: 15.5px; font-weight: 600; }
+.session-card .meta {
+  display: flex; flex-wrap: wrap; gap: 16px;
+  margin: 12px 0 14px;
+  font-size: 13px; color: var(--text-dim);
+}
+.badge-live {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  color: var(--red);
+  font-size: 11.5px; font-weight: 600;
+}
+.badge-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+/* Online sessions are not built yet; the panel holds its place honestly
+   rather than inventing a schedule. */
+.placeholder-note {
+  display: grid; gap: 8px; justify-items: center;
+  padding: 34px 20px;
+  text-align: center;
+}
+.placeholder-note .glyph {
+  display: grid; place-items: center;
+  width: 46px; height: 46px;
+  border-radius: 12px;
+  background: var(--cell-bg);
+  font-size: 22px;
+}
+.placeholder-note p { margin: 0; font-size: 13.5px; color: var(--text-dim); max-width: 320px; line-height: 1.55; }
+
+/* ── roster table (trainer, Students) ── */
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11.5px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: left;
+}
+.data-table td { padding: 15px 20px; border-bottom: 1px solid var(--border); font-size: 14px; }
+.data-table tr:last-child td { border-bottom: 0; }
+.data-table tbody tr { cursor: pointer; }
+.data-table tbody tr:hover { background: var(--cell-bg); }
+.data-table .who { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.data-table .who .avatar { width: 38px; height: 38px; font-size: 13px; border: 0; cursor: inherit; }
+.dash .data-table .who .name {
+  font-weight: 500;
+  color: var(--text);
+  text-decoration: none;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.dash .data-table tbody tr:hover .name { color: var(--blue); }
+.data-table .email { color: var(--text-dim); }
+.data-table .bar { width: 140px; }
+.table-scroll { overflow-x: auto; }
+
+.presence { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text-dim); }
+.presence::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--text-mute); }
+.presence.online { color: var(--green); }
+.presence.online::before { background: var(--green); }
+
+/* ── exercises page toolbar: New exercise, then Drafts ── */
+.page-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+
+/* ── student profile page ── */
+.profile-hero {
+  display: flex; align-items: center; gap: 18px;
+  padding: 24px;
+}
+.profile-hero .avatar { width: 68px; height: 68px; font-size: 24px; border: 0; cursor: default; }
+.profile-hero h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+.profile-hero .sub { color: var(--text-dim); font-size: 14px; }
+.profile-hero .spacer { flex: 1; }
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  padding: 20px;
+}
+.info-item {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--cell-bg);
+}
+.info-item .k {
+  display: block;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.info-item .v { display: block; margin-top: 7px; font-size: 15px; font-weight: 500; word-break: break-word; }
+
+/* ── Monaco host on the solve page ── */
+.editor-host {
+  height: 420px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--cell-bg);
+}
+.editor-host .monaco-editor,
+.editor-host .monaco-editor .overflow-guard { border-radius: var(--radius); }

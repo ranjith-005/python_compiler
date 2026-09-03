@@ -8,7 +8,9 @@
 {% endblock %}
 
 {% block content %}
-{{ topbar(role, name, back=back, heading='Activity history', current='activity') }}
+{# The nav no longer carries Activity — both dashboards page the same feed —
+   but the full searchable history stays reachable at this address. #}
+{{ topbar(role, name, back=back, heading='Activity history') }}
 
 <main class="dash-main narrow">
   <div class="dash-head">
@@ -26,7 +28,7 @@
       <input class="dash-search" id="activity-search" type="search" placeholder="Search history">
     </header>
     <div class="panel-body">
-      <ul class="feed history" id="activity-list"></ul>
+      <ul class="feed timeline" id="activity-list"></ul>
     </div>
   </section>
 </main>
@@ -40,25 +42,43 @@
     const search = document.getElementById("activity-search");
     let all = [];
 
+    // Built as nodes, never as an HTML string: a summary carries exercise and
+    // module titles their author typed, and this page renders them verbatim.
+    function line(a) {
+      const li = document.createElement("li");
+      const dot = document.createElement("span");
+      dot.className = "dot";
+      const body = document.createElement("div");
+      const text = document.createElement("div");
+      text.className = "line";
+      text.textContent = a.summary;
+      const time = document.createElement("time");
+      time.textContent = new Date(a.created_at).toLocaleString();
+      body.append(text, time);
+      li.append(dot, body);
+      return li;
+    }
+
     function render() {
       const q = search.value.trim().toLowerCase();
       const rows = q ? all.filter((a) => (a.summary || "").toLowerCase().includes(q)) : all;
       count.textContent = rows.length;
-      list.innerHTML =
-        rows
-          .map(
-            (a) =>
-              `<li><span class="icon">•</span><div>${a.summary}` +
-              `<time>${new Date(a.created_at).toLocaleString()}</time></div></li>`
-          )
-          .join("") || `<li class="empty-note">${q ? "Nothing matches that search." : "No activity yet."}</li>`;
+      list.textContent = "";
+      if (!rows.length) {
+        const li = document.createElement("li");
+        li.className = "empty-note";
+        li.textContent = q ? "Nothing matches that search." : "No activity yet.";
+        list.append(li);
+        return;
+      }
+      rows.forEach((a) => list.append(line(a)));
     }
 
     search.addEventListener("input", render);
-    fetch("/api/dashboard/activity")
+    fetch("/api/dashboard/activity?limit=200")
       .then((r) => r.json())
       .then((x) => {
-        all = x || [];
+        all = (x && x.items) || [];
         render();
       });
   })();

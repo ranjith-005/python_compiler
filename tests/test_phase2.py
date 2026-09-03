@@ -219,32 +219,40 @@ def test_date_filters_restored_on_exercises_and_pending_only(client):
 #    the assignments list, its filters, search and the queries sidebar ──────
 
 
-def test_student_dashboard_keeps_only_cards_and_deadlines(client):
+def test_student_dashboard_keeps_cards_deadlines_sessions_and_activity(client):
     register(client)
     html = client.get("/student").text
     assert 'id="stats"' in html
-    assert "Upcoming deadlines" in html
+    for panel in ("Upcoming deadlines", "Upcoming sessions", "Recent activity"):
+        assert panel in html, panel
+    # The full assignments list stays on the exercises page.
     for gone in ("Assigned exercises", "From your trainer"):
         assert gone not in html, gone
 
 
-def test_student_exercises_page_absorbs_the_list_and_queries(client):
+def test_student_exercises_page_absorbs_the_list(client):
     register(client)
     html = client.get("/student/exercises").text
     assert "Assigned exercises" in html
-    assert "From your trainer" in html
-    for tab in ("All", "To do", "In progress", "Submitted", "Changes requested", "Completed"):
+    # The "From your trainer" sidebar is gone: a query belongs to one
+    # assignment, so it renders on that assignment's card instead.
+    assert 'id="query-list"' not in html
+    for tab in ("All", "To do", "In progress", "Submitted", "Completed"):
         assert tab in html, tab
+    # The changes-requested tab was dropped along with its dashboard card.
+    assert 'data-filter="changes_requested"' not in html
 
 
 def test_dashboard_stat_cards_are_links_with_the_fixed_filter_mapping(client):
     script = open("app/static/js/student_dashboard.js", encoding="utf-8").read()
     assert "innerHTML" not in script
     # Cards navigate, so they must be built as <a>, never <button>.
-    assert 'el(\n          "a",\n          { class: `stat' in script
+    assert '"a",' in script and "class: `stat" in script
     assert "/student/exercises?filter=${c.filter}" in script
-    for filter_key in ("all", "in_progress", "submitted", "changes_requested", "completed"):
+    for filter_key in ("all", "in_progress", "submitted", "completed"):
         assert f'filter: "{filter_key}"' in script
+    # Changes requested was removed from both the cards and the filter tabs.
+    assert 'filter: "changes_requested"' not in script
 
 
 def test_dashboard_stat_cards_use_the_shared_stat_classes(client):

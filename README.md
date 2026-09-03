@@ -68,30 +68,41 @@ its own dashboard.
 
 ### Trainer dashboard — `/trainer`
 
-Total students, coding exercises (published vs draft), pending submissions, submissions
-awaiting review, and completed work, each card jumping to the panel behind it. Below that:
-the review queue, outstanding assignments with overdue flags, upcoming deadlines with a
-submitted/assigned bar, per-student progress, the exercise list, notifications and a recent
-activity feed.
+Five cards — total students, pending submissions, submissions awaiting review, coding
+exercises (published vs draft), completed work — each one opening the page behind it.
+Under them, **Recent activity** ten entries at a time with a Next button, beside
+**Upcoming sessions** (a placeholder until online sessions are built).
 
-**New exercise** creates a coding exercise — title, problem statement, input/output format,
-samples, constraints, due date, draft or published — with any number of test cases (each one
-public or hidden), and assigns it to the students you pick. They are notified immediately.
+**Students** — `/trainer/students` — is the roster: who, their email, a progress bar, and
+whether they are online now. Open a student for their eight figures and every exercise you
+gave them; the five actionable cards (assigned, completed, pending, awaiting review, late)
+filter that list, while on-time rate, average tests passed and last active are figures only.
+**Personal information** holds the account details.
+
+**Exercises** — `/trainer/exercises` — lists everything you have written, with **New
+exercise** and **Drafts** as buttons above it. New exercise takes a title, problem statement,
+input/output format, samples, constraints and due date, draft or published, with any number
+of test cases (each one public or hidden), and assigns it to the students you pick. They are
+notified immediately.
 
 **Review** opens a submission: the student's code, its verdict, how many test cases passed,
 and a comment box. Approve it, or request modifications and it reopens on the student's side.
 
 ### Student dashboard — `/student`
 
-A **continue where you left off** card resumes the most recently opened piece of open work,
-then counts for assigned / in progress / awaiting review / changes requested / completed,
-each one filtering the list below. Every exercise shows its status, due date (overdue in red),
-last verdict, test tally, and any trainer feedback inline.
+Four cards — assigned, in progress, awaiting review, completed — each one opening the
+exercises page filtered to it. Under them, **Upcoming deadlines** beside **Upcoming
+sessions**, and **Recent activity** ten entries at a time with a Next button. The bell
+carries the five newest notifications, unread first.
 
-**Start** opens the exercise as a notebook — the problem statement rendered as markdown, the
-starter code in a cell — so the whole notebook runtime above is the editor. **Submit** runs
-the solution against every test case, hidden ones included, and records the verdict
-(Accepted, Wrong Answer, Runtime Error, Syntax Error). Resubmit until the trainer approves.
+`/student/exercises` is the full list: status, due date (overdue in red), last verdict, test
+tally, trainer feedback and any query your trainer raised, all on the exercise it belongs to.
+
+**Start** opens the exercise in a Monaco editor — problem statement above, your solution on
+the left, stdin and output on the right. **Run** executes what you have written and shows
+its output; **Submit** runs it against every test case, hidden ones included, and records the
+verdict (Accepted, Wrong Answer, Runtime Error, Syntax Error). Resubmit until the trainer
+approves.
 
 ### Learning modules — `/trainer/modules`, `/student/modules`
 

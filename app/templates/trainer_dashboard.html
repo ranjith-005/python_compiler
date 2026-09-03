@@ -18,7 +18,35 @@
     </div>
   </div>
 
-  <section class="stat-grid five" id="stats"></section>
+  <section class="stat-grid" id="stats"></section>
+
+  <div class="dash-split">
+    <section class="panel" id="activity-panel">
+      <header><h2>Recent activity</h2></header>
+      <div class="panel-body">
+        <ul class="feed timeline" id="activity-list"></ul>
+      </div>
+      <div class="pager" id="activity-pager" hidden>
+        <span class="range"></span>
+        <button class="cb-btn" type="button" data-prev>Previous</button>
+        <button class="cb-btn" type="button" data-next>Next</button>
+      </div>
+    </section>
+
+    {# Online sessions are not built yet; the panel holds its place rather than
+       inventing a schedule. #}
+    <section class="panel" id="sessions-panel">
+      <header><h2>Upcoming sessions</h2></header>
+      <div class="panel-body">
+        <div class="placeholder-note">
+          <span class="glyph" aria-hidden="true">🎥</span>
+          <strong>No live sessions scheduled</strong>
+          <p>Online sessions are still being built. Once scheduling lands, the
+             sessions you run will be listed here with their attendance.</p>
+        </div>
+      </div>
+    </section>
+  </div>
 </main>
 
 <div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
