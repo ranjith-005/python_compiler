@@ -556,6 +556,7 @@ def assignment_detail(assignment_id: int, user: sqlite3.Row = Depends(get_curren
             "sample_output",
             "explanation",
             "constraints",
+            "starter_code",
         )
     }
     return {

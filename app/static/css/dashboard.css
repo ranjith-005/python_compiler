@@ -322,7 +322,7 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
   background: var(--overlay);
   display: grid; place-items: center;
   padding: 24px;
-  z-index: 50;
+  z-index: 70;
 }
 .sheet-card {
   width: min(720px, 100%);
@@ -680,7 +680,12 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 }
 .output.err { color: var(--red); }
 .field-block { margin-top: 14px; }
-.field-block .label { display: block; margin-bottom: 4px; }
+.field-block .label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-dim);
+}
 .sample {
   margin: 0; padding: 8px 10px;
   background: var(--cell-bg); border: 1px solid var(--border);
@@ -711,6 +716,6 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
   text-align: center;
   cursor: pointer;
 }
-.flash.success { border-color: var(--green); }
-.flash.error   { border-color: var(--red); }
-.flash.info    { border-color: var(--blue); }
+.flash.success { border-color: var(--green); background: color-mix(in srgb, var(--green) 12%, var(--surface)); border-left: 4px solid var(--green); }
+.flash.error   { border-color: var(--red);   background: color-mix(in srgb, var(--red)   12%, var(--surface)); border-left: 4px solid var(--red); }
+.flash.info    { border-color: var(--blue);  background: color-mix(in srgb, var(--blue)  12%, var(--surface)); border-left: 4px solid var(--blue); }

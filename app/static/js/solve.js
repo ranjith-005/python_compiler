@@ -9,6 +9,9 @@
   const stdin = document.getElementById("stdin");
   const output = document.getElementById("output");
   const saveState = document.getElementById("save-state");
+  const runBtn = document.getElementById("run-btn");
+  const submitBtn = document.getElementById("submit-btn");
+  const closedNote = document.getElementById("closed-note");
   let saveTimer = null;
   let dirty = false;
 
@@ -22,21 +25,29 @@
 
   async function load() {
     const a = await D.api(`/api/assignments/${id}`);
-    document.getElementById("ex-title").textContent = a.title;
+    const ex = a.exercise || {};
+    document.getElementById("ex-title").textContent = ex.title;
     document.getElementById("ex-meta").textContent =
       a.due_date ? `Due ${D.due(a.due_date)}` : "No due date";
     document.getElementById("ex-status").textContent = (a.status || "").replace(/_/g, " ");
 
     const body = document.getElementById("problem-body");
     body.textContent = "";
-    body.append(el("p", { class: "statement", text: a.problem_statement || "" }));
-    [field("Sample input", a.sample_input), field("Sample output", a.sample_output),
-     field("Explanation", a.explanation)].forEach((n) => n && body.append(n));
+    body.append(el("p", { class: "statement", text: ex.problem_statement || "" }));
+    [field("Sample input", ex.sample_input), field("Sample output", ex.sample_output),
+     field("Explanation", ex.explanation)].forEach((n) => n && body.append(n));
 
-    code.value = a.solution_code || a.starter_code || "";
-    stdin.value = a.last_stdin || a.sample_input || "";
+    code.value = a.solution_code || ex.starter_code || "";
+    stdin.value = a.last_stdin || ex.sample_input || "";
     dirty = false;
     saveState.textContent = "Saved";
+
+    const closed = a.status === "approved" || a.status === "completed";
+    runBtn.disabled = closed;
+    submitBtn.disabled = closed;
+    closedNote.hidden = !closed;
+
+    D.api(`/api/assignments/${id}/open`, { method: "POST" }).catch(() => {});
   }
 
   // Actual save. Throws on failure so a caller (Submit) can refuse to
@@ -104,9 +115,13 @@
     markDirty();
   });
 
-  document.getElementById("run-btn").addEventListener("click", async () => {
+  runBtn.addEventListener("click", async () => {
     output.textContent = "Running…";
+    // Wait out any in-flight save so the run can't race it and read a
+    // pre-save value while a newer one is still on the wire.
+    await saveChain.catch(() => {});
     const sent = code.value;
+    const sentStdin = stdin.value;
     try {
       const r = await D.api(`/api/assignments/${id}/run`, {
         method: "POST",
@@ -120,7 +135,7 @@
       document.getElementById("run-time").textContent = `${r.duration_ms} ms`;
       // A run can take up to 15s; only clear dirty if nothing changed
       // underneath it, or a pending edit's save would silently no-op.
-      if (code.value === sent) {
+      if (code.value === sent && stdin.value === sentStdin) {
         dirty = false;
         saveState.textContent = "Saved";
       }
@@ -130,7 +145,7 @@
     }
   });
 
-  document.getElementById("submit-btn").addEventListener("click", async () => {
+  submitBtn.addEventListener("click", async () => {
     try {
       await queueSave();
     } catch (err) {

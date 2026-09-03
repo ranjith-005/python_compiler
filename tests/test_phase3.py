@@ -217,6 +217,17 @@ def test_someone_elses_assignment_redirects_rather_than_erroring(client):
     assert response.headers["location"] == "/student/exercises"
 
 
+def test_assignment_detail_returns_everything_the_solve_page_renders(client):
+    assignment_id = _make_assignment(client)
+    detail = client.get(f"/api/assignments/{assignment_id}").json()
+    exercise = detail["exercise"]
+    for field in ("title", "problem_statement", "sample_input", "sample_output", "starter_code"):
+        assert field in exercise, f"solve.js reads exercise.{field}"
+    for field in ("solution_code", "last_stdin", "status", "due_date"):
+        assert field in detail, f"solve.js reads {field} at the top level"
+    assert exercise["title"], "the solve page's heading would render 'undefined'"
+
+
 def test_pages_render_a_flash_region_and_no_page_calls_toast(client):
     register(client)
     assert 'id="flash"' in client.get("/student").text
