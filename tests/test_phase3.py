@@ -228,6 +228,24 @@ def test_assignment_detail_returns_everything_the_solve_page_renders(client):
     assert exercise["title"], "the solve page's heading would render 'undefined'"
 
 
+def test_solve_page_reads_exercise_fields_from_the_nested_object():
+    """The solve page once rendered "undefined" as its heading and a blank
+    problem panel, because it read these fields at the top level of
+    /api/assignments/{id} while the API nests them under `exercise`. No test
+    here executes JavaScript, so this greps the source instead.
+    """
+    from pathlib import Path
+
+    source = Path("app/static/js/solve.js").read_text(encoding="utf-8")
+    assert "a.exercise" in source, "solve.js must destructure the nested exercise object"
+    for field in ("title", "problem_statement", "sample_input", "sample_output",
+                  "explanation", "starter_code"):
+        assert f"a.{field}" not in source, (
+            f"solve.js reads a.{field} at the top level; that field is nested "
+            f"under `exercise` and would render as undefined"
+        )
+
+
 def test_pages_render_a_flash_region_and_no_page_calls_toast(client):
     register(client)
     assert 'id="flash"' in client.get("/student").text
