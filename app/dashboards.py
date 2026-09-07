@@ -25,8 +25,22 @@ OPEN_LIST = ",".join("?" * len(OPEN_STATUSES))
 # online. Long enough that reading a page does not flicker them offline.
 PRESENCE_WINDOW_MIN = 5
 
-# The dashboards page their activity feed ten at a time.
-ACTIVITY_PAGE = 10
+# The dashboards page their activity feed fifteen at a time: enough that a busy
+# week is one or two pages, few enough that a page scrolls rather than runs off.
+ACTIVITY_PAGE = 15
+
+# Who did this to you, and in what capacity. A student needs to see that the
+# warning on their exercise came from their trainer and not from the system.
+ACTIVITY_SELECT = """
+    SELECT a.id, a.kind, a.summary, a.link, a.created_at, a.actor_id,
+           u.role AS actor_role, u.full_name AS actor_full_name,
+           u.first_name AS actor_first_name, u.last_name AS actor_last_name,
+           u.email AS actor_email
+    FROM activities a
+    LEFT JOIN users u ON u.id = a.actor_id
+    WHERE a.user_id = ?
+    ORDER BY a.created_at DESC, a.id DESC
+"""
 
 # One row per assignment: its most recent submission, or NULLs if never submitted.
 LATEST_SUBMISSION = """
@@ -46,6 +60,32 @@ def _rows(cursor) -> list[dict]:
 def _scalar(conn: sqlite3.Connection, sql: str, params: tuple = ()) -> int:
     row = conn.execute(sql, params).fetchone()
     return int(row[0]) if row and row[0] is not None else 0
+
+
+def _with_actor(rows: list[dict], viewer_id: int) -> list[dict]:
+    """Attach who each activity came from, in a form the feed can label.
+
+    `actor` is left empty for anything the reader did themselves -- "you
+    submitted X" needs no attribution -- and for rows whose actor account is
+    gone. `actor_role` is what lets the feed print "Nishanth (trainer)".
+    """
+    out = []
+    for row in rows:
+        actor_id = row.pop("actor_id", None)
+        role = row.pop("actor_role", None) or ""
+        name = display_name(
+            {
+                "full_name": row.pop("actor_full_name", "") or "",
+                "first_name": row.pop("actor_first_name", "") or "",
+                "last_name": row.pop("actor_last_name", "") or "",
+                "email": row.pop("actor_email", "") or "",
+            }
+        ) if actor_id else ""
+        mine = actor_id is not None and int(actor_id) == viewer_id
+        row["actor"] = "" if mine else name
+        row["actor_role"] = "" if mine else role
+        out.append(row)
+    return out
 
 
 def _display(row: dict, name_key: str, email_key: str = "email") -> str:
@@ -83,12 +123,9 @@ def _feed(conn: sqlite3.Connection, user_id: int) -> dict:
         "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL",
         (user_id,),
     )
-    activity = _rows(
-        conn.execute(
-            "SELECT id, kind, summary, link, created_at FROM activities"
-            " WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?",
-            (user_id, ACTIVITY_PAGE),
-        )
+    activity = _with_actor(
+        _rows(conn.execute(ACTIVITY_SELECT + " LIMIT ?", (user_id, ACTIVITY_PAGE))),
+        user_id,
     )
     return {
         "notifications": notifications,
@@ -368,17 +405,18 @@ def full_activity(
 ) -> dict:
     """One page of the signed-in account's activity, newest first.
 
-    Both dashboards show ten at a time and step through with Next, so the
+    Both dashboards show fifteen at a time and step through with Next, so the
     total travels with the page; the history page asks for a large limit and
     filters what it gets client-side.
     """
     with get_conn() as conn:
-        items = _rows(
-            conn.execute(
-                "SELECT id, kind, summary, link, created_at FROM activities"
-                " WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?",
-                (user["id"], limit, offset),
-            )
+        items = _with_actor(
+            _rows(
+                conn.execute(
+                    ACTIVITY_SELECT + " LIMIT ? OFFSET ?", (user["id"], limit, offset)
+                )
+            ),
+            int(user["id"]),
         )
         total = _scalar(
             conn, "SELECT COUNT(*) FROM activities WHERE user_id = ?", (user["id"],)

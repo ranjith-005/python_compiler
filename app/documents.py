@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import io
 import re
+import struct
 from dataclasses import dataclass, field
 
 SUPPORTED_SUFFIXES = (".pdf", ".ppt", ".pptx")
@@ -103,6 +104,20 @@ class DocumentError(ValueError):
     """The upload could not be read as a document we support."""
 
 
+def _missing(kind: str, package: str) -> str:
+    """A missing reader is a deployment mistake; say which one and how to fix it.
+
+    Almost always this means the server was started with an interpreter that
+    never had the requirements installed -- so name the package rather than
+    leaving the trainer staring at "not supported".
+    """
+    return (
+        f"{kind} support is not installed on this server (missing `{package}`). "
+        f"Install the requirements for the interpreter running the app: "
+        f"python -m pip install -r requirements.txt"
+    )
+
+
 @dataclass
 class Unit:
     """One page of a PDF or one slide of a deck, in document order."""
@@ -180,8 +195,8 @@ def _looks_like_heading(line: str) -> bool:
 def _extract_pdf(raw: bytes) -> list[Unit]:
     try:
         from pypdf import PdfReader
-    except ImportError as exc:  # pragma: no cover - dependency is pinned
-        raise DocumentError("PDF support is not installed on the server.") from exc
+    except ImportError as exc:
+        raise DocumentError(_missing("PDF", "pypdf")) from exc
 
     try:
         reader = PdfReader(io.BytesIO(raw))
@@ -213,6 +228,95 @@ def _extract_pdf(raw: bytes) -> list[Unit]:
     return units
 
 
+# -- PowerPoint 97-2003 (.ppt), the binary one ------------------------------
+# A .ppt is an OLE compound file whose "PowerPoint Document" stream is a tree of
+# records: an 8-byte header (version+instance, type, length) and then either a
+# body or, when the low nibble of the first field is 0xF, more records. Slides
+# are top-level containers of type 0x03EE, and the text inside one lands in
+# either a TextBytesAtom (one byte per character) or a TextCharsAtom (UTF-16).
+#
+# Reading it directly keeps the server free of PowerPoint and LibreOffice; the
+# alternative was telling the trainer to go and convert the file by hand.
+
+_PPT_SLIDE = 0x03EE
+_PPT_TEXT_CHARS = 0x0FA0
+_PPT_TEXT_BYTES = 0x0FA8
+
+
+def _ppt_records(data: bytes, start: int, end: int):
+    """Walk one level of the record tree: (is_container, type, body start/end)."""
+    position = start
+    while position + 8 <= end:
+        version_instance, record_type, length = struct.unpack_from("<HHI", data, position)
+        body_start = position + 8
+        body_end = body_start + length
+        if body_end > end:
+            break                                   # truncated: stop, keep what we have
+        yield (version_instance & 0x0F) == 0x0F, record_type, body_start, body_end
+        position = body_end
+
+
+def _ppt_text(data: bytes, start: int, end: int, out: list[str]) -> None:
+    for is_container, record_type, body_start, body_end in _ppt_records(data, start, end):
+        if is_container:
+            _ppt_text(data, body_start, body_end, out)
+        elif record_type == _PPT_TEXT_CHARS:
+            out.append(data[body_start:body_end].decode("utf-16-le", "ignore"))
+        elif record_type == _PPT_TEXT_BYTES:
+            out.append(data[body_start:body_end].decode("latin-1", "ignore"))
+
+
+def _extract_ppt_binary(raw: bytes, cause: Exception | None = None) -> list[Unit]:
+    """One Unit per slide of a PowerPoint 97-2003 file."""
+    try:
+        import olefile
+    except ImportError as exc:
+        raise DocumentError(_missing("PowerPoint 97-2003", "olefile")) from exc
+
+    stream = io.BytesIO(raw)
+    if not olefile.isOleFile(stream):
+        raise DocumentError(
+            "That .ppt could not be read. It is neither a PowerPoint 97-2003 file nor a "
+            "renamed .pptx -- try opening it in PowerPoint and saving it again."
+        ) from cause
+    try:
+        ole = olefile.OleFileIO(stream)
+        if not ole.exists("PowerPoint Document"):
+            raise DocumentError("That .ppt has no PowerPoint content in it.")
+        data = ole.openstream("PowerPoint Document").read()
+    except DocumentError:
+        raise
+    except Exception as exc:
+        raise DocumentError("That .ppt could not be read. It may be corrupt.") from exc
+
+    units: list[Unit] = []
+    number = 0
+    for is_container, record_type, body_start, body_end in _ppt_records(data, 0, len(data)):
+        if not is_container or record_type != _PPT_SLIDE:
+            continue
+        chunks: list[str] = []
+        _ppt_text(data, body_start, body_end, chunks)
+        # \r ends a paragraph and \x0b is a soft line break inside one; both are
+        # simply new lines here.
+        lines: list[str] = []
+        for chunk in chunks:
+            for line in chunk.replace("\x0b", "\r").replace("\n", "\r").split("\r"):
+                cleaned = _clean(line, keep_indent=True)
+                if cleaned.strip():
+                    lines.append(cleaned)
+        if not lines:
+            continue
+        number += 1
+        # The first text box on a PowerPoint slide is its title placeholder.
+        title = lines[0].strip() if _looks_like_heading(lines[0].strip()) else ""
+        units.append(Unit(index=number, kind="slide", title=title,
+                          lines=lines[1:] if title else lines))
+
+    if not units:
+        raise DocumentError("No text could be read from that .ppt file.")
+    return units
+
+
 def _shape_lines(shape) -> list[str]:
     """Text of one shape: paragraphs, and table cells row by row."""
     lines: list[str] = []
@@ -239,19 +343,18 @@ def _shape_lines(shape) -> list[str]:
 def _extract_pptx(raw: bytes, suffix: str) -> list[Unit]:
     try:
         from pptx import Presentation
-    except ImportError as exc:  # pragma: no cover - dependency is pinned
-        raise DocumentError("PowerPoint support is not installed on the server.") from exc
+    except ImportError as exc:
+        raise DocumentError(_missing("PowerPoint", "python-pptx")) from exc
 
     try:
         deck = Presentation(io.BytesIO(raw))
     except Exception as exc:
         if suffix == ".ppt":
-            # The 97-2003 binary format is a different container entirely.
-            raise DocumentError(
-                "That .ppt uses the old PowerPoint 97-2003 format, which cannot be read "
-                "directly. Open it in PowerPoint and use Save As to make a .pptx, then "
-                "upload that."
-            ) from exc
+            # A .ppt is usually the 97-2003 binary format, which is a different
+            # container entirely -- python-pptx only opens the zipped XML one.
+            # (Plenty of ".ppt" files in the wild are really .pptx renamed,
+            # which is why this is tried first.)
+            return _extract_ppt_binary(raw, exc)
         raise DocumentError("That presentation could not be read. It may be corrupt.") from exc
 
     units: list[Unit] = []

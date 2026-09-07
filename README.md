@@ -106,8 +106,11 @@ approves.
 
 ### Learning modules — `/trainer/modules`, `/student/modules`
 
-A trainer uploads the **learning material itself — a PDF, PPT or PPTX**. The
-whole document is read (there is no page or slide ceiling) and grouped into
+A trainer uploads the **learning material itself — a PDF, PPT or PPTX**. All
+three are read on the server with no Office or LibreOffice installed: `pypdf`
+for PDF, `python-pptx` for PPTX, and a small record-walker over the OLE
+compound file for the PowerPoint 97-2003 binary `.ppt`. The whole document is
+read (there is no page or slide ceiling) and grouped into
 ordered learning sections: related slides become one topic, the document's own
 order is kept, and practical topics get **code practice** alongside their
 content. Nothing is assembled item by item in the website.
@@ -276,7 +279,8 @@ app/
 
   dashboards.py /api/dashboard — trainer and student overview aggregation
   modules.py    /api/modules — upload, draft editing, publish, assign, run, complete
-  documents.py  PDF/PPT/PPTX -> units -> logical sections (no page or slide limit)
+  documents.py  PDF/PPT/PPTX -> units -> logical sections (no page or slide limit);
+                includes a reader for the binary PowerPoint 97-2003 format
   assignments.py/api/exercises · /api/assignments · /api/submissions — assign,
                 open, submit, auto-evaluate, review
   seed.py       demo trainer, students, exercises and submissions

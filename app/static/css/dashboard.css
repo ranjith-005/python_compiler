@@ -496,35 +496,68 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .avatar.big { width: 40px; height: 40px; font-size: 14px; cursor: default; }
 
 .avatar-panel {
-  position: absolute; right: 0; top: calc(100% + 8px);
-  min-width: 232px;
+  position: absolute; right: 0; top: calc(100% + 10px);
+  min-width: 268px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  box-shadow: 0 8px 28px var(--overlay);
-  padding: 6px;
+  border-radius: 14px;
+  box-shadow: 0 12px 34px var(--overlay);
+  padding: 0;
+  overflow: hidden;
   z-index: 60;
 }
-.avatar-head {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 10px 12px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 6px;
-}
-.avatar-head strong { display: block; font-weight: 500; font-size: 13.5px; }
-.avatar-head .meta { font-size: 12px; color: var(--text-dim); }
 
+/* The identity block reads like a record: avatar, then name over role, each
+   on its own line and left-aligned to the same edge as the items below. */
+.avatar-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--cell-bg);
+  border-bottom: 1px solid var(--border);
+}
+.avatar-head .who { min-width: 0; }
+.avatar-head strong {
+  display: block;
+  font-weight: 600; font-size: 14px; line-height: 1.35;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.avatar-head .meta {
+  display: inline-block; margin-top: 4px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--blue) 12%, transparent);
+  color: var(--blue);
+  font-size: 11.5px; font-weight: 500;
+  letter-spacing: .02em; text-transform: capitalize;
+}
+
+.avatar-menu { padding: 6px; }
+.avatar-menu .sep { height: 1px; margin: 6px 8px; background: var(--border); }
+
+/* Icon column, then label: every row starts at the same x, which is what the
+   old flat list of links was missing. */
 .avatar-item {
-  display: block; width: 100%;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 11px;
+  width: 100%;
   padding: 9px 10px;
-  border: 0; border-radius: 8px;
+  border: 0; border-radius: 9px;
   background: none;
-  font: inherit; font-size: 13.5px;
+  font: inherit; font-size: 13.5px; line-height: 1.3;
   color: inherit; text-align: left; text-decoration: none;
   cursor: pointer;
 }
+.avatar-item svg { width: 16px; height: 16px; justify-self: center; opacity: .72; }
 .avatar-item:hover { background: var(--cell-bg); }
+.avatar-item:hover svg { opacity: 1; }
+.avatar-item:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .avatar-item.danger { color: var(--red); }
+.avatar-item.danger svg { opacity: .85; }
 
 /* ── alignment pass (shared 1, req 16) ── */
 .dash-main.narrow { max-width: 860px; }
@@ -975,7 +1008,21 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .feed.timeline .dot.red   { background: var(--red); }
 .feed.timeline .line { font-size: 14px; line-height: 1.45; }
 .feed.timeline .line strong { font-weight: 600; }
-.feed.timeline time { display: block; margin-top: 5px; font-size: 12.5px; color: var(--text-dim); }
+.feed.timeline .sub {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin-top: 5px;
+}
+.feed.timeline time { font-size: 12.5px; color: var(--text-dim); }
+/* Who the entry came from, when the sentence does not already say so. */
+.feed.timeline .actor-tag {
+  font-size: 12px; font-weight: 500;
+  color: var(--blue);
+}
+.feed.timeline .actor-tag::after { content: "·"; margin-left: 6px; color: var(--text-mute); }
+
+/* Fifteen entries a page: the page scrolls, the pager steps. Capped by height
+   rather than count so a short feed does not leave dead space below it. */
+#activity-panel .panel-body { max-height: 560px; overflow-y: auto; }
 
 /* ── ten at a time, with a way to the next ten ── */
 .pager {
@@ -983,7 +1030,12 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
   padding: 12px 20px;
   border-top: 1px solid var(--border);
 }
-.pager .range { flex: 1; font-size: 12.5px; color: var(--text-dim); }
+.pager .range {
+  flex: 1;
+  font-size: 13px; font-weight: 500;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── upcoming sessions ── */
 .session-list { display: grid; gap: 14px; padding: 18px 20px; }

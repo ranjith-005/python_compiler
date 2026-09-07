@@ -1,5 +1,9 @@
 """Document processing: extraction and grouping (module reqs 4-11)."""
 
+import pathlib
+
+import pytest
+
 from docbuilders import deck_bytes, pdf_bytes
 
 from app.documents import (
@@ -152,3 +156,43 @@ def test_a_topic_with_code_in_it_gets_practice_even_off_the_taxonomy():
 def test_min_section_words_is_the_only_size_knob():
     """Guards the constant the grouping leans on, so a change is deliberate."""
     assert MIN_SECTION_WORDS > 0
+
+
+# ── PowerPoint 97-2003, the binary .ppt (module reqs 2, 3) ──────────────────
+
+LEGACY_PPT = pathlib.Path(__file__).parent / "fixtures" / "legacy97.ppt"
+
+
+@pytest.mark.skipif(not LEGACY_PPT.exists(), reason="legacy .ppt fixture missing")
+def test_a_real_powerpoint_97_file_is_read():
+    """A genuine .ppt saved by PowerPoint, not a renamed .pptx."""
+    units = extract_units(LEGACY_PPT.read_bytes(), ".ppt")
+    assert [u.title for u in units] == ["Introduction to Python", "Variables", "Loops"]
+    assert units[0].lines == ["Python is a high level language.", "It reads like English."]
+    # Indentation inside a slide survives, so extracted code still parses.
+    assert any(line.startswith(" ") for line in units[2].lines)
+
+
+@pytest.mark.skipif(not LEGACY_PPT.exists(), reason="legacy .ppt fixture missing")
+def test_a_legacy_ppt_produces_usable_sections():
+    sections = build_sections(extract_units(LEGACY_PPT.read_bytes(), ".ppt"))
+    assert [s.title for s in sections] == ["Introduction to Python", "Variables", "Loops"]
+    assert [s.has_code_practice for s in sections] == [False, True, True]
+    for section in sections:
+        if section.has_code_practice:
+            compile(section.starter_code, "<starter>", "exec")
+
+
+def test_a_pptx_renamed_to_ppt_still_opens():
+    """Plenty of files in the wild are .pptx with the wrong extension."""
+    units = extract_units(deck_bytes(slides_for(["Introduction", "Loops"])), ".ppt")
+    assert [u.title for u in units] == ["Introduction", "Loops"]
+
+
+def test_a_file_that_is_neither_reports_something_actionable():
+    try:
+        extract_units(b"just some bytes", ".ppt")
+    except DocumentError as exc:
+        assert "ppt" in str(exc).lower()
+        return
+    raise AssertionError("nonsense bytes should raise DocumentError")

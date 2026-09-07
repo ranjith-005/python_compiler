@@ -247,9 +247,24 @@ window.Dash = (function () {
     });
   }
 
-  // ── recent activity, ten at a time (both dashboards) ─────────────────────
+  // ── recent activity, fifteen at a time (both dashboards) ─────────────────
 
-  const ACTIVITY_PAGE = 10;
+  const ACTIVITY_PAGE = 15;
+
+  // "Nishanth (trainer) assigned ..." rather than a line with no author.
+  // Most summaries already open with the actor's name, so the role is slipped
+  // in after it; the rest ("Solution approved: X") get the actor as a tag
+  // beside the timestamp instead, which is the only place it fits.
+  function attribute(activity) {
+    const actor = activity.actor || "";
+    const role = activity.actor_role || "";
+    if (!actor || !role) return { line: activity.summary, tag: "" };
+    const label = `${actor} (${role})`;
+    if (activity.summary.startsWith(actor + " ")) {
+      return { line: label + activity.summary.slice(actor.length), tag: "" };
+    }
+    return { line: activity.summary, tag: label };
+  }
 
   // Renders one page of activity into `listId` and drives the Prev/Next pair
   // in `pagerId`. The first page arrives with the dashboard payload, so the
@@ -269,6 +284,7 @@ window.Dash = (function () {
         list.append(el("li", { class: "empty-note" }, "No activity yet."));
       }
       items.forEach((a) => {
+        const { line, tag } = attribute(a);
         list.append(
           el(
             "li",
@@ -277,16 +293,22 @@ window.Dash = (function () {
             el(
               "div",
               {},
-              el("div", { class: "line" }, a.summary),
-              el("time", {}, ago(a.created_at))
+              el("div", { class: "line" }, line),
+              el(
+                "div",
+                { class: "sub" },
+                tag ? el("span", { class: "actor-tag" }, tag) : null,
+                el("time", {}, ago(a.created_at))
+              )
             )
           )
         );
       });
-      const first = total ? offset + 1 : 0;
-      range.textContent = total
-        ? `Showing ${first}–${offset + items.length} of ${total}`
-        : "Nothing yet";
+      // "3 / 20" -- which page of how many, so a long history reads as a
+      // countable thing rather than an endless scroll.
+      const pages = Math.max(1, Math.ceil(total / ACTIVITY_PAGE));
+      const current = Math.floor(offset / ACTIVITY_PAGE) + 1;
+      range.textContent = total ? `${current} / ${pages}` : "Nothing yet";
       prev.disabled = busy || offset === 0;
       next.disabled = busy || offset + ACTIVITY_PAGE >= total;
       pager.hidden = total <= ACTIVITY_PAGE;

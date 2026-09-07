@@ -414,3 +414,78 @@ def test_trainer_section_pages_are_reachable(client):
     # The roster page must keep its own literal route, not be swallowed by the
     # {section} parameter declared after it.
     assert client.get("/trainer/students", follow_redirects=False).status_code == 200
+
+# ── activity attribution and paging ─────────────────────────────────────────
+# The student asked to see which trainer an entry came from, as "Name (role)",
+# and to step through a long history a page at a time rather than scrolling.
+
+STUDENT_EMAIL = "feed.student@example.com"
+
+
+def a_feed(client):
+    """A student with activity caused by a trainer, signed in as the student."""
+    register(client, STUDENT_EMAIL)
+    client.post("/auth/logout")
+    register_trainer(client)
+    sid = student_id(client, STUDENT_EMAIL)
+    make_exercise(client, [sid])
+    client.post("/auth/logout")
+    client.post("/auth/login", json={"email": STUDENT_EMAIL, "password": "password123"})
+    return sid
+
+
+def test_activity_names_the_trainer_who_caused_it(client):
+    a_feed(client)
+    items = client.get("/api/dashboard/student").json()["activity"]
+    assert items, "the student should have activity after being assigned work"
+
+    from_trainer = [a for a in items if a["actor"]]
+    assert from_trainer, [a["summary"] for a in items]
+    assert all(a["actor_role"] == "trainer" for a in from_trainer)
+    assert all(a["actor"] == "Trainer One" for a in from_trainer)
+
+
+def test_your_own_activity_is_not_attributed_to_you(client):
+    """"You submitted X" needs no author; only somebody else's action does."""
+    a_feed(client)
+    assignment_id = client.get("/api/dashboard/student").json()["assignments"][0]["id"]
+    solve(client, assignment_id, "a = int(input())\nb = int(input())\nprint(a + b)")
+
+    items = client.get("/api/dashboard/activity?limit=50").json()["items"]
+    mine = [a for a in items if "ubmitted" in a["summary"]]
+    assert mine, [a["summary"] for a in items]
+    assert all(a["actor"] == "" for a in mine)
+
+
+def test_activity_pages_fifteen_at_a_time_over_a_long_history(client):
+    """Paging, not scrolling, is how a hundred entries get read."""
+    sid = a_feed(client)
+
+    from app.db import get_conn, record_activity
+
+    with get_conn() as conn:
+        for n in range(40):
+            record_activity(conn, sid, "assigned", f"Filler activity {n}", None, "/student")
+
+    first = client.get("/api/dashboard/activity").json()
+    assert first["limit"] == 15
+    assert len(first["items"]) == 15
+    assert first["total"] >= 40
+
+    second = client.get("/api/dashboard/activity?limit=15&offset=15").json()
+    assert len(second["items"]) == 15
+    # Pages do not overlap, so nothing is seen twice or skipped.
+    assert not ({a["id"] for a in first["items"]} & {a["id"] for a in second["items"]})
+
+
+def test_an_activity_with_no_actor_is_left_unattributed(client):
+    """A row whose actor is NULL must not invent one."""
+    sid = a_feed(client)
+    from app.db import get_conn, record_activity
+
+    with get_conn() as conn:
+        record_activity(conn, sid, "assigned", "System did a thing", None, "/student")
+
+    items = client.get("/api/dashboard/activity?limit=50").json()["items"]
+    row = next(a for a in items if a["summary"] == "System did a thing")
+    assert row["actor"] == "" and row["actor_role"] == ""

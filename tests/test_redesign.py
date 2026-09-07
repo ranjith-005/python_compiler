@@ -75,24 +75,24 @@ def test_trainer_dashboard_carries_sessions_and_paged_activity(client):
     assert 'id="activity-pager"' in html
 
 
-# ── student 2: ten activities a page, with a total to page against ──────────
+# ── student 2: fifteen activities a page, with a total to page against ──────
 
 
-def test_activity_is_served_ten_at_a_time_with_a_total(client):
+def test_activity_is_served_fifteen_at_a_time_with_a_total(client):
     a_class(client)
     as_student(client)
 
     dashboard = client.get("/api/dashboard/student").json()
-    assert len(dashboard["activity"]) <= 10
+    assert len(dashboard["activity"]) <= 15
     assert dashboard["activity_total"] >= 1
 
     page = client.get("/api/dashboard/activity").json()
-    assert page["limit"] == 10 and page["offset"] == 0
+    assert page["limit"] == 15 and page["offset"] == 0
     assert page["total"] == dashboard["activity_total"]
     assert [a["id"] for a in page["items"]] == [a["id"] for a in dashboard["activity"]]
 
-    second = client.get("/api/dashboard/activity?limit=10&offset=10").json()
-    assert second["offset"] == 10
+    second = client.get("/api/dashboard/activity?limit=15&offset=15").json()
+    assert second["offset"] == 15
     assert second["total"] == page["total"]
 
 
