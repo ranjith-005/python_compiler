@@ -20,7 +20,18 @@ from .dashboards import OPEN_STATUSES
 from .db import get_conn, notify, record_activity, utcnow
 from .deps import get_current_user, require_student, require_trainer
 from .names import display_name
-from .schemas import AssignIn, ExerciseIn, QueryIn, QueryReplyIn, ReviewIn, SolutionIn
+from .schemas import (
+    AccessDecisionIn,
+    AccessRequestIn,
+    AssignIn,
+    ExerciseIn,
+    NewStudentIn,
+    QueryIn,
+    QueryReplyIn,
+    ReviewIn,
+    SolutionIn,
+)
+from .security import hash_password
 from .workspace import workspace_dir
 
 router = APIRouter(prefix="/api", tags=["assignments"])
@@ -90,7 +101,16 @@ def _evaluate(code: str, tests: list[sqlite3.Row], cwd) -> dict:
 
     passed = 0
     detail = ""
-    for test in tests:
+    failure_kind = ""
+    cases: list[dict] = []
+
+    # Every test runs, even after one fails. Stopping at the first failure
+    # would report "1/3" without being able to say which two failed, and the
+    # student needs the whole picture to know what to fix.
+    for number, test in enumerate(tests, start=1):
+        hidden = bool(test["is_hidden"])
+        expected = (test["expected_output"] or "").strip()
+        case = {"number": number, "hidden": hidden, "passed": False, "error": ""}
         try:
             proc = subprocess.run(
                 [sys.executable, "-c", code],
@@ -100,27 +120,48 @@ def _evaluate(code: str, tests: list[sqlite3.Row], cwd) -> dict:
                 timeout=RUN_TIMEOUT_SEC,
                 cwd=str(cwd),
             )
+            stdout, stderr, returncode = proc.stdout, proc.stderr, proc.returncode
+            timed_out = False
         except subprocess.TimeoutExpired:
-            return {
-                "result": "runtime_error",
-                "passed": passed,
-                "total": len(tests),
-                "detail": f"Timed out after {RUN_TIMEOUT_SEC}s.",
-            }
-        if proc.returncode != 0:
-            return {
-                "result": "runtime_error",
-                "passed": passed,
-                "total": len(tests),
-                "detail": (proc.stderr or "").strip()[-400:],
-            }
-        if proc.stdout.strip() == (test["expected_output"] or "").strip():
-            passed += 1
-        elif not detail:
-            detail = "Output did not match the expected result."
+            stdout, stderr, returncode, timed_out = "", "", -1, True
 
-    result = "accepted" if passed == len(tests) and tests else "wrong_answer"
-    return {"result": result, "passed": passed, "total": len(tests), "detail": detail}
+        if timed_out:
+            case["error"] = f"Timed out after {RUN_TIMEOUT_SEC}s."
+            failure_kind = failure_kind or "runtime_error"
+        elif returncode != 0:
+            # The last line of a traceback is the exception and its message,
+            # which is the part worth reading first.
+            trace = (stderr or "").strip()
+            case["error"] = trace.splitlines()[-1] if trace else "The program exited with an error."
+            failure_kind = failure_kind or "runtime_error"
+        elif stdout.strip() == expected:
+            case["passed"] = True
+            passed += 1
+        else:
+            case["error"] = "Output did not match the expected result."
+            failure_kind = failure_kind or "wrong_answer"
+
+        # A hidden case reports only whether it passed and why it did not. Its
+        # input, its expected output and the student's actual output all stay
+        # unpublished, or hiding it would have achieved nothing (SRS §10).
+        if not hidden:
+            case["stdin"] = test["stdin"] or ""
+            case["expected"] = expected
+            case["actual"] = (stdout or "").strip()
+            if not timed_out and returncode != 0:
+                case["error"] = (stderr or "").strip()[-800:] or case["error"]
+        cases.append(case)
+        if not case["passed"] and not detail:
+            detail = case["error"]
+
+    result = "accepted" if tests and passed == len(tests) else (failure_kind or "wrong_answer")
+    return {
+        "result": result,
+        "passed": passed,
+        "total": len(tests),
+        "detail": detail,
+        "cases": cases,
+    }
 
 
 # ─────────────────────────────── trainer side ───────────────────────────────
@@ -138,6 +179,36 @@ def list_students(user: sqlite3.Row = Depends(require_trainer)) -> list[dict]:
     for row in result:
         row["display"] = _display(row, "name")
     return result
+
+
+@router.post("/students", status_code=201)
+def create_student(body: NewStudentIn, user: sqlite3.Row = Depends(require_trainer)) -> dict:
+    """Create a student account and set its credentials.
+
+    Students do not sign themselves up: the trainer enrols them and hands over
+    the email and password, which is why the sign-in page offers no way to
+    create an account.
+    """
+    email = str(body.email).strip()
+    full_name = f"{body.first_name.strip()} {body.last_name.strip()}".strip()
+    with get_conn() as conn:
+        if conn.execute(
+            "SELECT 1 FROM users WHERE email = ? COLLATE NOCASE", (email,)
+        ).fetchone():
+            raise HTTPException(status_code=409, detail="That email address is already in use.")
+        cur = conn.execute(
+            "INSERT INTO users (email, password_hash, created_at, role, full_name,"
+            " first_name, last_name, phone, is_active) VALUES (?, ?, ?, 'student', ?, ?, ?, ?, 1)",
+            (email, hash_password(body.password), utcnow(), full_name,
+             body.first_name.strip(), body.last_name.strip(), body.phone.strip()),
+        )
+        student_id = int(cur.lastrowid)
+        record_activity(
+            conn, int(user["id"]), "created",
+            f'{display_name(user)} enrolled {full_name or email}',
+            int(user["id"]), "/trainer/students",
+        )
+    return {"id": student_id, "email": email, "display": full_name or email}
 
 
 @router.get("/exercises")
@@ -350,6 +421,62 @@ def _load_assignment(conn: sqlite3.Connection, assignment_id: int, student_id: i
     return row
 
 
+def _past_due(due: str | None) -> bool:
+    if not due:
+        return False
+    try:
+        when = datetime.fromisoformat(due)
+    except ValueError:
+        return False
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) > when
+
+
+def _reopened(conn: sqlite3.Connection, assignment_id: int) -> bool:
+    return bool(
+        conn.execute(
+            "SELECT 1 FROM access_requests WHERE assignment_id = ? AND status = 'approved'",
+            (assignment_id,),
+        ).fetchone()
+    )
+
+
+def _locked(conn: sqlite3.Connection, row: sqlite3.Row) -> bool:
+    """Is this assignment closed to further editing?
+
+    Past the due date the student loses the editor rather than the exercise:
+    they can still read it, and they can ask for it back. An approved request
+    hands the editor over again. A submission already reviewed and closed stays
+    closed either way.
+    """
+    if row["status"] in ("approved", "completed"):
+        return True
+    if not _past_due(row["due_date"]):
+        return False
+    return not _reopened(conn, int(row["id"]))
+
+
+def _deny_if_locked(conn: sqlite3.Connection, row: sqlite3.Row) -> None:
+    if not _locked(conn, row):
+        return
+    if row["status"] in ("approved", "completed"):
+        raise HTTPException(status_code=409, detail="This exercise is already closed.")
+    raise HTTPException(
+        status_code=409,
+        detail="The deadline for this exercise has passed. Ask your trainer to reopen it.",
+    )
+
+
+def _my_request(conn: sqlite3.Connection, assignment_id: int) -> dict | None:
+    row = conn.execute(
+        "SELECT id, message, created_at, status, decision_message, decided_at"
+        " FROM access_requests WHERE assignment_id = ? ORDER BY id DESC LIMIT 1",
+        (assignment_id,),
+    ).fetchone()
+    return dict(row) if row else None
+
+
 @router.post("/assignments/{assignment_id}/open")
 def open_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_student)) -> dict:
     """Mark the exercise opened. The work now happens on the solve page.
@@ -380,7 +507,8 @@ def run_solution(
     """
     student_id = int(user["id"])
     with get_conn() as conn:
-        _load_assignment(conn, assignment_id, student_id)
+        row = _load_assignment(conn, assignment_id, student_id)
+        _deny_if_locked(conn, row)
         conn.execute(
             "UPDATE assignments SET solution_code = ?, last_stdin = ? WHERE id = ?",
             (body.code, body.stdin, assignment_id),
@@ -412,6 +540,165 @@ def run_solution(
     }
 
 
+@router.post("/assignments/{assignment_id}/check")
+def check_solution(
+    assignment_id: int, body: SolutionIn, user: sqlite3.Row = Depends(require_student)
+) -> dict:
+    """Run the editor's code against the exercise's test cases, without submitting.
+
+    This is what Run does now. It tells the student exactly where they stand --
+    "2/3 passed", and which one failed and why -- as often as they want, with
+    nothing recorded and nothing sent to the trainer. Submit is the deliberate
+    act, and stays separate.
+    """
+    student_id = int(user["id"])
+    with get_conn() as conn:
+        row = _load_assignment(conn, assignment_id, student_id)
+        _deny_if_locked(conn, row)
+        conn.execute(
+            "UPDATE assignments SET solution_code = ?, last_stdin = ? WHERE id = ?",
+            (body.code, body.stdin, assignment_id),
+        )
+        tests = conn.execute(
+            "SELECT stdin, expected_output, is_hidden FROM test_cases"
+            " WHERE exercise_id = ? ORDER BY position",
+            (row["exercise_id"],),
+        ).fetchall()
+
+    return _evaluate(body.code, list(tests), workspace_dir(student_id))
+
+
+# ── reopening a closed exercise ─────────────────────────────────────────────
+
+
+@router.post("/assignments/{assignment_id}/access-request", status_code=201)
+def raise_access_request(
+    assignment_id: int, body: AccessRequestIn, user: sqlite3.Row = Depends(require_student)
+) -> dict:
+    """Ask the trainer to reopen an exercise whose deadline has passed."""
+    student_id = int(user["id"])
+    now = utcnow()
+    with get_conn() as conn:
+        row = _load_assignment(conn, assignment_id, student_id)
+        if row["status"] in ("approved", "completed"):
+            raise HTTPException(status_code=409, detail="This exercise is already closed.")
+        if not _past_due(row["due_date"]):
+            raise HTTPException(
+                status_code=409,
+                detail="This exercise is still open — you can edit and submit it now.",
+            )
+        if _reopened(conn, assignment_id):
+            raise HTTPException(
+                status_code=409, detail="Your trainer has already reopened this exercise."
+            )
+        if conn.execute(
+            "SELECT 1 FROM access_requests WHERE assignment_id = ? AND status = 'pending'",
+            (assignment_id,),
+        ).fetchone():
+            raise HTTPException(
+                status_code=409, detail="You already have a request waiting on this exercise."
+            )
+
+        trainer_id = int(row["trainer_id"])
+        cur = conn.execute(
+            "INSERT INTO access_requests (assignment_id, exercise_id, student_id, trainer_id,"
+            " message, created_at, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')",
+            (assignment_id, int(row["exercise_id"]), student_id, trainer_id,
+             body.message.strip(), now),
+        )
+        title = row["title"]
+        who = display_name(user)
+        notify(conn, trainer_id, "query", f'{who} asked to reopen "{title}"', "/trainer")
+        record_activity(
+            conn, trainer_id, "query", f'{who} asked to reopen "{title}"',
+            student_id, "/trainer",
+        )
+        record_activity(
+            conn, student_id, "query", f'You asked to reopen "{title}"',
+            student_id, "/student",
+        )
+    return {"id": int(cur.lastrowid), "status": "pending"}
+
+
+@router.get("/access-requests")
+def list_access_requests(
+    status_filter: str | None = Query(None, alias="status"),
+    user: sqlite3.Row = Depends(require_trainer),
+) -> list[dict]:
+    """Every reopen request on this trainer's exercises, newest first."""
+    where, params = "r.trainer_id = ?", [int(user["id"])]
+    if status_filter in ("pending", "approved", "rejected"):
+        where += " AND r.status = ?"
+        params.append(status_filter)
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT r.*, e.title, u.full_name AS student_name, u.email AS student_email,"
+            "       a.due_date"
+            " FROM access_requests r"
+            " JOIN exercises e ON e.id = r.exercise_id"
+            " JOIN users u ON u.id = r.student_id"
+            " JOIN assignments a ON a.id = r.assignment_id"
+            f" WHERE {where} ORDER BY r.created_at DESC, r.id DESC",
+            params,
+        ).fetchall()
+    out = []
+    for row in rows:
+        item = dict(row)
+        item["student_display"] = _display(item, "student_name", "student_email")
+        out.append(item)
+    return out
+
+
+@router.post("/access-requests/{request_id}/decide")
+def decide_access_request(
+    request_id: int, body: AccessDecisionIn, user: sqlite3.Row = Depends(require_trainer)
+) -> dict:
+    """Approve or reject one student's request, with a message for them alone."""
+    trainer_id = int(user["id"])
+    now = utcnow()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT r.*, e.title FROM access_requests r"
+            " JOIN exercises e ON e.id = r.exercise_id"
+            " WHERE r.id = ? AND r.trainer_id = ?",
+            (request_id, trainer_id),
+        ).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Request not found.")
+        if row["status"] != "pending":
+            raise HTTPException(status_code=409, detail="This request has already been answered.")
+
+        status_next = "approved" if body.action == "approve" else "rejected"
+        conn.execute(
+            "UPDATE access_requests SET status = ?, decision_message = ?, decided_at = ?,"
+            " decided_by = ? WHERE id = ?",
+            (status_next, body.message.strip(), now, trainer_id, request_id),
+        )
+        # Approval hands the editor back; the assignment leaves whatever
+        # terminal-looking state the deadline left it in.
+        if status_next == "approved":
+            conn.execute(
+                "UPDATE assignments SET status = CASE WHEN status = 'assigned'"
+                " THEN 'assigned' ELSE status END WHERE id = ?",
+                (int(row["assignment_id"]),),
+            )
+
+        title = row["title"]
+        student_id = int(row["student_id"])
+        headline = (
+            f'Reopened: {title}' if status_next == "approved"
+            else f'Reopen request declined: {title}'
+        )
+        notify(conn, student_id, status_next, headline, "/student/exercises")
+        record_activity(
+            conn, student_id, status_next,
+            f'{display_name(user)} {"reopened" if status_next == "approved" else "declined to reopen"}'
+            f' "{title}"',
+            trainer_id, "/student/exercises",
+        )
+    return {"id": request_id, "status": status_next, "message": body.message.strip()}
+
+
 @router.patch("/assignments/{assignment_id}/code")
 def save_solution(
     assignment_id: int, body: SolutionIn, user: sqlite3.Row = Depends(require_student)
@@ -421,6 +708,7 @@ def save_solution(
     now = utcnow()
     with get_conn() as conn:
         row = _load_assignment(conn, assignment_id, student_id)
+        _deny_if_locked(conn, row)
         status_next = "in_progress" if row["status"] == "assigned" else row["status"]
         conn.execute(
             "UPDATE assignments SET solution_code = ?, last_stdin = ?,"
@@ -437,8 +725,7 @@ def submit_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_st
     now = utcnow()
     with get_conn() as conn:
         row = _load_assignment(conn, assignment_id, student_id)
-        if row["status"] in ("approved", "completed"):
-            raise HTTPException(status_code=409, detail="This exercise is already closed.")
+        _deny_if_locked(conn, row)
 
         code = row["solution_code"] or ""
         if not code.strip():
@@ -548,6 +835,11 @@ def assignment_detail(assignment_id: int, user: sqlite3.Row = Depends(get_curren
                 (assignment_id,),
             ).fetchall()
         ]
+        # What the solve page needs to decide whether to hand over the editor,
+        # and what to tell the student if it does not.
+        locked = _locked(conn, row)
+        past_due = _past_due(row["due_date"])
+        access_request = _my_request(conn, assignment_id)
 
     exercise = {
         key: row[key]
@@ -574,6 +866,9 @@ def assignment_detail(assignment_id: int, user: sqlite3.Row = Depends(get_curren
         "public_tests": public_tests,
         "hidden_tests": hidden,
         "history": history,
+        "locked": locked,
+        "past_due": past_due,
+        "access_request": access_request,
     }
 
 

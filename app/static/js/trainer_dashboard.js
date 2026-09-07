@@ -42,6 +42,94 @@
     );
   }
 
+  // ── upcoming deadlines ────────────────────────────────────────────────────
+
+  function renderDeadlines() {
+    const items = data.deadlines || [];
+    D.fill(
+      document.getElementById("deadline-list"),
+      items.map((d) =>
+        el("div", { class: "row" },
+          el("div", {},
+            el("div", { class: "title" }, d.title),
+            el("div", { class: "meta" },
+              d.overdue ? D.pill("Overdue", "red") : null,
+              el("span", { class: d.overdue ? "tests fail" : "tests" }, D.due(d.due_date)),
+              el("span", {}, `${d.outstanding} of ${d.assigned} still to come in`)
+            )
+          ),
+          el("div", { class: "actions" },
+            el("a", { class: "cb-btn", href: `/trainer/exercises/${d.id}` }, "Open")
+          )
+        )
+      ),
+      "No deadlines coming up."
+    );
+  }
+
+  // ── reopen requests ───────────────────────────────────────────────────────
+
+  async function decide(request, action) {
+    // The message is written for this student on this request, so two people
+    // asking about the same exercise can be answered differently.
+    const prompt_ = action === "approve"
+      ? `Message to ${request.display} (optional):`
+      : `Why are you declining ${request.display}? They will see this:`;
+    const message = window.prompt(prompt_, "");
+    if (message === null) return;
+    try {
+      await D.api(`/api/access-requests/${request.id}/decide`, {
+        method: "POST",
+        body: JSON.stringify({ action, message }),
+      });
+      D.flash(action === "approve" ? "Exercise reopened" : "Request declined", "success");
+      await load();
+    } catch (err) {
+      D.flash(err.message, "error");
+    }
+  }
+
+  function renderRequests() {
+    const items = data.access_requests || [];
+    const panel = document.getElementById("requests-panel");
+    panel.hidden = items.length === 0;
+    if (!items.length) return;
+
+    document.getElementById("request-count").textContent =
+      items.filter((r) => r.status === "pending").length;
+
+    D.fill(
+      document.getElementById("request-list"),
+      items.map((r) => {
+        const row = el("div", { class: "row" },
+          el("div", {},
+            el("div", { class: "title" }, `${r.display} — ${r.exercise}`),
+            el("div", { class: "meta" },
+              r.status === "pending"
+                ? D.pill("Waiting", "amber")
+                : D.pill(r.status === "approved" ? "Reopened" : "Declined",
+                         r.status === "approved" ? "green" : "red"),
+              el("span", {}, D.ago(r.created_at))
+            ),
+            r.message ? el("div", { class: "request-quote" }, r.message) : null,
+            r.decision_message
+              ? el("div", { class: "request-quote answer" }, `You replied: ${r.decision_message}`)
+              : null
+          ),
+          r.status === "pending"
+            ? el("div", { class: "actions" },
+                el("button", { class: "cb-btn", onclick: () => decide(r, "reject") }, "Decline"),
+                el("button", { class: "cb-btn primary", onclick: () => decide(r, "approve") },
+                   "Reopen")
+              )
+            : null
+        );
+        return row;
+      }),
+      "No reopen requests."
+    );
+  }
+
   async function load() {
     try {
       data = await D.api("/api/dashboard/trainer");
@@ -50,6 +138,8 @@
       return;
     }
     renderStats();
+    renderDeadlines();
+    renderRequests();
     D.renderNotifications(data.notifications, data.unread);
   }
 

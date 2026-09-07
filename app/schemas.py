@@ -166,3 +166,33 @@ class SolutionIn(BaseModel):
 
     code: str = Field(default="", max_length=200_000)
     stdin: str = Field(default="", max_length=100_000)
+
+
+# -- reopening a closed exercise --------------------------------------------
+
+
+class AccessRequestIn(BaseModel):
+    """A student asking their trainer to reopen an exercise past its due date."""
+
+    message: str = Field(default="", max_length=2_000)
+
+
+class AccessDecisionIn(BaseModel):
+    """The trainer's answer, written for one student.
+
+    `message` is what that student reads. Two students who asked about the same
+    exercise get their own row and so can get their own answer.
+    """
+
+    action: Literal["approve", "reject"]
+    message: str = Field(default="", max_length=2_000)
+
+
+class NewStudentIn(BaseModel):
+    """A trainer creating a student account and assigning its credentials."""
+
+    email: EmailStr
+    password: str = Field(min_length=8, max_length=72)
+    first_name: str = Field(default="", max_length=60)
+    last_name: str = Field(default="", max_length=60)
+    phone: str = Field(default="", max_length=30)

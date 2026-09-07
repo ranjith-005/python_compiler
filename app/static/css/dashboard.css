@@ -817,8 +817,6 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 
 /* ── exercise solve page ──────────────────────────────────────────── */
 
-.solve-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px; align-items: start; }
-.solve-side { display: grid; gap: 16px; }
 .code-area {
   width: 100%;
   min-height: 340px;
@@ -861,7 +859,178 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 }
 .statement { margin: 0; white-space: pre-wrap; }
 
-@media (max-width: 980px) { .solve-grid { grid-template-columns: 1fr; } }
+/* The problem reads as prose on the page, not as a panel with a header. */
+.problem { max-width: 78ch; margin: 0 0 22px; }
+.problem p { margin: 0 0 12px; font-size: 14.5px; line-height: 1.65; }
+.problem-field { margin-top: 14px; }
+.problem-field .label {
+  display: block; margin-bottom: 5px;
+  font-size: 11.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.problem-field pre {
+  margin: 0; padding: 9px 11px;
+  background: var(--cell-bg); border: 1px solid var(--border); border-radius: 7px;
+  font-family: var(--mono); font-size: 13px; white-space: pre-wrap;
+}
+
+/* ── the editor: its controls sit on top of it, and it has no title ── */
+.code-block { margin-bottom: 18px; }
+.code-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border); border-bottom: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.code-toolbar .spacer { flex: 1; }
+.code-block .editor-host,
+.code-block .code-area { border-radius: 0 0 var(--radius) var(--radius); }
+.cb-btn.icon-btn {
+  padding: 5px 9px;
+  font-size: 14px; line-height: 1;
+}
+.cb-btn.icon-btn[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
+  border-color: var(--blue);
+}
+
+/* ── the private console, opened by the launch button ── */
+.console-block {
+  margin-bottom: 18px;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  background: var(--surface);
+}
+.console-head {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.console-head h2 { margin: 0; font-size: 13px; font-weight: 600; }
+.console-head .spacer { flex: 1; }
+.console-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  padding: 14px;
+}
+.console-grid .output {
+  padding: 10px 12px;
+  background: var(--cell-bg);
+  border: 1px solid var(--border); border-radius: 8px;
+}
+
+/* ── the deadline notice and the way back in ── */
+.locked-note {
+  margin: 0 0 18px; padding: 14px 16px;
+  background: color-mix(in srgb, var(--amber) 9%, transparent);
+  border: 1px solid color-mix(in srgb, var(--amber) 40%, var(--border));
+  border-radius: var(--radius);
+}
+.locked-head strong { display: block; font-size: 14px; }
+.locked-head p { margin: 5px 0 0; font-size: 13.5px; color: var(--text-dim); line-height: 1.55; }
+.locked-actions { display: flex; gap: 10px; align-items: flex-start; margin-top: 12px; }
+.locked-actions textarea {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--surface); color: inherit;
+  font: inherit; font-size: 13.5px; resize: vertical;
+}
+.request-state {
+  display: grid; gap: 3px;
+  margin-top: 12px; padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--surface);
+  border-left: 3px solid var(--border);
+  font-size: 13.5px;
+}
+.request-state strong { font-weight: 600; }
+.request-state span { color: var(--text-dim); line-height: 1.55; }
+.request-state.pending  { border-left-color: var(--amber); }
+.request-state.approved { border-left-color: var(--green); }
+.request-state.rejected { border-left-color: var(--red); }
+
+/* What a student wrote when asking, and what the trainer wrote back. */
+.request-quote {
+  margin-top: 7px; padding: 7px 10px;
+  border-left: 3px solid var(--border);
+  background: var(--cell-bg); border-radius: 0 7px 7px 0;
+  font-size: 13px; line-height: 1.55; color: var(--text-dim);
+}
+.request-quote.answer { border-left-color: var(--blue); }
+
+/* ── the test-case drawer ── */
+.drawer-scrim {
+  position: fixed; inset: 0;
+  background: var(--overlay);
+  z-index: 70;
+}
+.test-drawer {
+  position: fixed; top: 0; right: 0; bottom: 0;
+  width: min(430px, 92vw);
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: -14px 0 40px var(--overlay);
+  z-index: 71;
+}
+.test-drawer > header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.test-drawer > header h2 { margin: 0; font-size: 14px; font-weight: 600; }
+.test-drawer > header .spacer { flex: 1; }
+
+.drawer-verdict {
+  display: grid; gap: 3px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+.drawer-verdict strong { font-size: 15px; font-weight: 600; }
+.drawer-verdict span { color: var(--text-dim); line-height: 1.5; }
+.drawer-verdict.ok  { background: color-mix(in srgb, var(--green) 10%, transparent); }
+.drawer-verdict.ok strong { color: var(--green); }
+.drawer-verdict.bad { background: color-mix(in srgb, var(--red) 9%, transparent); }
+.drawer-verdict.bad strong { color: var(--red); }
+
+.drawer-body { flex: 1; overflow-y: auto; padding: 14px 16px; display: grid; gap: 12px; }
+.case {
+  padding: 11px 13px;
+  border: 1px solid var(--border); border-radius: 10px;
+  background: var(--cell-bg);
+}
+.case > header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.case > header .spacer { flex: 1; }
+.case h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.case.pass { border-color: color-mix(in srgb, var(--green) 40%, var(--border)); }
+.case.fail { border-color: color-mix(in srgb, var(--red) 40%, var(--border)); }
+.case-badge { font-size: 12px; font-weight: 600; }
+.case-badge.pass { color: var(--green); }
+.case-badge.fail { color: var(--red); }
+.case-note { margin: 0; font-size: 13px; color: var(--text-dim); line-height: 1.55; }
+.case-error {
+  margin: 0 0 8px; padding: 8px 10px;
+  background: color-mix(in srgb, var(--red) 8%, transparent);
+  border-radius: 7px;
+  color: var(--red);
+  font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap;
+  max-height: 190px; overflow: auto;
+}
+.case-field { margin-top: 8px; }
+.case-field .label {
+  display: block; margin-bottom: 3px;
+  font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--text-dim);
+}
+.case-field pre {
+  margin: 0; padding: 7px 9px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+  font-family: var(--mono); font-size: 12.5px; white-space: pre-wrap;
+  max-height: 160px; overflow: auto;
+}
+
+@media (max-width: 980px) { .console-grid { grid-template-columns: 1fr; } }
 
 /* ── centred status message ───────────────────────────────────────── */
 

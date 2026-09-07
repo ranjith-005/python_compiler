@@ -208,6 +208,34 @@ CREATE TABLE IF NOT EXISTS module_progress (
 );
 CREATE INDEX IF NOT EXISTS idx_module_progress ON module_progress(module_id, student_id);
 
+-- ── reopening a closed exercise (exercise reqs: deadline) ────────────────
+-- Once the due date passes a student loses the editor. They do not lose the
+-- exercise: they raise a request here and the trainer approves or rejects it,
+-- with a message written for that student alone -- two students asking about
+-- the same exercise can be answered differently, which is why the decision
+-- lives on the request and not on the exercise.
+CREATE TABLE IF NOT EXISTS access_requests (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    assignment_id    INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    exercise_id      INTEGER NOT NULL REFERENCES exercises(id) ON DELETE CASCADE,
+    student_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    trainer_id       INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message          TEXT NOT NULL DEFAULT '',
+    created_at       TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'pending',   -- pending|approved|rejected
+    decision_message TEXT NOT NULL DEFAULT '',
+    decided_at       TEXT,
+    decided_by       INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_access_requests_trainer
+    ON access_requests(trainer_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_access_requests_assignment
+    ON access_requests(assignment_id, created_at DESC);
+-- Only one request may be open on an assignment at a time; a decided one no
+-- longer blocks the student from asking again.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_access_requests_one_open
+    ON access_requests(assignment_id) WHERE status = 'pending';
+
 -- ── modules, second cut: uploaded documents become editable sections ──────
 -- A module now holds two revisions of the same list of sections: the trainer
 -- edits 'draft', students only ever read 'published'. Publishing copies draft

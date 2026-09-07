@@ -292,11 +292,51 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
         for row in queries:
             row["display"] = _display(row, "student", "email")
 
+        # What is due next across this trainer's class, one row per exercise
+        # rather than one per student -- the trainer wants the deadline, not
+        # thirty copies of it.
+        deadlines = _rows(
+            conn.execute(
+                "SELECT e.id, e.title, a.due_date,"
+                "       COUNT(*) AS assigned,"
+                f"      SUM(CASE WHEN a.status IN ({OPEN_LIST}) THEN 1 ELSE 0 END) AS outstanding"
+                " FROM assignments a JOIN exercises e ON e.id = a.exercise_id"
+                " WHERE e.trainer_id = ? AND a.due_date IS NOT NULL"
+                f"   AND a.status IN ({OPEN_LIST})"
+                " GROUP BY e.id, a.due_date"
+                " ORDER BY a.due_date ASC",
+                (*OPEN_STATUSES, trainer_id, *OPEN_STATUSES),
+            )
+        )
+        for row in deadlines:
+            row["overdue"] = bool(row["due_date"] and row["due_date"] < now)
+
+        # Students asking for a closed exercise back. Pending ones first,
+        # because those are the only ones that need the trainer to act.
+        access_requests = _rows(
+            conn.execute(
+                "SELECT r.id, r.assignment_id, r.message, r.created_at, r.status,"
+                "       r.decision_message, r.decided_at,"
+                "       e.title AS exercise, u.full_name AS student, u.email AS student_email"
+                " FROM access_requests r"
+                " JOIN exercises e ON e.id = r.exercise_id"
+                " JOIN users u ON u.id = r.student_id"
+                " WHERE r.trainer_id = ?"
+                " ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END,"
+                "          r.created_at DESC LIMIT 50",
+                (trainer_id,),
+            )
+        )
+        for row in access_requests:
+            row["display"] = _display(row, "student", "student_email")
+
         feed = _feed(conn, trainer_id)
 
     return {
         "user": {"name": display_name(user), "email": user["email"]},
         "stats": stats,
+        "deadlines": deadlines,
+        "access_requests": access_requests,
         "queries": queries,
         "review_queue": review_queue,
         "pending": pending,

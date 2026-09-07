@@ -20,12 +20,27 @@
 
   <section class="stat-grid" id="stats"></section>
 
-  {# Online sessions are not built, so there is no half-panel to sit beside:
-     deadlines take the full width between the stats and the activity feed. #}
-  <section class="panel" id="deadlines-panel">
-    <header><h2>Upcoming deadlines</h2></header>
-    <div class="panel-body" id="deadline-list"></div>
-  </section>
+  {# Deadlines left, sessions right, activity across the foot of both. #}
+  <div class="dash-split">
+    <section class="panel" id="deadlines-panel">
+      <header><h2>Upcoming deadlines</h2></header>
+      <div class="panel-body" id="deadline-list"></div>
+    </section>
+
+    {# Online sessions are not built yet; the panel holds its place rather than
+       inventing a schedule. #}
+    <section class="panel" id="sessions-panel">
+      <header><h2>Upcoming sessions</h2></header>
+      <div class="panel-body">
+        <div class="placeholder-note">
+          <span class="glyph" aria-hidden="true">🎥</span>
+          <strong>No live sessions yet</strong>
+          <p>Online sessions are still being built. Once your trainer schedules
+             one it will appear here with a link to join.</p>
+        </div>
+      </div>
+    </section>
+  </div>
 
   <section class="panel" id="activity-panel">
     <header><h2>Recent activity</h2></header>

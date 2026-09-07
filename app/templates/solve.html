@@ -19,48 +19,85 @@
     <span class="pill" id="ex-status"></span>
   </div>
 
-  <section class="panel" id="problem-panel">
-    <header><h2>Problem</h2></header>
-    <div class="panel-body pad" id="problem-body"></div>
+  {# The problem is the reading, not a widget: plain prose on the page with no
+     panel around it. #}
+  <div class="problem" id="problem-body"></div>
+
+  {# Past the deadline the editor is read-only and this is the way back in. #}
+  <section class="locked-note" id="locked-note" hidden>
+    <div class="locked-head">
+      <strong id="locked-title">The deadline for this exercise has passed.</strong>
+      <p id="locked-detail">You can still read it, but editing is closed. Ask your
+         trainer to reopen it if you need to finish.</p>
+    </div>
+    <div class="locked-actions" id="locked-actions">
+      <textarea id="request-message" rows="2"
+                aria-label="Why you are asking for this exercise to be reopened"></textarea>
+      <button class="cb-btn primary" id="request-btn">Request access</button>
+    </div>
+    <div class="request-state" id="request-state" hidden></div>
   </section>
 
-  <div class="solve-grid">
-    <section class="panel">
-      <header><h2>Your solution</h2><span class="spacer"></span>
-        <span class="cb-hint" id="editor-kind">Python</span>
-        <span class="cb-hint" id="save-state">Saved</span></header>
-      <div class="panel-body pad">
-        {# Monaco mounts here. The textarea below is the real form control and
-           the fallback: if the editor cannot load, it is unhidden and used
-           directly, so the page is never left without somewhere to type. #}
-        <div class="editor-host" id="editor-host"></div>
-        <textarea id="code" class="code-area" spellcheck="false"
-                  aria-label="Your solution" hidden></textarea>
-      </div>
-    </section>
-
-    <div class="solve-side">
-      <section class="panel">
-        <header><h2>Input</h2></header>
-        <div class="panel-body pad">
-          <textarea id="stdin" class="code-area small" spellcheck="false"
-                    aria-label="Input given to your program"></textarea>
-        </div>
-      </section>
-      <section class="panel">
-        <header><h2>Output</h2><span class="spacer"></span>
-          <span class="cb-hint" id="run-time"></span></header>
-        <div class="panel-body pad"><pre class="output" id="output"></pre></div>
-      </section>
+  {# No heading on the code area: it is obviously the editor, and "Your
+     solution" named the only thing on screen it could have been. #}
+  <section class="code-block">
+    <div class="code-toolbar">
+      <button class="cb-btn primary" id="run-btn" title="Run the test cases">▶ Run</button>
+      <button class="cb-btn" id="submit-btn">Submit</button>
+      <span class="spacer"></span>
+      <span class="cb-hint" id="save-state">Saved</span>
+      <span class="cb-hint" id="editor-kind">Python</span>
+      <button class="cb-btn icon-btn" id="console-btn" type="button"
+              title="Open the console and run with your own input"
+              aria-expanded="false">🚀</button>
+      <button class="cb-btn icon-btn" id="results-btn" type="button"
+              title="Show test cases" aria-expanded="false">☰</button>
     </div>
-  </div>
+    {# Monaco mounts here. The textarea below is the real form control and the
+       fallback: if the editor cannot load, it is unhidden and used directly,
+       so the page is never left without somewhere to type. #}
+    <div class="editor-host" id="editor-host"></div>
+    <textarea id="code" class="code-area" spellcheck="false"
+              aria-label="Your solution" hidden></textarea>
+  </section>
 
-  <div class="row-actions page-actions">
-    <button class="cb-btn" id="run-btn">Run</button>
-    <button class="cb-btn primary" id="submit-btn">Submit</button>
-    <span class="cb-hint" id="closed-note" hidden>This exercise is closed.</span>
-  </div>
+  {# The private console: hidden until launched, and never graded. #}
+  <section class="console-block" id="console-block" hidden>
+    <div class="console-head">
+      <h2>Console</h2>
+      <span class="cb-hint">Your own input — nothing here is submitted or seen by your trainer.</span>
+      <span class="spacer"></span>
+      <span class="cb-hint" id="run-time"></span>
+      <button class="cb-btn" id="console-run">▶ Run with this input</button>
+      <button class="cb-btn icon-btn" id="console-close" type="button"
+              title="Close the console">✕</button>
+    </div>
+    <div class="console-grid">
+      <div>
+        <label class="sub-label" for="stdin">Input</label>
+        <textarea id="stdin" class="code-area small" spellcheck="false"
+                  aria-label="Input given to your program"></textarea>
+      </div>
+      <div>
+        <label class="sub-label" for="output">Output</label>
+        <pre class="output" id="output"></pre>
+      </div>
+    </div>
+  </section>
 </main>
+
+{# Test cases live in a drawer on the right: it opens itself when you Run, and
+   the ☰ button brings it back. #}
+<aside class="test-drawer" id="test-drawer" hidden aria-label="Test cases">
+  <header>
+    <h2>Test cases</h2>
+    <span class="spacer"></span>
+    <button class="cb-btn icon-btn" id="drawer-close" type="button" title="Close">✕</button>
+  </header>
+  <div class="drawer-verdict" id="drawer-verdict" hidden></div>
+  <div class="drawer-body" id="drawer-body"></div>
+</aside>
+<div class="drawer-scrim" id="drawer-scrim" hidden></div>
 
 <div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
 <div class="toast" id="toast" hidden></div>

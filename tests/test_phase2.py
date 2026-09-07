@@ -122,12 +122,22 @@ def test_exercise_titles_are_not_interpolated_as_html(client):
     assert "innerHTML" not in script
 
 
-def test_trainer_dashboard_is_cards_only(client):
+def test_trainer_dashboard_is_cards_deadlines_sessions_and_activity(client):
+    """The lists that belong on their own pages stay off the dashboard.
+
+    Upcoming deadlines came back deliberately: the trainer dashboard now has
+    the same shape as the student's -- deadlines left, sessions right, activity
+    beneath both -- which is a summary, not the full pending list it once was.
+    """
     register_trainer(client)
     html = client.get("/trainer").text
     for gone in ("Submissions awaiting review", "Pending submissions",
-                 "Coding exercises", "Upcoming deadlines", "+ New exercise"):
+                 "Coding exercises", "+ New exercise"):
         assert gone not in html, gone
+    for panel in ("Upcoming deadlines", "Upcoming sessions", "Recent activity"):
+        assert panel in html, panel
+    assert html.index('id="deadlines-panel"') < html.index('id="sessions-panel"')
+    assert html.index('id="sessions-panel"') < html.index('id="activity-panel"')
     # The topbar's Exercises dropdown legitimately has a "Drafts" link (it is
     # unrelated to this page and stays); the dashboard's own quick row, which
     # used to duplicate it, is what must be gone.
@@ -147,6 +157,9 @@ def test_new_trainer_pages_are_guarded_and_render(client):
     for path in ("/trainer/pending", "/trainer/completed"):
         r = client.get(path, follow_redirects=False)
         assert r.status_code == 302 and r.headers["location"] == "/student"
+
+
+SUM_SOLUTION = "a = int(input())\nb = int(input())\nprint(a + b)"
 
 
 def test_student_detail_late_arithmetic(client):
@@ -169,8 +182,26 @@ def test_student_detail_late_arithmetic(client):
     assignments = client.get("/api/dashboard/student").json()["assignments"]
     late_assignment = next(a for a in assignments if a["title"] == "Late one")
     ontime_assignment = next(a for a in assignments if a["title"] == "No due date")
-    solve(client, late_assignment["id"], "a = int(input())\nb = int(input())\nprint(a + b)")
-    solve(client, ontime_assignment["id"], "a = int(input())\nb = int(input())\nprint(a + b)")
+    # The overdue one is locked now, so the only way to submit it late is the
+    # one a student actually has: ask for it back, and be let in.
+    request = client.post(
+        f"/api/assignments/{late_assignment['id']}/access-request",
+        json={"message": "I was ill."},
+    )
+    assert request.status_code == 201, request.text
+
+    client.cookies.clear()
+    client.post("/auth/login", json={"email": "trainer@example.com", "password": "password123"})
+    approved = client.post(
+        f"/api/access-requests/{request.json()['id']}/decide",
+        json={"action": "approve", "message": "Finish it today."},
+    )
+    assert approved.status_code == 200, approved.text
+
+    client.cookies.clear()
+    client.post("/auth/login", json={"email": "late@example.com", "password": "password123"})
+    solve(client, late_assignment["id"], SUM_SOLUTION)
+    solve(client, ontime_assignment["id"], SUM_SOLUTION)
 
     client.cookies.clear()
     client.post("/auth/login", json={"email": "trainer@example.com", "password": "password123"})
@@ -219,15 +250,16 @@ def test_date_filters_restored_on_exercises_and_pending_only(client):
 #    the assignments list, its filters, search and the queries sidebar ──────
 
 
-def test_student_dashboard_keeps_cards_deadlines_and_activity(client):
+def test_student_dashboard_keeps_cards_deadlines_sessions_and_activity(client):
     register(client)
     html = client.get("/student").text
     assert 'id="stats"' in html
-    for panel in ("Upcoming deadlines", "Recent activity"):
+    for panel in ("Upcoming deadlines", "Upcoming sessions", "Recent activity"):
         assert panel in html, panel
-    # The sessions placeholder is gone; deadlines take the width it held.
-    assert "Upcoming sessions" not in html
-    assert 'class="dash-split"' not in html
+    # Deadlines and sessions share a row; activity runs full width beneath.
+    assert 'class="dash-split"' in html
+    assert html.index('id="deadlines-panel"') < html.index('id="sessions-panel"')
+    assert html.index('id="sessions-panel"') < html.index('id="activity-panel"')
     # The full assignments list stays on the exercises page.
     for gone in ("Assigned exercises", "From your trainer"):
         assert gone not in html, gone
