@@ -67,5 +67,13 @@ class Settings:
     MAX_UPLOAD_BYTES: int = _int("MAX_UPLOAD_BYTES", 200_000_000)
     MAX_WORKSPACE_BYTES: int = _int("MAX_WORKSPACE_BYTES", 1_000_000_000)
 
+    # Uploaded learning material (PDF/PPT/PPTX). The original file is kept and
+    # stays associated with its module (module req 18). The cap is on bytes,
+    # not on pages or slides -- a long deck is exactly what this must handle.
+    MODULE_SOURCE_ROOT: Path = Path(
+        os.environ.get("MODULE_SOURCE_ROOT", BASE_DIR / "module_sources")
+    )
+    MAX_MODULE_BYTES: int = _int("MAX_MODULE_BYTES", 80_000_000)
+
 
 settings = Settings()

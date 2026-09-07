@@ -652,6 +652,97 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 }
 .code-output.err { border-left-color: var(--red); color: var(--red); }
 
+/* ── modules, second cut: upload progress, section cards, code practice ── */
+
+/* The real stages of processing an upload (module req 17). */
+.process-steps {
+  list-style: none;
+  margin: 14px 0 0; padding: 0;
+  display: flex; flex-wrap: wrap; gap: 8px 22px;
+  font-size: 13px; color: var(--text-dim);
+}
+.process-steps li { display: flex; align-items: center; gap: 8px; }
+.process-steps .dot {
+  width: 9px; height: 9px; border-radius: 50%;
+  background: var(--border);
+  transition: background .2s;
+}
+.process-steps li.active { color: var(--text); }
+.process-steps li.active .dot { background: var(--blue); animation: pulse 1s ease-in-out infinite; }
+.process-steps li.done .dot { background: var(--green); }
+@keyframes pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) {
+  .process-steps li.active .dot { animation: none; }
+}
+.process-result { margin-top: 12px; }
+.process-result.ok { color: var(--green); }
+.process-result.err { color: var(--red); }
+
+/* Trainer review: what students can see versus what is being edited. */
+.review-note {
+  margin: -4px 0 18px;
+  font-size: 13px; color: var(--text-dim);
+}
+
+/* One section on the trainer's review page. */
+.section-card header .meta-tag {
+  font-size: 12px; color: var(--text-dim);
+  padding: 2px 8px; border: 1px solid var(--border); border-radius: 999px;
+}
+.section-card header .cb-btn { padding: 4px 10px; font-size: 12.5px; }
+.section-card header .cb-btn.danger:hover { color: var(--red); border-color: var(--red); }
+.sub-label {
+  display: block; margin: 14px 0 6px;
+  font-size: 12px; font-weight: 500; color: var(--text-dim);
+}
+.sub-label:first-child { margin-top: 0; }
+.section-title-input, .section-content, .section-question {
+  display: block; width: 100%;
+  padding: 9px 11px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--cell-bg); color: var(--text);
+  font: inherit; font-size: 13.5px;
+}
+.section-content { min-height: 150px; line-height: 1.6; resize: vertical; }
+.section-question { resize: vertical; }
+.code-toggle {
+  display: flex; align-items: center; gap: 9px;
+  margin-top: 16px; padding-top: 14px;
+  border-top: 1px solid var(--border);
+  font-size: 13.5px;
+}
+.code-toggle input { width: 15px; height: 15px; }
+.practice-fields { margin-top: 12px; }
+
+/* Student player: one card per published section (module req 3). */
+.section-panel header h2 {
+  font-size: 12px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.section-panel header .section-name { font-size: 15px; font-weight: 500; }
+.section-panel .tick { font-size: 12.5px; color: var(--green); font-weight: 500; }
+.section-panel.completed { border-color: color-mix(in srgb, var(--green) 45%, var(--border)); }
+.section-actions { justify-content: flex-start; margin-top: 18px; }
+.cb-btn.done {
+  color: var(--green);
+  border-color: color-mix(in srgb, var(--green) 45%, var(--border));
+}
+
+/* Code practice sits inside its own section, never at the end of the module
+   (module req 14), and carries its own Run button (module req 6). */
+.code-practice {
+  margin-top: 18px; padding-top: 16px;
+  border-top: 1px solid var(--border);
+}
+.practice-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.practice-head h3 {
+  margin: 0;
+  font-size: 12px; font-weight: 600; letter-spacing: .04em;
+  text-transform: uppercase; color: var(--text-dim);
+}
+.practice-question { margin: 0 0 10px; font-size: 13.5px; line-height: 1.6; }
+.output-label { margin: 12px 0 0; font-size: 12px; color: var(--text-dim); }
+
 /* Progress along a module (student req 2). */
 .progress-panel .bar { height: 8px; border-radius: 999px; }
 .progress-label { font-size: 20px; font-weight: 400; }

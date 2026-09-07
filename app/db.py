@@ -207,6 +207,62 @@ CREATE TABLE IF NOT EXISTS module_progress (
     UNIQUE (block_id, student_id)
 );
 CREATE INDEX IF NOT EXISTS idx_module_progress ON module_progress(module_id, student_id);
+
+-- ── modules, second cut: uploaded documents become editable sections ──────
+-- A module now holds two revisions of the same list of sections: the trainer
+-- edits 'draft', students only ever read 'published'. Publishing copies draft
+-- rows over the published ones, which is what keeps a half-finished edit off
+-- the student page (module req 19).
+--
+-- `section_key` is the identity that survives publishing. Row ids are recreated
+-- on every publish, so progress keys on (module_id, section_key, student_id)
+-- and therefore outlives edits, reordering and re-publishing.
+CREATE TABLE IF NOT EXISTS module_sections (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    module_id         INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    revision          TEXT NOT NULL DEFAULT 'draft',   -- 'draft' | 'published'
+    section_key       TEXT NOT NULL,
+    display_order     INTEGER NOT NULL DEFAULT 0,
+    title             TEXT NOT NULL DEFAULT '',
+    content           TEXT NOT NULL DEFAULT '',
+    has_code_practice INTEGER NOT NULL DEFAULT 0,
+    code_question     TEXT NOT NULL DEFAULT '',
+    starter_code      TEXT NOT NULL DEFAULT '',
+    source_pages      TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_module_sections
+    ON module_sections(module_id, revision, display_order);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_module_sections_key
+    ON module_sections(module_id, revision, section_key);
+
+-- One row per student per section. `completed` is set by the student pressing
+-- Mark as complete -- never by merely opening the section (module req 13), and
+-- never by running the code (module req 22), which only records last_code so
+-- the editor comes back as they left it.
+CREATE TABLE IF NOT EXISTS module_section_progress (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    module_id    INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    section_key  TEXT NOT NULL,
+    student_id   INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    completed    INTEGER NOT NULL DEFAULT 0,
+    completed_at TEXT,
+    last_code    TEXT NOT NULL DEFAULT '',
+    ran_ok       INTEGER NOT NULL DEFAULT 0,
+    updated_at   TEXT NOT NULL,
+    UNIQUE (module_id, section_key, student_id)
+);
+CREATE INDEX IF NOT EXISTS idx_module_section_progress
+    ON module_section_progress(module_id, student_id);
+
+-- Percentage is always derived from the two counts above, never stored, so it
+-- cannot drift from the sections it describes. Only `last_accessed` -- which
+-- nothing else knows -- is kept, for "Continue learning".
+CREATE TABLE IF NOT EXISTS module_access (
+    module_id     INTEGER NOT NULL REFERENCES modules(id) ON DELETE CASCADE,
+    student_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    last_accessed TEXT NOT NULL,
+    PRIMARY KEY (module_id, student_id)
+);
 """
 
 
@@ -274,8 +330,10 @@ def init_db() -> None:
         conn.executescript(PLATFORM_SCHEMA)
         _migrate_user_columns(conn)
         _migrate_platform_columns(conn)
+        _migrate_module_columns(conn)
         _backfill_solution_code(conn)
         _migrate_snippets_to_notebooks(conn)
+        _migrate_blocks_to_sections(conn)
 
 
 def _migrate_snippets_to_notebooks(conn: sqlite3.Connection) -> None:
@@ -356,6 +414,125 @@ def _migrate_platform_columns(conn: sqlite3.Connection) -> None:
     ):
         if column not in existing:
             conn.execute(f"ALTER TABLE assignments ADD COLUMN {column} {ddl}")
+
+
+def _migrate_module_columns(conn: sqlite3.Connection) -> None:
+    """Additive columns for `modules` once uploads became PDF/PPT/PPTX.
+
+    The original table only recorded a source *name*, because a notebook was
+    parsed once and then thrown away. The uploaded document is kept now, so the
+    module has to remember what it was and where it went (module req 18).
+    """
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(modules)")}
+    for column, ddl in (
+        ("source_type", "TEXT NOT NULL DEFAULT ''"),
+        ("source_path", "TEXT NOT NULL DEFAULT ''"),
+        ("published_at", "TEXT"),
+    ):
+        if column not in existing:
+            conn.execute(f"ALTER TABLE modules ADD COLUMN {column} {ddl}")
+
+
+def _migrate_blocks_to_sections(conn: sqlite3.Connection) -> None:
+    """Carry notebook-era modules over to sections.
+
+    Blocks were a flat run of content and code. A section is one topic, so each
+    content block opens a section and the code block following it becomes that
+    section's practice. Modules created this way are already visible to
+    students, so both revisions are written and the module stays published.
+
+    Per-block `ran_ok` becomes the section's completed flag: those students did
+    the only thing the old player asked of them, and resetting their progress to
+    zero would be a worse answer than carrying it across.
+    """
+    key = "module_blocks_to_sections_v1"
+    if conn.execute("SELECT 1 FROM migrations WHERE key = ?", (key,)).fetchone():
+        return
+    now = utcnow()
+    modules = conn.execute("SELECT id FROM modules").fetchall()
+    for module in modules:
+        module_id = int(module["id"])
+        if conn.execute(
+            "SELECT 1 FROM module_sections WHERE module_id = ?", (module_id,)
+        ).fetchone():
+            continue
+        blocks = conn.execute(
+            "SELECT id, kind, source FROM module_blocks WHERE module_id = ? ORDER BY position",
+            (module_id,),
+        ).fetchall()
+        if not blocks:
+            continue
+
+        sections: list[dict] = []
+        for block in blocks:
+            source = (block["source"] or "").strip()
+            if not source:
+                continue
+            if block["kind"] == "code":
+                # A code block with no lesson above it is still a section of
+                # its own; content must never be dropped (module req 12).
+                if not sections or sections[-1]["has_code"]:
+                    sections.append(
+                        {"title": "", "content": "", "has_code": False,
+                         "code": "", "block_ids": []}
+                    )
+                sections[-1]["has_code"] = True
+                sections[-1]["code"] = source
+                sections[-1]["block_ids"].append(int(block["id"]))
+            else:
+                sections.append(
+                    {"title": "", "content": source, "has_code": False,
+                     "code": "", "block_ids": []}
+                )
+
+        for order, section in enumerate(sections):
+            section_key = f"legacy-{module_id}-{order}"
+            title = _first_heading(section["content"]) or f"Section {order + 1}"
+            for revision in ("draft", "published"):
+                conn.execute(
+                    "INSERT INTO module_sections (module_id, revision, section_key,"
+                    " display_order, title, content, has_code_practice, code_question,"
+                    " starter_code) VALUES (?, ?, ?, ?, ?, ?, ?, '', ?)",
+                    (module_id, revision, section_key, order, title, section["content"],
+                     int(section["has_code"]), section["code"]),
+                )
+            if not section["block_ids"]:
+                continue
+            placeholders = ",".join("?" * len(section["block_ids"]))
+            for row in conn.execute(
+                f"SELECT student_id, ran_ok, last_code FROM module_progress"
+                f" WHERE block_id IN ({placeholders})",
+                section["block_ids"],
+            ).fetchall():
+                conn.execute(
+                    "INSERT OR IGNORE INTO module_section_progress (module_id, section_key,"
+                    " student_id, completed, completed_at, last_code, ran_ok, updated_at)"
+                    " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    (module_id, section_key, int(row["student_id"]), int(row["ran_ok"]),
+                     now if row["ran_ok"] else None, row["last_code"] or "",
+                     int(row["ran_ok"]), now),
+                )
+
+    conn.execute(
+        "UPDATE modules SET source_type = 'ipynb' WHERE source_type = '' AND source_name != ''"
+    )
+    conn.execute(
+        "UPDATE modules SET published_at = created_at"
+        " WHERE published_at IS NULL AND status = 'published'"
+    )
+    conn.execute("INSERT INTO migrations (key, applied_at) VALUES (?, ?)", (key, now))
+
+
+def _first_heading(text: str) -> str:
+    """The first markdown heading or first short line, as a section title."""
+    for raw in (text or "").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            return line.lstrip("#").strip()[:120]
+        return line[:120]
+    return ""
 
 
 def _backfill_solution_code(conn: sqlite3.Connection) -> None:

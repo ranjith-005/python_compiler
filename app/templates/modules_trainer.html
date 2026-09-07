@@ -14,8 +14,8 @@
   <div class="dash-head">
     <div>
       <h1>Learning modules</h1>
-      <p>Upload a notebook. Its text becomes the lesson, its code cells become
-         practice sections the student runs in place.</p>
+      <p>Upload the learning material. The whole document becomes ordered
+         sections you review and edit before publishing.</p>
     </div>
   </div>
 
@@ -33,15 +33,24 @@
         </div>
       </div>
       <div class="field">
-        <label for="m-file">Notebook (.ipynb)</label>
-        <input id="m-file" type="file" accept=".ipynb,application/json">
-        <p class="help">Markdown cells become the lesson text; code cells become
-           runnable practice sections. Author it anywhere &mdash; this app, Jupyter
-           or Colab.</p>
+        <label for="m-file">Learning material (PDF / PPT / PPTX)</label>
+        <input id="m-file" type="file"
+               accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">
+        <p class="help">Supported formats: PDF, PPT, PPTX. The complete file is
+           read &mdash; every page and every slide &mdash; and grouped into topics.
+           You review and edit the draft before students see it.</p>
       </div>
       <div class="row-actions page-actions">
         <button class="cb-btn primary" id="m-upload">Upload module</button>
       </div>
+
+      <!-- Module req 17: the real stage the worker is in, not a timer. -->
+      <ol class="process-steps" id="m-steps" hidden>
+        <li data-step="extract"><span class="dot"></span>Extracting content</li>
+        <li data-step="topics"><span class="dot"></span>Identifying topics</li>
+        <li data-step="sections"><span class="dot"></span>Creating sections</li>
+      </ol>
+      <p class="help process-result" id="m-result" hidden></p>
     </div>
   </section>
 

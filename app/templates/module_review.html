@@ -16,23 +16,50 @@
       <h1 id="m-title">Module</h1>
       <p id="m-sub"></p>
     </div>
-    <div class="quick"><button class="cb-btn primary" id="assign-btn">Assign to students</button></div>
+    <div class="quick">
+      <span class="pill" id="m-status">draft</span>
+      <button class="cb-btn" id="assign-btn">Assign to students</button>
+      <button class="cb-btn primary" id="publish-btn">Publish</button>
+    </div>
   </div>
 
-  <div class="panel-grid">
-    <div>
-      <section class="panel">
-        <header><h2>Student progress</h2><span class="count" id="s-count">0</span></header>
-        <div class="panel-body" id="s-list"></div>
-      </section>
+  {# Module req 19: what students can see right now, versus what is being
+     edited here. Publishing is the only thing that moves one to the other. #}
+  <p class="review-note" id="m-note"></p>
+
+  <section class="panel">
+    <header><h2>Module details</h2></header>
+    <div class="panel-body">
+      <div class="field-row">
+        <div class="field">
+          <label for="e-title">Module name</label>
+          <input id="e-title">
+        </div>
+        <div class="field">
+          <label for="e-desc">Short description</label>
+          <input id="e-desc">
+        </div>
+      </div>
+      <div class="row-actions page-actions">
+        <button class="cb-btn" id="save-meta">Save details</button>
+      </div>
     </div>
-    <div>
-      <section class="panel">
-        <header><h2>Contents</h2><span class="count" id="b-count">0</span></header>
-        <div class="panel-body" id="b-list"></div>
-      </section>
-    </div>
-  </div>
+  </section>
+
+  <section class="panel">
+    <header>
+      <h2>Sections</h2>
+      <span class="count" id="b-count">0</span>
+      <span class="spacer"></span>
+      <button class="cb-btn" id="add-section">Add section</button>
+    </header>
+    <div class="panel-body" id="b-list"></div>
+  </section>
+
+  <section class="panel">
+    <header><h2>Student progress</h2><span class="count" id="s-count">0</span></header>
+    <div class="panel-body" id="s-list"></div>
+  </section>
 </main>
 <div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
 <div class="toast" id="toast" hidden></div>

@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 
 from conftest import register, register_trainer
 from test_dashboards import make_exercise, solve, student_id
-from test_modules import a_module_and_student, login
+from test_modules import a_course, login
 
 
 def test_pages_render_the_accounts_theme_server_side(client):
@@ -219,12 +219,15 @@ def test_date_filters_restored_on_exercises_and_pending_only(client):
 #    the assignments list, its filters, search and the queries sidebar ──────
 
 
-def test_student_dashboard_keeps_cards_deadlines_sessions_and_activity(client):
+def test_student_dashboard_keeps_cards_deadlines_and_activity(client):
     register(client)
     html = client.get("/student").text
     assert 'id="stats"' in html
-    for panel in ("Upcoming deadlines", "Upcoming sessions", "Recent activity"):
+    for panel in ("Upcoming deadlines", "Recent activity"):
         assert panel in html, panel
+    # The sessions placeholder is gone; deadlines take the width it held.
+    assert "Upcoming sessions" not in html
+    assert 'class="dash-split"' not in html
     # The full assignments list stays on the exercises page.
     for gone in ("Assigned exercises", "From your trainer"):
         assert gone not in html, gone
@@ -339,23 +342,23 @@ def test_exercise_form_picker_lists_students_by_display_name(client):
     assert "s.email" not in picker_block
 
 
-def test_student_module_cards_carry_a_progress_bar_matching_run_ok_blocks(client):
-    sid, mod = a_module_and_student(client)
-    blocks = [
-        b for b in client.get(f"/api/modules/{mod['id']}").json()["blocks"] if b["kind"] == "code"
-    ]
-    assert len(blocks) == 2
+def test_student_module_cards_carry_a_progress_bar_matching_completed_sections(client):
+    module_id, _ = a_course(client)
+    login(client, "user@example.com")
+    sections = client.get(f"/api/modules/{module_id}").json()["sections"]
+    assert len(sections) == 4
 
-    login(client, "s1@example.com")
     client.post(
-        f"/api/modules/{mod['id']}/blocks/{blocks[0]['id']}/run", json={"code": "print(1)"}
+        f"/api/modules/{module_id}/sections/{sections[0]['id']}/complete",
+        json={"completed": True},
     )
 
     listing = client.get("/api/modules").json()
-    item = next(m for m in listing if m["id"] == mod["id"])
-    # Same figure as assignments.py's student_detail: ran_ok blocks over total.
-    assert item["completed_blocks"] == 1
-    assert item["progress"] == 50
+    item = next(m for m in listing if m["id"] == module_id)
+    # Completed sections over total sections -- the figure the bar draws.
+    assert item["completed_sections"] == 1
+    assert item["sections"] == 4
+    assert item["progress"] == 25
 
     script = open("app/static/js/modules.js", encoding="utf-8").read()
     assert "progressBar(m.progress)" in script

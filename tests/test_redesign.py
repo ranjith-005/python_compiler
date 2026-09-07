@@ -8,6 +8,7 @@ these fails.
 
 from conftest import register, register_trainer
 from test_dashboards import make_exercise, student_id
+from test_modules import upload
 
 STUDENT = "student@example.com"
 
@@ -56,10 +57,11 @@ def test_editor_falls_back_rather_than_leaving_no_input(client):
 # ── student 2 + 6: what the dashboard shows ─────────────────────────────────
 
 
-def test_student_dashboard_carries_sessions_deadlines_and_paged_activity(client):
+def test_student_dashboard_carries_deadlines_and_paged_activity(client):
     register(client)
     html = client.get("/student").text
-    for panel in ("Upcoming deadlines", "Upcoming sessions", "Recent activity"):
+    assert "Upcoming sessions" not in html
+    for panel in ("Upcoming deadlines", "Recent activity"):
         assert panel in html, panel
     assert 'id="activity-pager"' in html
     assert "data-next" in html, "the feed needs a Next button"
@@ -131,18 +133,7 @@ def test_assigned_module_names_the_trainer_in_the_activity_feed(client):
     register_trainer(client)
     sid = student_id(client, STUDENT)
 
-    notebook = (
-        b'{"cells": [{"cell_type": "markdown", "source": ["Lesson"]},'
-        b' {"cell_type": "code", "source": ["print(1)"]}],'
-        b' "metadata": {}, "nbformat": 4, "nbformat_minor": 5}'
-    )
-    created = client.post(
-        "/api/modules",
-        files={"file": ("lesson.ipynb", notebook, "application/json")},
-        data={"title": "Loops", "description": ""},
-    )
-    assert created.status_code == 201, created.text
-    module_id = created.json()["id"]
+    module_id = upload(client, title="Loops")["module_id"]
     assert (
         client.post(f"/api/modules/{module_id}/assign", json={"assign_to": [sid]}).status_code
         == 200

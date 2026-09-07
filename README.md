@@ -106,18 +106,34 @@ approves.
 
 ### Learning modules — `/trainer/modules`, `/student/modules`
 
-A trainer uploads a module as a single `.ipynb`. It is flattened once, on
-upload, into an ordered lesson: **markdown cells become the text, code cells
-become practice sections**. Nothing is assembled item by item in the website.
+A trainer uploads the **learning material itself — a PDF, PPT or PPTX**. The
+whole document is read (there is no page or slide ceiling) and grouped into
+ordered learning sections: related slides become one topic, the document's own
+order is kept, and practical topics get **code practice** alongside their
+content. Nothing is assembled item by item in the website.
 
-The student player renders those blocks in order and gives every code section
-its own editor, a **Run** button and an output pane, so a topic is followed
-immediately by practice — the way w3schools reads.
+Processing runs on a worker and the page reports the stage it has actually
+reached — *extracting content → identifying topics → creating sections* — so a
+200-page upload never looks frozen.
 
-Progress is evidence rather than self-assessment: a practice section counts
-once the student has run it without raising, so a module's percentage reflects
-the code they actually got working. Trainers see the same number per student
-on the module page and on each student's detail page.
+What comes out is a **draft**. The trainer reviews every section and can rename
+it, rewrite its content, add, delete, reorder, merge or split sections, and turn
+code practice on or off with its question and starter code. Only **Publish**
+makes it visible to students, and sections live in two revisions so a
+half-finished edit to a published module cannot reach a student mid-lesson.
+
+The student player renders exactly the published sections, in order. Content is
+never conditional on code: a section with no practice still shows everything the
+trainer wrote. Each code-practice section carries **its own editor, its own Run
+button and its own output** — there is no global Run, and one section's run
+cannot touch another's state.
+
+Progress is the student's own record: a section counts when they press **Mark as
+complete**, never merely by opening it and never by running its code. The bar is
+`completed ÷ total × 100`, computed from the module's real section count, kept
+per student and per module, and it survives logout, re-login and the trainer
+re-publishing. Completed sections stay open and readable. Trainers see the same
+number per student on the module page.
 
 Each run is a fresh, isolated subprocess with a short timeout, so one
 learner's runaway `while True` cannot affect anything else.
@@ -259,6 +275,8 @@ app/
   auth.py       /auth/register · /login · /logout · /me
 
   dashboards.py /api/dashboard — trainer and student overview aggregation
+  modules.py    /api/modules — upload, draft editing, publish, assign, run, complete
+  documents.py  PDF/PPT/PPTX -> units -> logical sections (no page or slide limit)
   assignments.py/api/exercises · /api/assignments · /api/submissions — assign,
                 open, submit, auto-evaluate, review
   seed.py       demo trainer, students, exercises and submissions
@@ -275,7 +293,8 @@ app/
                 js/{trainer,student}_dashboard.js
 
 tests/          test_kernel · test_ws · test_notebooks · test_files · test_auth
-                test_dashboards · ui_notebook_check.py · capture_screenshots.py
+                test_dashboards · test_modules · test_documents · docbuilders.py
+                ui_notebook_check.py · capture_screenshots.py
 
 run.ps1 · start.bat · stop.ps1 · requirements.txt · dev-requirements.txt · .env.example
 ```

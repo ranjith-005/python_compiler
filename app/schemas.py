@@ -114,6 +114,53 @@ class RunIn(BaseModel):
     code: str = Field(default="", max_length=100_000)
 
 
+# -- learning modules, trainer editing (module reqs 12, 13) ------------------
+
+
+class ModuleMetaIn(BaseModel):
+    """A module's own name and description, edited on the review page."""
+
+    title: str = Field(default="", max_length=200)
+    description: str = Field(default="", max_length=500)
+
+
+class SectionIn(BaseModel):
+    """A new section the trainer adds by hand."""
+
+    title: str = Field(default="", max_length=200)
+    content: str = Field(default="", max_length=200_000)
+    has_code_practice: bool = False
+    code_question: str = Field(default="", max_length=5_000)
+    starter_code: str = Field(default="", max_length=100_000)
+
+
+class SectionPatch(BaseModel):
+    """Any subset of one section's fields. Omitted fields are left alone."""
+
+    title: str | None = Field(default=None, max_length=200)
+    content: str | None = Field(default=None, max_length=200_000)
+    has_code_practice: bool | None = None
+    code_question: str | None = Field(default=None, max_length=5_000)
+    starter_code: str | None = Field(default=None, max_length=100_000)
+
+
+class SectionMoveIn(BaseModel):
+    direction: Literal["up", "down"]
+
+
+class SectionSplitIn(BaseModel):
+    """Split one section in two at a line boundary in its content."""
+
+    at_line: int = Field(ge=1)
+    title: str = Field(default="", max_length=200)
+
+
+class SectionCompleteIn(BaseModel):
+    """The student ticking, or un-ticking, one section (module req 9)."""
+
+    completed: bool = True
+
+
 class SolutionIn(BaseModel):
     """The student's current editor contents, autosaved as they work."""
 
