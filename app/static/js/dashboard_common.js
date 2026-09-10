@@ -221,10 +221,13 @@ window.Dash = (function () {
       }
       list.append(li);
     });
+    // The bell holds five. Everything older lives on the history page, and
+    // this footer is the only route to it from the chrome.
     if (foot) {
-      const extra = (unread || 0) - shown.filter((n) => !n.read_at).length;
-      foot.hidden = extra <= 0;
-      foot.textContent = `${extra} more unread`;
+      foot.hidden = false;
+      foot.textContent = "";
+      const link = el("a", { href: "/notifications" }, "See all notifications");
+      foot.append(link);
     }
   }
 

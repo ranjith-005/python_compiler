@@ -440,6 +440,31 @@ def student_dashboard(user: sqlite3.Row = Depends(require_student)) -> dict:
     }
 
 
+@router.get("/notifications")
+def notification_history(
+    offset: int = 0, user: sqlite3.Row = Depends(get_current_user)
+) -> dict:
+    """Every notification this user has had, newest first.
+
+    Ordered strictly by time, unlike the bell, which floats unread to the top.
+    A history that reorders itself as things are read is not a history.
+    """
+    user_id = int(user["id"])
+    with get_conn() as conn:
+        items = _rows(
+            conn.execute(
+                "SELECT id, kind, title, link, created_at, read_at FROM notifications"
+                " WHERE user_id = ? ORDER BY created_at DESC, id DESC"
+                " LIMIT ? OFFSET ?",
+                (user_id, ACTIVITY_PAGE, max(0, offset)),
+            )
+        )
+        total = _scalar(
+            conn, "SELECT COUNT(*) FROM notifications WHERE user_id = ?", (user_id,)
+        )
+    return {"items": items, "total": total}
+
+
 @router.post("/notifications/read")
 def mark_notifications_read(user: sqlite3.Row = Depends(get_current_user)) -> dict:
     """Clear the bell (SRS §17)."""

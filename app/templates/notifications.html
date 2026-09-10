@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_topbar.html" import topbar %}
+{% block title %}Notifications · Python Learning Platform{% endblock %}
+{% block body_class %}colab dash{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="/static/css/dashboard.css?v={{ asset_v() }}">
+{% endblock %}
+
+{% block content %}
+{{ topbar(role, name, back=back, heading='Notifications', bell=true) }}
+
+<main class="dash-main narrow">
+  <div class="dash-head">
+    <div>
+      <h1>Notifications</h1>
+      <p>Everything you have been sent, newest first.</p>
+    </div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-body">
+      <ul class="feed timeline" id="notification-list"></ul>
+    </div>
+    <div class="pager" id="notification-pager" hidden>
+      <button class="cb-btn" id="notification-more">Show older</button>
+    </div>
+  </section>
+</main>
+
+<div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
+<div class="toast" id="toast" hidden></div>
+{% endblock %}
+
+{% block scripts %}
+<script>window.PAGE = { kind: "notifications" };</script>
+<script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
+<script src="/static/js/notifications.js?v={{ asset_v() }}"></script>
+{% endblock %}

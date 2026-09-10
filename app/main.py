@@ -229,6 +229,23 @@ def activity_page(request: Request, user=Depends(get_optional_user)):
     )
 
 
+# Literal, and declared with the other page routes rather than anywhere below
+# a single-segment path parameter that would swallow it.
+@app.get("/notifications", include_in_schema=False)
+def notifications_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "notifications.html",
+        {
+            "back": home_for(user["role"]),
+            "name": display_name(user),
+            "role": user["role"],
+        },
+    )
+
+
 @app.get("/login", include_in_schema=False)
 def login_page(request: Request, user=Depends(get_optional_user)):
     if user:
