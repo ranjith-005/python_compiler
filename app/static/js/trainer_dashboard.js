@@ -42,29 +42,17 @@
     );
   }
 
-  // ── upcoming deadlines ────────────────────────────────────────────────────
+  // ── calendar ──────────────────────────────────────────────────────────────
 
-  function renderDeadlines() {
-    const items = data.deadlines || [];
-    D.fill(
-      document.getElementById("deadline-list"),
-      items.map((d) =>
-        el("div", { class: "row" },
-          el("div", {},
-            el("div", { class: "title" }, d.title),
-            el("div", { class: "meta" },
-              d.overdue ? D.pill("Overdue", "red") : null,
-              el("span", { class: d.overdue ? "tests fail" : "tests" }, D.due(d.due_date)),
-              el("span", {}, `${d.outstanding} of ${d.assigned} still to come in`)
-            )
-          ),
-          el("div", { class: "actions" },
-            el("a", { class: "cb-btn", href: `/trainer/exercises/${d.id}` }, "Open")
-          )
-        )
-      ),
-      "No deadlines coming up."
-    );
+  // Calendar replaces the deadline list (spec: deadlines are a glance here and
+  // actionable on the Exercises page). The trainer's deadline rows carry an
+  // EXERCISE id, so the link differs from the student's.
+  let calMonth = new Date();
+
+  function paintCalendar() {
+    if (!data) return;
+    D.renderCalendar("calendar", data.deadlines, calMonth,
+                     (d) => `/trainer/exercises/${d.id}`);
   }
 
   // ── reopen requests ───────────────────────────────────────────────────────
@@ -138,7 +126,7 @@
       return;
     }
     renderStats();
-    renderDeadlines();
+    paintCalendar();
     renderRequests();
     D.renderNotifications(data.notifications, data.unread);
   }
@@ -149,5 +137,15 @@
     // Wired once: the pager owns its own paging from here, so a later reload
     // of the cards must not stack a second set of click handlers on it.
     D.activityPager("activity-list", "activity-pager", data.activity, data.activity_total);
+    // Same once-only rule as the pager: the month buttons keep their own
+    // state, so a card reload must not stack a second pair of handlers.
+    document.getElementById("cal-prev").addEventListener("click", () => {
+      calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1);
+      paintCalendar();
+    });
+    document.getElementById("cal-next").addEventListener("click", () => {
+      calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1);
+      paintCalendar();
+    });
   });
 })();

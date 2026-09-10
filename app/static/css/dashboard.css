@@ -1359,3 +1359,26 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 }
 .editor-host .monaco-editor,
 .editor-host .monaco-editor .overflow-guard { border-radius: var(--radius); }
+
+/* Deadline calendar. Seven columns, dots not badges: the count is not the
+   point, the shape of the month is. */
+.cal-grid {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 2px; text-align: center;
+}
+.cal-head {
+  padding: 8px 0; font-size: 11px; font-weight: 600;
+  letter-spacing: .04em; text-transform: uppercase; color: var(--text-dim);
+}
+.cal-day {
+  position: relative; padding: 10px 0; border-radius: 9px;
+  font-size: 13.5px; color: var(--text);
+}
+.cal-day.today { background: var(--accent-fill); color: var(--on-accent); font-weight: 600; }
+.cal-day.has-due:hover { background: var(--cell-bg); }
+.cal-dot {
+  position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%);
+  width: 5px; height: 5px; border-radius: 50%; background: var(--blue-dark);
+}
+.cal-day.today .cal-dot { background: var(--on-accent); }
+.cal-label { font-size: 13px; color: var(--text-dim); min-width: 120px; }

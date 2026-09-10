@@ -57,19 +57,19 @@ def test_editor_falls_back_rather_than_leaving_no_input(client):
 # ── student 2 + 6: what the dashboard shows ─────────────────────────────────
 
 
-def test_student_dashboard_carries_sessions_deadlines_and_paged_activity(client):
+def test_student_dashboard_carries_a_calendar_and_paged_activity(client):
     register(client)
     html = client.get("/student").text
-    for panel in ("Upcoming deadlines", "Upcoming sessions", "Recent activity"):
+    for panel in ("Calendar", "Recent activity"):
         assert panel in html, panel
     assert 'id="activity-pager"' in html
     assert "data-next" in html, "the feed needs a Next button"
 
 
-def test_trainer_dashboard_carries_sessions_and_paged_activity(client):
+def test_trainer_dashboard_carries_a_calendar_and_paged_activity(client):
     register_trainer(client)
     html = client.get("/trainer").text
-    assert "Upcoming sessions" in html
+    assert "Calendar" in html
     assert "Recent activity" in html
     assert 'id="activity-pager"' in html
 

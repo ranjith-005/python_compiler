@@ -359,6 +359,70 @@ window.Dash = (function () {
     });
   }
 
+  // Month grid with a dot on any date carrying a deadline. Deliberately not a
+  // list: deadlines are actionable on the Exercises page, and here they are
+  // only a glance at where the month is busy.
+  function renderCalendar(hostId, deadlines, monthDate, linkFor) {
+    const host = document.getElementById(hostId);
+    if (!host) return;
+    const base = monthDate || new Date();
+    const year = base.getFullYear();
+    const month = base.getMonth();
+
+    const byDay = new Map();
+    (deadlines || []).forEach((d) => {
+      const due = new Date(d.due_date);
+      if (due.getFullYear() !== year || due.getMonth() !== month) return;
+      const day = due.getDate();
+      if (!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day).push(d);
+    });
+
+    const label = document.getElementById("cal-label");
+    if (label) {
+      label.textContent = base.toLocaleDateString(undefined, {
+        month: "long", year: "numeric",
+      });
+    }
+
+    const first = new Date(year, month, 1).getDay();
+    const days = new Date(year, month + 1, 0).getDate();
+    const today = new Date();
+    const isThisMonth =
+      today.getFullYear() === year && today.getMonth() === month;
+
+    host.textContent = "";
+    const grid = el("div", { class: "cal-grid" });
+    ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].forEach((d) =>
+      grid.append(el("span", { class: "cal-head" }, d))
+    );
+    for (let i = 0; i < first; i += 1) grid.append(el("span", { class: "cal-pad" }));
+
+    for (let day = 1; day <= days; day += 1) {
+      const hits = byDay.get(day) || [];
+      const cell = el(
+        "span",
+        {
+          class:
+            "cal-day" +
+            (isThisMonth && today.getDate() === day ? " today" : "") +
+            (hits.length ? " has-due" : ""),
+        },
+        String(day)
+      );
+      if (hits.length) {
+        cell.append(el("i", { class: "cal-dot", "aria-hidden": "true" }));
+        cell.title = hits.map((h) => h.title).join(", ");
+        cell.style.cursor = "pointer";
+        cell.addEventListener("click", () => {
+          if (linkFor) window.location.href = linkFor(hits[0]);
+        });
+      }
+      grid.append(cell);
+    }
+    host.append(grid);
+  }
+
   return {
     api,
     toast,
@@ -375,6 +439,7 @@ window.Dash = (function () {
     initChrome,
     renderNotifications,
     renderActivity,
+    renderCalendar,
     activityPager,
     ACTIVITY_PAGE,
     ICONS,

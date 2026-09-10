@@ -20,25 +20,29 @@
 
   <section class="stat-grid" id="stats"></section>
 
-  {# Same shape as the student's: deadlines left, sessions right, activity
-     across the foot of both. #}
+  {# Same shape as the student's: a calendar of what is due, the viewer's own
+     activity beside it. Sessions are not built yet and no longer hold a slot. #}
   <div class="dash-split">
-    <section class="panel" id="deadlines-panel">
-      <header><h2>Upcoming deadlines</h2></header>
-      <div class="panel-body" id="deadline-list"></div>
+    <section class="panel" id="calendar-panel">
+      <header>
+        <h2>Calendar</h2>
+        <span class="spacer"></span>
+        <button class="cb-btn ghost" id="cal-prev" aria-label="Previous month">‹</button>
+        <span class="cal-label" id="cal-label"></span>
+        <button class="cb-btn ghost" id="cal-next" aria-label="Next month">›</button>
+      </header>
+      <div class="panel-body" id="calendar"></div>
     </section>
 
-    {# Online sessions are not built yet; the panel holds its place rather than
-       inventing a schedule. #}
-    <section class="panel" id="sessions-panel">
-      <header><h2>Upcoming sessions</h2></header>
+    <section class="panel" id="activity-panel">
+      <header><h2>Recent activity</h2></header>
       <div class="panel-body">
-        <div class="placeholder-note">
-          <span class="glyph" aria-hidden="true">🎥</span>
-          <strong>No live sessions scheduled</strong>
-          <p>Online sessions are still being built. Once scheduling lands, the
-             sessions you run will be listed here with their attendance.</p>
-        </div>
+        <ul class="feed timeline" id="activity-list"></ul>
+      </div>
+      <div class="pager" id="activity-pager" hidden>
+        <span class="range"></span>
+        <button class="cb-btn" type="button" data-prev>Previous</button>
+        <button class="cb-btn" type="button" data-next>Next</button>
       </div>
     </section>
   </div>
@@ -52,17 +56,6 @@
     <div class="panel-body" id="request-list"></div>
   </section>
 
-  <section class="panel" id="activity-panel">
-    <header><h2>Recent activity</h2></header>
-    <div class="panel-body">
-      <ul class="feed timeline" id="activity-list"></ul>
-    </div>
-    <div class="pager" id="activity-pager" hidden>
-      <span class="range"></span>
-      <button class="cb-btn" type="button" data-prev>Previous</button>
-      <button class="cb-btn" type="button" data-next>Next</button>
-    </div>
-  </section>
 </main>
 
 <div class="flash" id="flash" role="status" aria-live="polite" hidden></div>

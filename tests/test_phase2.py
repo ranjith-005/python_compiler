@@ -122,22 +122,24 @@ def test_exercise_titles_are_not_interpolated_as_html(client):
     assert "innerHTML" not in script
 
 
-def test_trainer_dashboard_is_cards_deadlines_sessions_and_activity(client):
+def test_trainer_dashboard_is_cards_calendar_and_activity(client):
     """The lists that belong on their own pages stay off the dashboard.
 
-    Upcoming deadlines came back deliberately: the trainer dashboard now has
-    the same shape as the student's -- deadlines left, sessions right, activity
-    beneath both -- which is a summary, not the full pending list it once was.
+    The shape is the student's: a deadline calendar left, the viewer's own
+    activity right. The sessions placeholder no longer holds a slot, and the
+    deadline list is a calendar -- deadlines are actionable on the Exercises
+    page, and a glance here.
     """
     register_trainer(client)
     html = client.get("/trainer").text
     for gone in ("Submissions awaiting review", "Pending submissions",
                  "Coding exercises", "+ New exercise"):
         assert gone not in html, gone
-    for panel in ("Upcoming deadlines", "Upcoming sessions", "Recent activity"):
+    for panel in ("Calendar", "Recent activity"):
         assert panel in html, panel
-    assert html.index('id="deadlines-panel"') < html.index('id="sessions-panel"')
-    assert html.index('id="sessions-panel"') < html.index('id="activity-panel"')
+    for gone_panel in ("Upcoming deadlines", "Upcoming sessions"):
+        assert gone_panel not in html, gone_panel
+    assert html.index('id="calendar-panel"') < html.index('id="activity-panel"')
     # The topbar's Exercises dropdown legitimately has a "Drafts" link (it is
     # unrelated to this page and stays); the dashboard's own quick row, which
     # used to duplicate it, is what must be gone.
@@ -250,16 +252,17 @@ def test_date_filters_restored_on_exercises_and_pending_only(client):
 #    the assignments list, its filters, search and the queries sidebar ──────
 
 
-def test_student_dashboard_keeps_cards_deadlines_sessions_and_activity(client):
+def test_student_dashboard_keeps_cards_calendar_and_activity(client):
     register(client)
     html = client.get("/student").text
     assert 'id="stats"' in html
-    for panel in ("Upcoming deadlines", "Upcoming sessions", "Recent activity"):
+    for panel in ("Calendar", "Recent activity"):
         assert panel in html, panel
-    # Deadlines and sessions share a row; activity runs full width beneath.
+    for gone_panel in ("Upcoming deadlines", "Upcoming sessions"):
+        assert gone_panel not in html, gone_panel
+    # The calendar and the activity feed now share the row.
     assert 'class="dash-split"' in html
-    assert html.index('id="deadlines-panel"') < html.index('id="sessions-panel"')
-    assert html.index('id="sessions-panel"') < html.index('id="activity-panel"')
+    assert html.index('id="calendar-panel"') < html.index('id="activity-panel"')
     # The full assignments list stays on the exercises page.
     for gone in ("Assigned exercises", "From your trainer"):
         assert gone not in html, gone

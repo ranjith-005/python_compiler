@@ -69,43 +69,20 @@
     });
   }
 
-  // ── upcoming deadlines ──────────────────────────────────────────────────
+  // ── calendar ────────────────────────────────────────────────────────────
 
-  function renderDeadlines() {
-    // Open work with a due date; `assignments` is already ordered soonest
-    // due date first (nulls last), so filtering keeps that order.
-    const items = data.assignments.filter((a) => OPEN.includes(a.status) && a.due_date);
+  // Calendar replaces the deadline list (spec: deadlines are a glance here and
+  // actionable on the Exercises page). Unlike the trainer's, the student
+  // payload carries no `deadlines` array -- open work with a due date is
+  // derived from `assignments`, exactly as the old list did. Those rows carry
+  // an ASSIGNMENT id, so the link goes to the solve page.
+  let calMonth = new Date();
 
-    fill(
-      document.getElementById("deadline-list"),
-      items.map((a) =>
-        el(
-          "div",
-          { class: "row" },
-          el(
-            "div",
-            {},
-            el("div", { class: "title" }, a.title),
-            el(
-              "div",
-              { class: "meta" },
-              a.overdue ? pill("Overdue", "red") : null,
-              el("span", { class: a.overdue ? "tests fail" : "tests" }, D.due(a.due_date))
-            )
-          ),
-          el(
-            "div",
-            { class: "actions" },
-            el(
-              "a",
-              { class: "cb-btn primary", href: `/student/assignments/${a.id}/solve` },
-              a.status === "assigned" ? "Start" : "Continue"
-            )
-          )
-        )
-      ),
-      "Nothing due — you're all caught up."
-    );
+  function paintCalendar() {
+    if (!data) return;
+    const due = data.assignments.filter((a) => OPEN.includes(a.status) && a.due_date);
+    D.renderCalendar("calendar", due, calMonth,
+                     (a) => `/student/assignments/${a.id}/solve`);
   }
 
   // ── load ─────────────────────────────────────────────────────────────────
@@ -118,7 +95,7 @@
       return;
     }
     renderStats();
-    renderDeadlines();
+    paintCalendar();
     D.renderNotifications(data.notifications, data.unread);
   }
 
@@ -128,5 +105,15 @@
     // Wired once: the pager owns its own paging from here, so a later reload
     // of the cards must not stack a second set of click handlers on it.
     D.activityPager("activity-list", "activity-pager", data.activity, data.activity_total);
+    // Same once-only rule as the pager: the month buttons keep their own
+    // state, so a card reload must not stack a second pair of handlers.
+    document.getElementById("cal-prev").addEventListener("click", () => {
+      calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1);
+      paintCalendar();
+    });
+    document.getElementById("cal-next").addEventListener("click", () => {
+      calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1);
+      paintCalendar();
+    });
   });
 })();
