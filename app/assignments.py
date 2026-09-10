@@ -15,6 +15,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from . import mailer
 from .config import settings
 from .dashboards import OPEN_STATUSES
 from .db import get_conn, notify, record_activity, utcnow
@@ -31,7 +32,7 @@ from .schemas import (
     ReviewIn,
     SolutionIn,
 )
-from .security import hash_password
+from .security import generate_password, hash_password
 from .workspace import workspace_dir
 
 router = APIRouter(prefix="/api", tags=["assignments"])
@@ -181,6 +182,20 @@ def list_students(user: sqlite3.Row = Depends(require_trainer)) -> list[dict]:
     return result
 
 
+# LITERAL PATH, and it must stay above `/students/{student_id}` further down
+# this file -- declared the other way round, "new-password" is matched as a
+# student id and this route never runs. main.py carries a comment about the
+# same bug biting `/trainer/{section}`.
+@router.get("/students/new-password")
+def new_student_password(user: sqlite3.Row = Depends(require_trainer)) -> dict:
+    """One generated enrolment password, for the Generate button to fill in.
+
+    Generated on the server rather than in the browser: this is a credential,
+    and `secrets` is the right source for one.
+    """
+    return {"password": generate_password()}
+
+
 @router.post("/students", status_code=201)
 def create_student(body: NewStudentIn, user: sqlite3.Row = Depends(require_trainer)) -> dict:
     """Create a student account and set its credentials.
@@ -208,7 +223,26 @@ def create_student(body: NewStudentIn, user: sqlite3.Row = Depends(require_train
             f'{display_name(user)} enrolled {full_name or email}',
             int(user["id"]), "/trainer/students",
         )
-    return {"id": student_id, "email": email, "display": full_name or email}
+
+    # The account exists from here on. A mail server that is absent, slow or
+    # wrong must not undo that, so the welcome is attempted after the commit
+    # and its failure is reported rather than raised -- the trainer still gets
+    # a mailto link to send the same message from their own client.
+    welcome = None
+    if body.send_welcome:
+        welcome = mailer.send_or_link(
+            mailer.welcome_message(
+                name=full_name, email=email,
+                password=body.password, course=body.course,
+            )
+        )
+
+    return {
+        "id": student_id,
+        "email": email,
+        "display": full_name or email,
+        "welcome": welcome,
+    }
 
 
 @router.get("/exercises")

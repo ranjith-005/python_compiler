@@ -15,6 +15,8 @@
       <h1>Students</h1>
       <p>Manage enrolled students and track their progress.</p>
     </div>
+    <span class="spacer"></span>
+    <button class="cb-btn primary" id="enrol-btn" type="button">+ Enrol student</button>
   </div>
 
   <section class="panel student-directory">
@@ -42,6 +44,67 @@
     </div>
   </section>
 </main>
+
+{# Students do not sign themselves up: the trainer enrols them here and hands
+   over the credentials. The password is generated rather than typed, so no
+   two students share one and nobody has to invent it. #}
+<div class="sheet" id="enrol-sheet" hidden>
+  <div class="sheet-card">
+    <header>
+      <h2>Enrol a student</h2>
+      <button class="icon-btn" data-close="enrol-sheet" aria-label="Close">✕</button>
+    </header>
+    <form class="sheet-body" id="enrol-form" autocomplete="off">
+      <div class="field-row">
+        <div class="field">
+          <label for="enrol-first">First name</label>
+          <input id="enrol-first" name="first_name" maxlength="60" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="enrol-last">Last name</label>
+          <input id="enrol-last" name="last_name" maxlength="60" autocomplete="off">
+        </div>
+      </div>
+      <div class="field">
+        <label for="enrol-email">Email</label>
+        <input id="enrol-email" name="email" type="email" required autocomplete="off"
+               placeholder="student@example.com">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="enrol-phone">Phone</label>
+          <input id="enrol-phone" name="phone" maxlength="30" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="enrol-course">Course</label>
+          <input id="enrol-course" name="course" maxlength="120"
+                 placeholder="Python Foundations">
+        </div>
+      </div>
+      <div class="field">
+        <label for="enrol-password">Password</label>
+        <div class="with-button">
+          <input id="enrol-password" name="password" required readonly
+                 autocomplete="off" placeholder="Press Generate">
+          <button class="cb-btn" type="button" id="generate-btn">Generate</button>
+        </div>
+        <p class="help">Eleven capitals and digits, generated here. The student
+           should change it once they are signed in.</p>
+      </div>
+      <div class="field">
+        <label class="check" for="send-welcome">
+          <input type="checkbox" id="send-welcome" name="send_welcome" checked>
+          <span>Email these details to the student with a welcome message</span>
+        </label>
+      </div>
+      <p class="field-note" id="enrol-note" hidden></p>
+    </form>
+    <div class="sheet-foot">
+      <button class="cb-btn ghost" type="button" data-close="enrol-sheet">Cancel</button>
+      <button class="cb-btn primary" type="submit" form="enrol-form" id="enrol-save">Enrol</button>
+    </div>
+  </div>
+</div>
 
 <div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
 <div class="toast" id="toast" hidden></div>

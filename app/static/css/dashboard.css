@@ -1382,3 +1382,20 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 }
 .cal-day.today .cal-dot { background: var(--on-accent); }
 .cal-label { font-size: 13px; color: var(--text-dim); min-width: 120px; }
+
+/* Enrolment sheet: a generated password sits in a read-only field with its
+   Generate button beside it, so the two read as one control. */
+.with-button { display: flex; gap: 8px; align-items: stretch; }
+.with-button input {
+  flex: 1;
+  font-family: var(--mono); font-size: 14px; letter-spacing: .06em;
+}
+.with-button .cb-btn { flex: none; }
+.field .check {
+  display: flex; align-items: center; gap: 9px;
+  margin: 0; text-transform: none; letter-spacing: 0;
+  font-size: 13px; font-weight: 400; color: var(--text);
+}
+.field .check input { width: auto; }
+.field-note { margin: 0; font-size: 12.5px; color: var(--text-dim); }
+.field-note.bad { color: var(--red); }

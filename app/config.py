@@ -88,5 +88,19 @@ class Settings:
     # one that is too small wastes calls and splits topics across requests.
     GROQ_CHUNK_WORDS: int = _int("GROQ_CHUNK_WORDS", 2500)
 
+    # Outbound mail, for the welcome a newly enrolled student receives. With no
+    # host set nothing is sent and the trainer gets a mailto link instead, so
+    # enrolment works out of the box on a machine with no mail server.
+    SMTP_HOST: str = os.environ.get("SMTP_HOST", "").strip()
+    SMTP_PORT: int = _int("SMTP_PORT", 587)
+    SMTP_USER: str = os.environ.get("SMTP_USER", "").strip()
+    SMTP_PASSWORD: str = os.environ.get("SMTP_PASSWORD", "")
+    SMTP_STARTTLS: bool = os.environ.get("SMTP_STARTTLS", "1") == "1"
+    SMTP_SSL: bool = os.environ.get("SMTP_SSL", "0") == "1"
+    SMTP_TIMEOUT_SEC: int = _int("SMTP_TIMEOUT_SEC", 20)
+    # The From address. Kept separate from SMTP_USER: relays often authenticate
+    # as one identity and send as another.
+    MAIL_FROM: str = os.environ.get("MAIL_FROM", "").strip()
+
 
 settings = Settings()

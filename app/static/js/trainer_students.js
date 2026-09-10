@@ -75,6 +75,94 @@
     render();
   }
 
+
+  // ── enrolling a student ───────────────────────────────────────────────────
+  //
+  // The password is generated on the server and the field is read-only: a
+  // trainer inventing one by hand is how "Welcome123" ends up on four
+  // accounts. Generating is also what makes the welcome email possible at
+  // all -- the plaintext exists only here, between generating it and sending
+  // it, because what is stored is a bcrypt hash.
+
+  const sheet = "enrol-sheet";
+  const form = document.getElementById("enrol-form");
+  const passwordField = document.getElementById("enrol-password");
+  const note = document.getElementById("enrol-note");
+  const saveBtn = document.getElementById("enrol-save");
+
+  function say(text, kind) {
+    note.textContent = text;
+    note.className = `field-note wide${kind ? " " + kind : ""}`;
+    note.hidden = !text;
+  }
+
+  async function generate() {
+    try {
+      const { password } = await api("/api/students/new-password");
+      passwordField.value = password;
+      return password;
+    } catch (err) {
+      say(err.message || "Could not generate a password.", "bad");
+      return "";
+    }
+  }
+
+  document.getElementById("generate-btn").addEventListener("click", generate);
+
+  document.getElementById("enrol-btn").addEventListener("click", async () => {
+    form.reset();
+    say("");
+    D.openSheet(sheet);
+    // One ready to use the moment the sheet opens: the trainer should never
+    // meet an empty required field they are not allowed to type into.
+    await generate();
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(form).entries());
+    if (!values.password) {
+      say("Press Generate to create a password first.", "bad");
+      return;
+    }
+
+    saveBtn.disabled = true;
+    say("Enrolling…");
+    try {
+      const created = await api("/api/students", {
+        method: "POST",
+        body: JSON.stringify({
+          email: values.email.trim(),
+          password: values.password,
+          first_name: (values.first_name || "").trim(),
+          last_name: (values.last_name || "").trim(),
+          phone: (values.phone || "").trim(),
+          course: (values.course || "").trim(),
+          send_welcome: document.getElementById("send-welcome").checked,
+        }),
+      });
+
+      const welcome = created.welcome;
+      if (welcome && welcome.sent) {
+        D.flash(`${created.display} enrolled, and the welcome was emailed.`, "ok");
+      } else if (welcome) {
+        // No mail server here. Rather than lose the message, hand the trainer
+        // the same one already filled in, to send from their own client.
+        D.flash(`${created.display} enrolled. Opening your mail app to send the details.`, "ok");
+        window.location.href = welcome.mailto;
+      } else {
+        D.flash(`${created.display} enrolled.`, "ok");
+      }
+
+      D.closeSheet(sheet);
+      await load();
+    } catch (err) {
+      say(err.message || "Could not enrol that student.", "bad");
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+
   search.addEventListener("input", render);
   load().catch(() => {
     body.textContent = "";

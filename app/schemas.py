@@ -206,3 +206,7 @@ class NewStudentIn(BaseModel):
     first_name: str = Field(default="", max_length=60)
     last_name: str = Field(default="", max_length=60)
     phone: str = Field(default="", max_length=30)
+    # The course the welcome email congratulates them on getting into. Free
+    # text: there is no courses table, and the trainer knows what they teach.
+    course: str = Field(default="", max_length=120)
+    send_welcome: bool = False

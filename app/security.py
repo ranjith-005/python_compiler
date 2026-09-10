@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import secrets
+import string
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -13,6 +15,29 @@ from .config import settings
 ALGORITHM = "HS256"
 # bcrypt hashes at most 72 bytes; longer passwords are rejected in the schema layer.
 MAX_PASSWORD_BYTES = 72
+
+
+# Enrolment credentials. Capitals and digits only, at the length the trainer
+# asked for: a student reads this off an email and types it once, so the
+# alphabet leaves out the characters that are ambiguous in that situation
+# rather than maximising entropy for its own sake.
+PASSWORD_LENGTH = 11
+PASSWORD_ALPHABET = string.ascii_uppercase + string.digits
+
+
+def generate_password() -> str:
+    """A random enrolment password: 11 capitals and digits, at least one each.
+
+    `secrets`, not `random`: this is a credential. The retry loop is what keeps
+    an all-digit or all-letter draw -- legal, and a plausible one in 11
+    characters -- from reaching a student who would read it as a mistake.
+    """
+    while True:
+        password = "".join(
+            secrets.choice(PASSWORD_ALPHABET) for _ in range(PASSWORD_LENGTH)
+        )
+        if any(c.isalpha() for c in password) and any(c.isdigit() for c in password):
+            return password
 
 
 def hash_password(password: str) -> str:
