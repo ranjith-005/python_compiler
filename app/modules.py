@@ -35,7 +35,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
-from . import documents
+from . import documents, groq_client
 from .config import settings
 from .db import connect, get_conn, notify, record_activity, utcnow
 from .deps import get_current_user, require_student, require_trainer
@@ -128,14 +128,16 @@ def _draft_section(conn: sqlite3.Connection, module_id: int, section_id: int) ->
 
 def _insert_section(conn: sqlite3.Connection, module_id: int, order: int, *,
                     title: str = "", content: str = "", has_code: bool = False,
-                    question: str = "", starter: str = "", pages: str = "",
+                    question: str = "", reference: str = "", starter: str = "",
+                    pages: str = "",
                     revision: str = "draft", key: str | None = None) -> int:
     cur = conn.execute(
         "INSERT INTO module_sections (module_id, revision, section_key, display_order,"
-        " title, content, has_code_practice, code_question, starter_code, source_pages)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " title, content, has_code_practice, code_question, reference_code,"
+        " starter_code, source_pages)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (module_id, revision, key or uuid.uuid4().hex, order, title, content,
-         int(has_code), question, starter, pages),
+         int(has_code), question, reference, starter, pages),
     )
     return int(cur.lastrowid)
 
@@ -180,6 +182,40 @@ def _new_job() -> str:
     return job_id
 
 
+def _structure(job_id: str, units: list) -> tuple[list, str]:
+    """Units -> sections, through Groq where it is available (module req 19).
+
+    Falls back per chunk, not per upload. A 60-slide deck whose third request
+    is rate-limited keeps the AI structuring on the other four and groups only
+    that chunk offline -- losing quality on a few slides beats losing the lot.
+
+    Returns the sections and which path produced them, so the trainer is told
+    what they are reviewing rather than left to guess.
+    """
+    if not groq_client.is_configured():
+        return documents.build_sections(units), "offline"
+
+    batches = groq_client.chunks_of(units)
+    sections: list = []
+    fell_back = 0
+    for number, batch in enumerate(batches, start=1):
+        _set_job(job_id, step="topics",
+                 message=f"Structuring content… (part {number} of {len(batches)})")
+        try:
+            sections.extend(groq_client.sections_for_chunk(batch))
+        except groq_client.GroqError:
+            # This chunk only. Order is preserved because the batches are
+            # walked in document order either way.
+            sections.extend(documents.build_sections(batch))
+            fell_back += 1
+
+    if not sections:
+        return documents.build_sections(units), "offline"
+    if fell_back == len(batches):
+        return sections, "offline"
+    return sections, "partial" if fell_back else "groq"
+
+
 def _process_upload(job_id: str, raw: bytes, suffix: str, filename: str,
                     title: str, description: str, trainer_id: int,
                     trainer_label: str) -> None:
@@ -189,7 +225,7 @@ def _process_upload(job_id: str, raw: bytes, suffix: str, filename: str,
         units = documents.extract_units(raw, suffix)
 
         _set_job(job_id, step="topics", message="Identifying topics…")
-        sections = documents.build_sections(units)
+        sections, structured_by = _structure(job_id, units)
         if not sections:
             raise DocumentError("No learning content could be read from that file.")
 
@@ -223,6 +259,7 @@ def _process_upload(job_id: str, raw: bytes, suffix: str, filename: str,
                     conn, module_id, order,
                     title=section.title, content=section.content,
                     has_code=section.has_code_practice, question=section.code_question,
+                    reference=section.reference_code,
                     starter=section.starter_code, pages=section.source_pages,
                 )
             record_activity(
@@ -238,10 +275,20 @@ def _process_upload(job_id: str, raw: bytes, suffix: str, filename: str,
             conn.close()
 
         practice = sum(1 for s in sections if s.has_code_practice)
+        # Say which path produced the draft. A trainer who thinks the AI pass
+        # ran when it did not will review a fallback draft too lightly.
+        note = {
+            "groq": "Your module draft is ready for review.",
+            "partial": "Your module draft is ready for review. Some parts could "
+                       "not be processed by AI and were grouped automatically — "
+                       "check those sections closely.",
+            "offline": "Your module draft is ready for review. It was grouped "
+                       "automatically without AI processing.",
+        }[structured_by]
         _set_job(
             job_id, state="done", step="done", module_id=module_id, title=name,
             units=len(units), sections=len(sections), code_sections=practice,
-            message="Your module draft is ready for review.",
+            structured_by=structured_by, message=note,
         )
     except DocumentError as exc:
         _set_job(job_id, state="error", step="error", message=str(exc))
@@ -322,7 +369,8 @@ def add_section(
             conn, module_id, order,
             title=body.title.strip() or f"Section {order + 1}",
             content=body.content, has_code=body.has_code_practice,
-            question=body.code_question, starter=body.starter_code,
+            question=body.code_question, reference=body.reference_code,
+            starter=body.starter_code,
         )
         _touch(conn, module_id)
     return {"id": section_id, "display_order": order}
@@ -347,6 +395,8 @@ def update_section(
             updates.append(("has_code_practice", int(body.has_code_practice)))
         if body.code_question is not None:
             updates.append(("code_question", body.code_question))
+        if body.reference_code is not None:
+            updates.append(("reference_code", body.reference_code))
         if body.starter_code is not None:
             updates.append(("starter_code", body.starter_code))
         if updates:
@@ -426,13 +476,20 @@ def merge_section(
         )
         has_code = bool(first["has_code_practice"]) or bool(second["has_code_practice"])
         question = first["code_question"] or second["code_question"]
+        # Both worked examples are kept: a reference is teaching material, so
+        # dropping one on merge would lose content the trainer never deleted.
+        reference = "\n\n".join(
+            part for part in (first["reference_code"], second["reference_code"]) if part
+        )
         starter = first["starter_code"] or second["starter_code"]
         pages = " + ".join(p for p in (first["source_pages"], second["source_pages"]) if p)
 
         conn.execute(
             "UPDATE module_sections SET content = ?, has_code_practice = ?,"
-            " code_question = ?, starter_code = ?, source_pages = ? WHERE id = ?",
-            (content, int(has_code), question, starter, pages, int(first["id"])),
+            " code_question = ?, reference_code = ?, starter_code = ?,"
+            " source_pages = ? WHERE id = ?",
+            (content, int(has_code), question, reference, starter, pages,
+             int(first["id"])),
         )
         conn.execute("DELETE FROM module_sections WHERE id = ?", (int(second["id"]),))
         _renumber(conn, module_id)
@@ -506,6 +563,7 @@ def publish_module(module_id: int, user: sqlite3.Row = Depends(require_trainer))
                 conn, module_id, order, revision="published", key=row["section_key"],
                 title=row["title"], content=row["content"],
                 has_code=bool(row["has_code_practice"]), question=row["code_question"],
+                reference=row["reference_code"],
                 starter=row["starter_code"], pages=row["source_pages"],
             )
         now = utcnow()
@@ -757,7 +815,10 @@ def module_detail(module_id: int, user: sqlite3.Row = Depends(get_current_user))
                     "content": row["content"],
                     "has_code_practice": bool(row["has_code_practice"]),
                     "code_question": row["code_question"],
-                    # The editor comes back exactly as the student left it.
+                    # Read-only worked example. Never the student's editor.
+                    "reference_code": row["reference_code"],
+                    # The editor comes back exactly as the student left it, and
+                    # opens empty the first time (module req 23).
                     "starter_code": mine.get("last_code") or row["starter_code"],
                     "completed": completed,
                     "completed_at": mine.get("completed_at"),
@@ -807,24 +868,35 @@ def run_section(
     module_id: int, section_id: int, body: RunIn,
     user: sqlite3.Row = Depends(require_student),
 ) -> dict:
-    """Run one section's practice snippet (module reqs 5, 6, 7).
+    """Run one section's code (module reqs 5, 6, 7).
 
     Each run is a fresh subprocess, and the result is returned to this section
     alone: nothing here can reach another section's editor, output or state.
 
-    Running does NOT complete the section (module req 22). It only stores the
-    code, so the editor comes back as the student left it.
+    Two things can be run. The student's own practice code is run and then
+    remembered, so the editor comes back as they left it. The reference example
+    is run from what is stored on the section -- never from the request body --
+    and is not remembered, so it cannot overwrite their work (module req 23).
+
+    Running does NOT complete the section (module req 22).
     """
     student_id = int(user["id"])
+    is_reference = body.kind == "reference"
     with get_conn() as conn:
         section = _student_section(conn, module_id, section_id, student_id)
-        if not section["has_code_practice"]:
+        if is_reference:
+            if not section["reference_code"]:
+                raise HTTPException(
+                    status.HTTP_400_BAD_REQUEST, "This section has no reference example."
+                )
+        elif not section["has_code_practice"]:
             raise HTTPException(
                 status.HTTP_400_BAD_REQUEST, "This section has no code practice."
             )
         section_key = section["section_key"]
+        reference = section["reference_code"]
 
-    code = body.code
+    code = reference if is_reference else body.code
     cwd = workspace_dir(student_id)
     try:
         proc = subprocess.run(
@@ -841,15 +913,18 @@ def run_section(
 
     now = utcnow()
     with get_conn() as conn:
-        conn.execute(
-            "INSERT INTO module_section_progress (module_id, section_key, student_id,"
-            " completed, last_code, ran_ok, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)"
-            " ON CONFLICT(module_id, section_key, student_id) DO UPDATE SET"
-            "   last_code = excluded.last_code,"
-            "   ran_ok = MAX(module_section_progress.ran_ok, excluded.ran_ok),"
-            "   updated_at = excluded.updated_at",
-            (module_id, section_key, student_id, code, int(ok), now),
-        )
+        # A reference run is not the student's work: it leaves last_code and
+        # ran_ok exactly as they were.
+        if not is_reference:
+            conn.execute(
+                "INSERT INTO module_section_progress (module_id, section_key, student_id,"
+                " completed, last_code, ran_ok, updated_at) VALUES (?, ?, ?, 0, ?, ?, ?)"
+                " ON CONFLICT(module_id, section_key, student_id) DO UPDATE SET"
+                "   last_code = excluded.last_code,"
+                "   ran_ok = MAX(module_section_progress.ran_ok, excluded.ran_ok),"
+                "   updated_at = excluded.updated_at",
+                (module_id, section_key, student_id, code, int(ok), now),
+            )
         total, done = _counts(conn, module_id, student_id)
 
     return {

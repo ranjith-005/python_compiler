@@ -75,5 +75,18 @@ class Settings:
     )
     MAX_MODULE_BYTES: int = _int("MAX_MODULE_BYTES", 80_000_000)
 
+    # Groq structures the uploaded material into sections (module req 19).
+    # The key lives only here and in app/groq_client.py -- it is never sent to
+    # the browser, and no route returns it. With no key set the upload still
+    # works: documents.build_sections() does the grouping offline instead.
+    GROQ_API_KEY: str = os.environ.get("GROQ_API_KEY", "").strip()
+    GROQ_MODEL: str = os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile")
+    GROQ_TIMEOUT_SEC: int = _int("GROQ_TIMEOUT_SEC", 90)
+    GROQ_RETRIES: int = _int("GROQ_RETRIES", 3)
+    GROQ_BACKOFF_SEC: float = float(os.environ.get("GROQ_BACKOFF_SEC", "2"))
+    # Words per request. A chunk that is too big is refused by the model, and
+    # one that is too small wastes calls and splits topics across requests.
+    GROQ_CHUNK_WORDS: int = _int("GROQ_CHUNK_WORDS", 2500)
+
 
 settings = Settings()

@@ -144,6 +144,7 @@ class DraftSection:
     content: str
     has_code_practice: bool
     code_question: str
+    reference_code: str
     starter_code: str
     source_pages: str
 
@@ -502,10 +503,9 @@ def _extract_code(lines: list[str]) -> str:
         return ""
 
     code = _dedent(best)
-    # Text lifted out of a slide is a guess. Offering a student a Run button on
-    # something that cannot parse is worse than offering them a blank example,
-    # so anything that does not compile is discarded here and the caller falls
-    # back to the generic starter.
+    # Text lifted out of a slide is a guess. The student gets a Run button on
+    # this reference, so anything that cannot parse is discarded here and the
+    # section simply shows no reference example rather than a broken one.
     try:
         compile(code, "<starter>", "exec")
     except (SyntaxError, ValueError):
@@ -513,26 +513,27 @@ def _extract_code(lines: list[str]) -> str:
     return code
 
 
-def _practice_for(topic: str, title: str, lines: list[str]) -> tuple[bool, str, str]:
-    """(has_code_practice, question, starter_code) for one topic."""
+def _practice_for(topic: str, title: str,
+                  lines: list[str]) -> tuple[bool, str, str, str]:
+    """(has_code_practice, question, reference_code, starter_code) for a topic.
+
+    The code the upload already contains is *reference*: the student reads it
+    and may run it, but never edits it. Their own editor opens empty, so the
+    solution is never handed to them (module req 23).
+    """
     code = _extract_code(lines)
     if topic in _PROSE_TOPICS:
-        return False, "", ""
+        return False, "", "", ""
     wants = topic in _CODE_TOPICS or bool(code)
     if not wants:
-        return False, "", ""
+        return False, "", "", ""
 
     subject = (topic or title or "this topic").strip()
     question = (
-        f"Practise {subject.lower()}: run the code below, then change it and run it "
-        f"again to see what happens."
+        f"Write your own Python for {subject.lower()}, then press Run to see "
+        f"what it does."
     )
-    starter = code or (
-        f"# {subject}\n"
-        f"# Write a short example here and press Run.\n"
-        f"print('{subject}')\n"
-    )
-    return True, question, starter
+    return True, question, code, ""
 
 
 def build_sections(units: list[Unit]) -> list[DraftSection]:
@@ -582,7 +583,9 @@ def build_sections(units: list[Unit]) -> list[DraftSection]:
         topic = group["topic"] or canonical_topic(group["title"],
                                                   " ".join(group["lines"][:4]))
         title = (group["title"] or topic or f"Section {order}").strip()
-        has_code, question, starter = _practice_for(topic, title, group["lines"])
+        has_code, question, reference, starter = _practice_for(
+            topic, title, group["lines"]
+        )
         first, last, kind = group["first"], group["last"], group["kind"]
         plural = f"{kind.capitalize()}s" if last > first else kind.capitalize()
         pages = f"{plural} {first}-{last}" if last > first else f"{plural} {first}"
@@ -592,6 +595,7 @@ def build_sections(units: list[Unit]) -> list[DraftSection]:
                 content=_format_content(group["lines"]),
                 has_code_practice=has_code,
                 code_question=question,
+                reference_code=reference,
                 starter_code=starter,
                 source_pages=pages,
             )

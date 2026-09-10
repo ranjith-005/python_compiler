@@ -255,6 +255,12 @@ CREATE TABLE IF NOT EXISTS module_sections (
     content           TEXT NOT NULL DEFAULT '',
     has_code_practice INTEGER NOT NULL DEFAULT 0,
     code_question     TEXT NOT NULL DEFAULT '',
+    -- Two kinds of code, deliberately separate (module req 23):
+    -- `reference_code` is the worked example lifted from the upload. The
+    -- student reads it and may run it, but never edits it. `starter_code`
+    -- is what their own editor opens with, and is normally empty so they
+    -- write the solution themselves rather than editing ours.
+    reference_code    TEXT NOT NULL DEFAULT '',
     starter_code      TEXT NOT NULL DEFAULT '',
     source_pages      TEXT NOT NULL DEFAULT ''
 );
@@ -359,6 +365,7 @@ def init_db() -> None:
         _migrate_user_columns(conn)
         _migrate_platform_columns(conn)
         _migrate_module_columns(conn)
+        _migrate_section_columns(conn)
         _backfill_solution_code(conn)
         _migrate_snippets_to_notebooks(conn)
         _migrate_blocks_to_sections(conn)
@@ -459,6 +466,25 @@ def _migrate_module_columns(conn: sqlite3.Connection) -> None:
     ):
         if column not in existing:
             conn.execute(f"ALTER TABLE modules ADD COLUMN {column} {ddl}")
+
+
+def _migrate_section_columns(conn: sqlite3.Connection) -> None:
+    """Additive columns for `module_sections`.
+
+    Sections used to carry one code field, and the example lifted out of the
+    upload was written straight into it -- which handed the student the answer
+    the moment they opened the section. `reference_code` splits the worked
+    example away from the student's own editor (module req 23). Existing rows
+    keep whatever is in `starter_code`; the trainer moves it across by editing
+    the section, and nothing is deleted underneath them.
+    """
+    existing = {
+        row["name"] for row in conn.execute("PRAGMA table_info(module_sections)")
+    }
+    if "reference_code" not in existing:
+        conn.execute(
+            "ALTER TABLE module_sections ADD COLUMN reference_code TEXT NOT NULL DEFAULT ''"
+        )
 
 
 def _migrate_blocks_to_sections(conn: sqlite3.Connection) -> None:

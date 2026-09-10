@@ -109,9 +109,16 @@ class AssignIn(BaseModel):
 
 
 class RunIn(BaseModel):
-    """One practice snippet from a module's code section (req 14)."""
+    """One snippet from a module's code section (req 14).
+
+    `kind` says whose code this is. "practice" runs what the student wrote and
+    remembers it. "reference" runs the section's own stored example instead --
+    `code` is ignored, and nothing is saved, so pressing Run on the worked
+    example cannot overwrite the work in the student's editor (module req 23).
+    """
 
     code: str = Field(default="", max_length=100_000)
+    kind: Literal["practice", "reference"] = "practice"
 
 
 # -- learning modules, trainer editing (module reqs 12, 13) ------------------
@@ -131,6 +138,8 @@ class SectionIn(BaseModel):
     content: str = Field(default="", max_length=200_000)
     has_code_practice: bool = False
     code_question: str = Field(default="", max_length=5_000)
+    # Read-only worked example vs the student's own editor (module req 23).
+    reference_code: str = Field(default="", max_length=100_000)
     starter_code: str = Field(default="", max_length=100_000)
 
 
@@ -141,6 +150,7 @@ class SectionPatch(BaseModel):
     content: str | None = Field(default=None, max_length=200_000)
     has_code_practice: bool | None = None
     code_question: str | None = Field(default=None, max_length=5_000)
+    reference_code: str | None = Field(default=None, max_length=100_000)
     starter_code: str | None = Field(default=None, max_length=100_000)
 
 

@@ -250,12 +250,21 @@
       const question = el("textarea", { class: "section-question", rows: "2" });
       question.value = section.code_question || "";
       question.addEventListener("change", () => patch({ code_question: question.value }));
+      // Two code fields, and the difference matters (module req 23):
+      // reference is the worked example the student reads and may run;
+      // starter is what their editor opens with, normally left empty.
+      const reference = codeEditor(section.reference_code);
+      reference.addEventListener("change", () =>
+        patch({ reference_code: reference.value })
+      );
       const starter = codeEditor(section.starter_code);
       starter.addEventListener("change", () => patch({ starter_code: starter.value }));
       practiceBody.append(
         el("label", { class: "sub-label" }, "Coding question"),
         question,
-        el("label", { class: "sub-label" }, "Starter code"),
+        el("label", { class: "sub-label" }, "Reference example (read-only for students)"),
+        reference,
+        el("label", { class: "sub-label" }, "Starter code (leave empty so students write their own)"),
         starter
       );
       practiceBody.hidden = !section.has_code_practice;
@@ -557,6 +566,56 @@
       // Content is unconditional: a section without code practice still shows
       // everything the trainer wrote (module reqs 2, 4, 20).
       body.append(markdown(section.content));
+
+      // The worked example from the upload, read-only (module req 23). It has
+      // its own Run button so the student can see what it does before writing
+      // anything, but it is never the editor they type in. Runs go through the
+      // same endpoint as practice, so nothing new executes on the server.
+      if (section.reference_code) {
+        const refOut = el("pre", { class: "code-output", hidden: true });
+        const refRun = el("button", { class: "cb-btn" }, "▶ Run");
+        const refCode = el("pre", { class: "reference-code" }, section.reference_code);
+
+        refRun.addEventListener("click", async () => {
+          refRun.disabled = true;
+          refRun.textContent = "Running…";
+          try {
+            const res = await api(
+              `/api/modules/${m.id}/sections/${section.id}/run`,
+              // The server runs the stored reference; kind says which code.
+              { method: "POST", body: JSON.stringify({ kind: "reference" }) }
+            );
+            refOut.hidden = false;
+            refOut.className = `code-output ${res.ok ? "" : "err"}`;
+            refOut.textContent = (res.stdout || "") + (res.stderr || "") || "(no output)";
+          } catch (err) {
+            refOut.hidden = false;
+            refOut.className = "code-output err";
+            refOut.textContent = err.message;
+          } finally {
+            refRun.disabled = false;
+            refRun.textContent = "▶ Run";
+          }
+        });
+
+        body.append(
+          el(
+            "div",
+            { class: "reference-block" },
+            el(
+              "div",
+              { class: "practice-head" },
+              el("h3", {}, "Reference example"),
+              el("span", { class: "hint" }, "read-only"),
+              el("span", { class: "spacer" }),
+              refRun
+            ),
+            refCode,
+            el("div", { class: "output-label" }, "Output:"),
+            refOut
+          )
+        );
+      }
 
       if (section.has_code_practice) {
         // Each section gets its own editor, its own Run button and its own

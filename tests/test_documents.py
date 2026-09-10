@@ -131,26 +131,28 @@ def test_practical_topics_get_code_practice_alongside_their_content():
     for section in sections:
         assert section.content.strip()
         assert section.code_question.strip()
-        assert section.starter_code.strip()
+        assert section.reference_code.strip()
+        assert section.starter_code == ""
 
 
-def test_generated_starter_code_always_compiles():
-    """A student pressing Run must not meet a SyntaxError we shipped."""
+def test_reference_code_always_compiles():
+    """A student pressing Run on the reference must not meet a SyntaxError we
+    shipped: broken code lifted from a slide is dropped, not displayed."""
     slides = [
         ("Loops", [FILLER, "for i in range(3):", " print(i)"]),
         ("Variables", [FILLER, "x = = broken(", "print(x"]),
         ("Functions", [FILLER, "def add(a, b):", " return a + b"]),
     ]
     for section in build_sections(extract_units(deck_bytes(slides), ".pptx")):
-        if section.has_code_practice:
-            compile(section.starter_code, "<starter>", "exec")
+        if section.reference_code:
+            compile(section.reference_code, "<reference>", "exec")
 
 
 def test_a_topic_with_code_in_it_gets_practice_even_off_the_taxonomy():
     slides = [("Widget wrangling", [FILLER, "total = 0", "print(total)"])]
     sections = build_sections(extract_units(deck_bytes(slides), ".pptx"))
     assert sections[0].has_code_practice is True
-    assert "total = 0" in sections[0].starter_code
+    assert "total = 0" in sections[0].reference_code
 
 
 def test_min_section_words_is_the_only_size_knob():
@@ -179,8 +181,8 @@ def test_a_legacy_ppt_produces_usable_sections():
     assert [s.title for s in sections] == ["Introduction to Python", "Variables", "Loops"]
     assert [s.has_code_practice for s in sections] == [False, True, True]
     for section in sections:
-        if section.has_code_practice:
-            compile(section.starter_code, "<starter>", "exec")
+        if section.reference_code:
+            compile(section.reference_code, "<reference>", "exec")
 
 
 def test_a_pptx_renamed_to_ppt_still_opens():
@@ -196,3 +198,16 @@ def test_a_file_that_is_neither_reports_something_actionable():
         assert "ppt" in str(exc).lower()
         return
     raise AssertionError("nonsense bytes should raise DocumentError")
+
+
+# ── reference code vs the student's editor (module req 23) ──────────────────
+
+
+def test_reference_code_is_kept_out_of_the_students_editor():
+    """Code in the upload teaches. The student's editor starts empty so the
+    solution is never handed to them (module req 23)."""
+    slides = [("Loops", [FILLER, "for i in range(3):", " print(i)"])]
+    section = build_sections(extract_units(deck_bytes(slides), ".pptx"))[0]
+    assert section.has_code_practice is True
+    assert "for i in range(3):" in section.reference_code
+    assert section.starter_code == ""

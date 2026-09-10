@@ -135,7 +135,7 @@ def test_upload_reports_the_stages_it_reaches(client):
     assert job["step"] == "done"
     assert job["units"] == len(COURSE)
     assert job["sections"] == len(COURSE)
-    assert job["message"] == "Your module draft is ready for review."
+    assert job["message"].startswith("Your module draft is ready for review.")
 
 
 def test_a_long_deck_is_processed_in_full(client):
@@ -712,3 +712,73 @@ def test_a_trainer_cannot_touch_another_trainers_module(client):
     assert client.patch(f"/api/modules/{module_id}", json={"title": "Mine"}).status_code == 404
     assert client.post(f"/api/modules/{module_id}/publish").status_code == 404
     assert client.delete(f"/api/modules/{module_id}").status_code == 404
+
+
+# ── reference code vs the student's editor (module req 23) ──────────────────
+
+
+def test_reference_code_round_trips_and_the_student_editor_stays_empty(client):
+    """The trainer edits reference code; the student's starter stays empty."""
+    register_trainer(client)
+    module_id = upload(client)["module_id"]
+    section = client.get(f"/api/modules/{module_id}").json()["sections"][1]
+
+    res = client.patch(
+        f"/api/modules/{module_id}/sections/{section['id']}",
+        json={"reference_code": "for i in range(3):\n    print(i)"},
+    )
+    assert res.status_code == 200, res.text
+
+    edited = client.get(f"/api/modules/{module_id}").json()["sections"][1]
+    assert edited["reference_code"] == "for i in range(3):\n    print(i)"
+    assert edited["starter_code"] == ""
+
+
+def test_the_job_says_how_the_sections_were_built(client):
+    """A trainer reviewing a draft must know whether the AI pass actually ran,
+    so a fallback draft is never mistaken for a structured one (module req 19).
+    The test suite has no Groq key, so this is the offline path."""
+    register_trainer(client)
+    job = upload(client)
+    assert job["structured_by"] == "offline"
+
+
+def test_running_the_reference_does_not_overwrite_the_students_own_code(client):
+    """The reference has its own Run button. Pressing it must not clobber the
+    code the student has been writing in their own editor (module req 23)."""
+    module_id, _ = a_course(client)
+    as_student(client)
+    section = client.get(f"/api/modules/{module_id}").json()["sections"][1]
+
+    client.post(
+        f"/api/modules/{module_id}/sections/{section['id']}/run",
+        json={"code": "print('my own work')"},
+    )
+    client.post(
+        f"/api/modules/{module_id}/sections/{section['id']}/run",
+        json={"code": "", "kind": "reference"},
+    )
+
+    mine = client.get(f"/api/modules/{module_id}").json()["sections"][1]
+    assert mine["starter_code"] == "print('my own work')"
+
+
+def test_the_reference_runs_the_stored_example_not_whatever_was_posted(client):
+    """A reference run ignores the client's code and executes the section's own
+    reference, so the button cannot be repurposed to run something else."""
+    module_id, _ = a_course(client)
+    trainer_section = client.get(f"/api/modules/{module_id}").json()["sections"][1]
+    client.patch(
+        f"/api/modules/{module_id}/sections/{trainer_section['id']}",
+        json={"reference_code": "print('the real reference')"},
+    )
+    client.post(f"/api/modules/{module_id}/publish")
+
+    as_student(client)
+    section = client.get(f"/api/modules/{module_id}").json()["sections"][1]
+    res = client.post(
+        f"/api/modules/{module_id}/sections/{section['id']}/run",
+        json={"code": "print('something else')", "kind": "reference"},
+    ).json()
+    assert "the real reference" in res["stdout"]
+    assert "something else" not in res["stdout"]
