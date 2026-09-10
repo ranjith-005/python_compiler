@@ -426,6 +426,53 @@ window.Dash = (function () {
     host.append(grid);
   }
 
+  // Header search. Debounced because it fires per keystroke, and a query per
+  // character would put a request in flight for every letter of a word.
+  //
+  // Wired at module level rather than inside initChrome(), which returns early
+  // on any page with no bell -- the search box is in the header of all of them.
+  (function wireSearch() {
+    const input = document.getElementById("global-search");
+    if (!input) return;
+    const panel = document.getElementById("search-results");
+    let timer = null;
+
+    async function run() {
+      const q = input.value.trim();
+      if (!q) { panel.hidden = true; return; }
+      try {
+        const data = await api(`/api/search?q=${encodeURIComponent(q)}`);
+        panel.textContent = "";
+        if (!data.results.length) {
+          panel.append(el("div", { class: "search-empty" }, "Nothing found."));
+        }
+        data.results.forEach((r) => {
+          const row = el(
+            "a",
+            { class: "search-hit", href: r.link },
+            el("span", { class: "hit-label" }, r.label),
+            el("span", { class: "hit-sub" }, r.sub)
+          );
+          panel.append(row);
+        });
+        panel.hidden = false;
+      } catch (err) {
+        panel.hidden = true;
+      }
+    }
+
+    input.addEventListener("input", () => {
+      clearTimeout(timer);
+      timer = setTimeout(run, 220);
+    });
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".header-search")) panel.hidden = true;
+    });
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") panel.hidden = true;
+    });
+  })();
+
   return {
     api,
     toast,
