@@ -434,15 +434,15 @@ def a_feed(client):
     return sid
 
 
-def test_activity_names_the_trainer_who_caused_it(client):
+def test_a_trainers_action_is_a_notification_not_the_students_activity(client):
+    """Inverted with the activity/notification split. Being assigned work is
+    something that happened TO the student, so it belongs to the bell. The
+    assign path writes both rows, so nothing is lost by scoping activity."""
     a_feed(client)
-    items = client.get("/api/dashboard/student").json()["activity"]
-    assert items, "the student should have activity after being assigned work"
+    data = client.get("/api/dashboard/student").json()
 
-    from_trainer = [a for a in items if a["actor"]]
-    assert from_trainer, [a["summary"] for a in items]
-    assert all(a["actor_role"] == "trainer" for a in from_trainer)
-    assert all(a["actor"] == "Trainer One" for a in from_trainer)
+    assert not [a for a in data["activity"] if a["actor"]],         [a["summary"] for a in data["activity"]]
+    assert any("assigned" in n["title"].lower() for n in data["notifications"]),         [n["title"] for n in data["notifications"]]
 
 
 def test_your_own_activity_is_not_attributed_to_you(client):
@@ -489,3 +489,29 @@ def test_an_activity_with_no_actor_is_left_unattributed(client):
     items = client.get("/api/dashboard/activity?limit=50").json()["items"]
     row = next(a for a in items if a["summary"] == "System did a thing")
     assert row["actor"] == "" and row["actor_role"] == ""
+
+
+def test_recent_activity_shows_only_what_you_did_yourself(client):
+    """A trainer's feed is their own actions. A student submitting is something
+    that happened TO the trainer, so it belongs in notifications, not here."""
+    register_trainer(client)
+    trainer_id = client.get("/auth/me").json()["id"]
+
+    from app.db import get_conn, record_activity, notify, utcnow
+    with get_conn() as conn:
+        student = conn.execute(
+            "INSERT INTO users (email, password_hash, created_at, role, full_name)"
+            " VALUES ('someone@example.com', 'x', ?, 'student', 'Some One')",
+            (utcnow(),),
+        ).lastrowid
+        record_activity(conn, trainer_id, "created", "You created an exercise",
+                        trainer_id, "/trainer")
+        record_activity(conn, trainer_id, "submitted", "Some One submitted work",
+                        int(student), "/trainer")
+        notify(conn, trainer_id, "submitted", "Some One submitted work", "/trainer")
+
+    data = client.get("/api/dashboard/trainer").json()
+    summaries = [a["summary"] for a in data["activity"]]
+    assert "You created an exercise" in summaries
+    assert "Some One submitted work" not in summaries
+    assert "Some One submitted work" in [n["title"] for n in data["notifications"]]

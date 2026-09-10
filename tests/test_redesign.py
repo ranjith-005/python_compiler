@@ -7,7 +7,7 @@ these fails.
 """
 
 from conftest import register, register_trainer
-from test_dashboards import make_exercise, student_id
+from test_dashboards import make_exercise, solve, student_id
 from test_modules import upload
 
 STUDENT = "student@example.com"
@@ -81,6 +81,11 @@ def test_activity_is_served_fifteen_at_a_time_with_a_total(client):
     a_class(client)
     as_student(client)
 
+    # Activity is the student's OWN actions now, and being assigned work is the
+    # trainer's. Submit once so there is something of theirs to page through.
+    first = client.get("/api/dashboard/student").json()["assignments"][0]["id"]
+    solve(client, first, "a = int(input())\nb = int(input())\nprint(a + b)")
+
     dashboard = client.get("/api/dashboard/student").json()
     assert len(dashboard["activity"]) <= 15
     assert dashboard["activity_total"] >= 1
@@ -119,14 +124,21 @@ def test_exercises_page_drops_the_trainer_sidebar_and_the_extra_tab(client):
 # ── student 5: the trainer is named in the student's history ────────────────
 
 
-def test_assigned_exercise_names_the_trainer_in_the_activity_feed(client):
+def test_an_assigned_exercise_is_a_notification_not_the_students_activity(client):
+    """Inverted with the activity/notification split. Being assigned work is
+    something that happened TO the student, so it belongs to the bell. The
+    assign path writes both rows, so nothing is lost."""
     a_class(client)
     as_student(client)
-    summaries = [a["summary"] for a in client.get("/api/dashboard/student").json()["activity"]]
-    assert any("Trainer One" in s for s in summaries), summaries
+    data = client.get("/api/dashboard/student").json()
+
+    summaries = [a["summary"] for a in data["activity"]]
+    assert not any("Trainer One" in s for s in summaries), summaries
+    titles = [n["title"] for n in data["notifications"]]
+    assert any("assigned" in t.lower() for t in titles), titles
 
 
-def test_assigned_module_names_the_trainer_in_the_activity_feed(client):
+def test_an_assigned_module_is_a_notification_not_the_students_activity(client):
     register(client, STUDENT)
     client.post("/auth/logout")
     register_trainer(client)
@@ -139,8 +151,12 @@ def test_assigned_module_names_the_trainer_in_the_activity_feed(client):
     )
 
     as_student(client)
-    summaries = [a["summary"] for a in client.get("/api/dashboard/student").json()["activity"]]
-    assert any("Trainer One" in s and "Loops" in s for s in summaries), summaries
+    data = client.get("/api/dashboard/student").json()
+
+    summaries = [a["summary"] for a in data["activity"]]
+    assert not any("Trainer One" in s and "Loops" in s for s in summaries), summaries
+    titles = [n["title"] for n in data["notifications"]]
+    assert any("Loops" in t for t in titles), titles
 
 
 # ── student 7: the bell carries five ────────────────────────────────────────

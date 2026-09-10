@@ -29,8 +29,16 @@ PRESENCE_WINDOW_MIN = 5
 # week is one or two pages, few enough that a page scrolls rather than runs off.
 ACTIVITY_PAGE = 15
 
-# Who did this to you, and in what capacity. A student needs to see that the
-# warning on their exercise came from their trainer and not from the system.
+# Recent activity is what YOU did. Something another person did to you -- a
+# trainer approving your work, a student submitting -- is a notification, and
+# is already written to `notifications` as well, so nothing is lost by keeping
+# it out of here.
+#
+# A row with NO actor is the exception, and stays: it is the system acting, not
+# another person, and it has no notification to fall back on, so dropping it
+# would lose it outright. `actor_id = user_id` alone is NULL-false and would do
+# exactly that. The actor join stays for full_activity(), which shares this
+# constant.
 ACTIVITY_SELECT = """
     SELECT a.id, a.kind, a.summary, a.link, a.created_at, a.actor_id,
            u.role AS actor_role, u.full_name AS actor_full_name,
@@ -38,8 +46,16 @@ ACTIVITY_SELECT = """
            u.email AS actor_email
     FROM activities a
     LEFT JOIN users u ON u.id = a.actor_id
-    WHERE a.user_id = ?
+    WHERE a.user_id = ? AND (a.actor_id = a.user_id OR a.actor_id IS NULL)
     ORDER BY a.created_at DESC, a.id DESC
+"""
+
+# Must match ACTIVITY_SELECT's WHERE clause exactly: a total that counts rows
+# the feed does not return gives the pager pages that render empty. Kept as one
+# constant because the two had already drifted once.
+ACTIVITY_COUNT = """
+    SELECT COUNT(*) FROM activities
+    WHERE user_id = ? AND (actor_id = user_id OR actor_id IS NULL)
 """
 
 # One row per assignment: its most recent submission, or NULLs if never submitted.
@@ -131,9 +147,7 @@ def _feed(conn: sqlite3.Connection, user_id: int) -> dict:
         "notifications": notifications,
         "unread": unread,
         "activity": activity,
-        "activity_total": _scalar(
-            conn, "SELECT COUNT(*) FROM activities WHERE user_id = ?", (user_id,)
-        ),
+        "activity_total": _scalar(conn, ACTIVITY_COUNT, (user_id,)),
     }
 
 
@@ -458,7 +472,5 @@ def full_activity(
             ),
             int(user["id"]),
         )
-        total = _scalar(
-            conn, "SELECT COUNT(*) FROM activities WHERE user_id = ?", (user["id"],)
-        )
+        total = _scalar(conn, ACTIVITY_COUNT, (user["id"],))
     return {"items": items, "total": total, "limit": limit, "offset": offset}
