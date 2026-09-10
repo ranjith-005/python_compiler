@@ -13,7 +13,20 @@ body:has(.app-sidebar) { padding-left: var(--sidebar-w); }
   border-right: 1px solid var(--border);
   z-index: 30;
 }
-.app-sidebar .cb-brand { margin: 0 8px 18px; }
+.app-sidebar .cb-brand { margin: 0 8px 18px; align-items: flex-start; min-width: 0; }
+
+/* The old bar was horizontal, so a nowrap title was safe there. In a 232px
+   rail it is not: "Python Learning Platform" measures 210px and spilled past
+   the sidebar edge into the header's search box. Let it wrap -- two lines read
+   fine in a rail, a clipped ellipsis does not. Three classes because the page
+   stylesheets load after this one and `.dash .cb-title` would otherwise win
+   the tie on source order. */
+.app-sidebar .cb-brand .cb-title {
+  white-space: normal;
+  font-size: 15px;
+  line-height: 1.25;
+  min-width: 0;
+}
 
 .side-nav { display: flex; flex-direction: column; gap: 2px; }
 .side-link {
