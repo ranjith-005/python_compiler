@@ -29,6 +29,7 @@ from .schemas import (
     NewStudentIn,
     QueryIn,
     QueryReplyIn,
+    ResendCredentialsIn,
     ReviewIn,
     SolutionIn,
 )
@@ -243,6 +244,59 @@ def create_student(body: NewStudentIn, user: sqlite3.Row = Depends(require_train
         "display": full_name or email,
         "welcome": welcome,
     }
+
+
+@router.post("/students/{student_id}/credentials")
+def resend_credentials(
+    student_id: int,
+    body: ResendCredentialsIn,
+    user: sqlite3.Row = Depends(require_trainer),
+) -> dict:
+    """Issue a new password to a student who is already enrolled, and mail it.
+
+    The address is read off the account, never taken from the request: it came
+    from wherever the student registered, and accepting one here would be a way
+    to send this student's password to somebody else's inbox.
+
+    The reset is committed before the mail is attempted, in the same order and
+    for the same reason as enrolment: a mail server that is absent, slow or
+    wrong must not leave the account in a state nobody knows the password to.
+    That does mean a failed send leaves the student locked out until the
+    trainer uses the mailto link, which is why the link is always returned.
+    """
+    with get_conn() as conn:
+        student = conn.execute(
+            "SELECT id, email, full_name, role FROM users WHERE id = ?", (student_id,)
+        ).fetchone()
+        if student is None or student["role"] != "student":
+            raise HTTPException(status_code=404, detail="No such student.")
+
+        conn.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (hash_password(body.password), student_id),
+        )
+        display = display_name(student)
+        record_activity(
+            conn, int(user["id"]), "created",
+            f"{display_name(user)} issued new credentials to {display}",
+            int(user["id"]), "/trainer/students",
+        )
+        # The student is told on the platform too: someone whose password just
+        # changed under them should not have to read their email to find out.
+        notify(
+            conn, student_id, "account",
+            "Your trainer issued you a new password. Check your email.",
+            "/settings",
+        )
+
+    delivery = mailer.send_or_link(
+        mailer.credentials_message(
+            name=student["full_name"], email=student["email"],
+            password=body.password, course=body.course,
+        )
+    )
+    return {"id": student_id, "display": display, "email": student["email"],
+            "delivery": delivery}
 
 
 @router.get("/exercises")

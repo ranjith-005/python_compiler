@@ -36,6 +36,7 @@
             <th scope="col">Email</th>
             <th scope="col">Progress</th>
             <th scope="col">Status</th>
+            <th scope="col"><span class="sr-only">Actions</span></th>
           </tr>
         </thead>
         <tbody id="student-rows"></tbody>
@@ -102,6 +103,45 @@
     <div class="sheet-foot">
       <button class="cb-btn ghost" type="button" data-close="enrol-sheet">Cancel</button>
       <button class="cb-btn primary" type="submit" form="enrol-form" id="enrol-save">Enrol</button>
+    </div>
+  </div>
+</div>
+
+{# Re-issuing credentials to somebody already on the roster. Their address is
+   whatever they registered with and is shown, not typed: it is read off the
+   account so a slip of the keyboard cannot post one student's password to
+   another student's inbox. #}
+<div class="sheet" id="creds-sheet" hidden>
+  <div class="sheet-card">
+    <header>
+      <h2>Send sign-in details</h2>
+      <button class="icon-btn" data-close="creds-sheet" aria-label="Close">✕</button>
+    </header>
+    <form class="sheet-body" id="creds-form" autocomplete="off">
+      <div class="field">
+        <label>Student</label>
+        <p class="field-note" id="creds-who"></p>
+      </div>
+      <div class="field">
+        <label for="creds-course">Course</label>
+        <input id="creds-course" name="course" maxlength="120"
+               placeholder="Python Foundations">
+      </div>
+      <div class="field">
+        <label for="creds-password">New password</label>
+        <div class="with-button">
+          <input id="creds-password" name="password" required readonly
+                 autocomplete="off" placeholder="Press Generate">
+          <button class="cb-btn" type="button" id="creds-generate">Generate</button>
+        </div>
+        <p class="help">Sending replaces the password on the account. Whatever
+           they were using stops working the moment you press Send.</p>
+      </div>
+      <p class="field-note" id="creds-note" hidden></p>
+    </form>
+    <div class="sheet-foot">
+      <button class="cb-btn ghost" type="button" data-close="creds-sheet">Cancel</button>
+      <button class="cb-btn primary" type="submit" form="creds-form" id="creds-save">Send mail</button>
     </div>
   </div>
 </div>

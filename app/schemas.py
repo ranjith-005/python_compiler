@@ -210,3 +210,15 @@ class NewStudentIn(BaseModel):
     # text: there is no courses table, and the trainer knows what they teach.
     course: str = Field(default="", max_length=120)
     send_welcome: bool = False
+
+
+class ResendCredentialsIn(BaseModel):
+    """Re-issuing one enrolled student's sign-in details.
+
+    No email field: the address is whatever the account already carries. It
+    arrived from wherever the student registered, and letting a trainer retype
+    it here would be a way to send one student's password to another.
+    """
+
+    password: str = Field(min_length=8, max_length=72)
+    course: str = Field(default="", max_length=120)

@@ -614,6 +614,20 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 
 /* The exercise detail page's two-step delete confirm: armed state reads as
    an unmistakable "about to happen", never a silent browser confirm(). */
+/* A button that lives inside a table row, so it must not set the row height. */
+.cb-btn.small { padding: 5px 10px; font-size: 12.5px; }
+
+/* A column heading that only a screen reader needs: the actions column is
+   self-evident to anyone looking at it, and a visible "Actions" label would
+   be one more word competing with the data. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  margin: -1px; padding: 0; border: 0;
+  clip-path: inset(50%); overflow: hidden; white-space: nowrap;
+}
+
+.data-table .row-actions { text-align: right; white-space: nowrap; }
+
 .cb-btn.danger { background: var(--danger-fill); border-color: var(--danger-fill); color: var(--on-accent); }
 .cb-btn.danger:hover { background: color-mix(in srgb, var(--danger-fill) 85%, black); border-color: color-mix(in srgb, var(--danger-fill) 85%, black); color: var(--on-accent); }
 

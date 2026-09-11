@@ -28,6 +28,18 @@
     bar.firstChild.style.width = `${s.progress}%`;
     if (s.progress === 100) bar.classList.add("done");
 
+    // The row navigates, so the button inside it must not: without the
+    // stopPropagation, pressing Send credentials also opens the student page
+    // underneath the sheet.
+    const send = el(
+      "button",
+      {
+        class: "cb-btn small", type: "button",
+        onclick: (event) => { event.stopPropagation(); openCredentials(s); },
+      },
+      "Send credentials"
+    );
+
     return el(
       "tr",
       { onclick: () => (window.location.href = href) },
@@ -48,7 +60,8 @@
         "td",
         {},
         el("span", { class: `presence ${s.online ? "online" : ""}` }, s.online ? "Online" : "Offline")
-      )
+      ),
+      el("td", { class: "row-actions" }, send)
     );
   }
 
@@ -160,6 +173,91 @@
       say(err.message || "Could not enrol that student.", "bad");
     } finally {
       saveBtn.disabled = false;
+    }
+  });
+
+  // -- sending sign-in details to an enrolled student ------------------------
+  //
+  // Enrolment already mails credentials to a new account. This is the same
+  // message for one that exists: the address came from wherever the student
+  // registered and is already on the account, so all the trainer supplies is a
+  // freshly generated password. As with enrolment the plaintext lives only
+  // between generating it and sending it -- what is stored is a bcrypt hash,
+  // which is why re-sending has to issue a new one rather than repeat the old.
+
+  const credsSheet = "creds-sheet";
+  const credsForm = document.getElementById("creds-form");
+  const credsPassword = document.getElementById("creds-password");
+  const credsNote = document.getElementById("creds-note");
+  const credsWho = document.getElementById("creds-who");
+  const credsSave = document.getElementById("creds-save");
+  let credsFor = null;
+
+  function credsSay(text, kind) {
+    credsNote.textContent = text;
+    credsNote.className = `field-note${kind ? " " + kind : ""}`;
+    credsNote.hidden = !text;
+  }
+
+  async function generateFor(field) {
+    try {
+      const { password } = await api("/api/students/new-password");
+      field.value = password;
+      return password;
+    } catch (err) {
+      return "";
+    }
+  }
+
+  async function openCredentials(student) {
+    credsFor = student;
+    credsForm.reset();
+    credsSay("");
+    credsWho.textContent = `${student.display} — ${student.email}`;
+    D.openSheet(credsSheet);
+    await generateFor(credsPassword);
+  }
+
+  document
+    .getElementById("creds-generate")
+    .addEventListener("click", () => generateFor(credsPassword));
+
+  credsForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!credsFor) return;
+    const values = Object.fromEntries(new FormData(credsForm).entries());
+    if (!values.password) {
+      credsSay("Press Generate to create a password first.", "bad");
+      return;
+    }
+
+    credsSave.disabled = true;
+    credsSay("Sending…");
+    try {
+      const result = await api(`/api/students/${credsFor.id}/credentials`, {
+        method: "POST",
+        body: JSON.stringify({
+          password: values.password,
+          course: (values.course || "").trim(),
+        }),
+      });
+      const delivery = result.delivery || {};
+      D.closeSheet(credsSheet);
+      if (delivery.sent) {
+        D.flash(`Sign-in details emailed to ${result.email}.`, "ok");
+      } else {
+        // The password has already changed on the account, so the message has
+        // to reach them somehow. Hand the trainer the same one, filled in.
+        D.flash(
+          `Password reset. Opening your mail app to send it to ${result.email}.`,
+          "ok"
+        );
+        window.location.href = delivery.mailto;
+      }
+    } catch (err) {
+      credsSay(err.message || "Could not send those details.", "bad");
+    } finally {
+      credsSave.disabled = false;
     }
   });
 

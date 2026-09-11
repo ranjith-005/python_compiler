@@ -96,6 +96,48 @@ build.
     return Message(to=email, subject=subject, body=body)
 
 
+def credentials_message(name: str, email: str, password: str, course: str) -> Message:
+    """The mail an already-enrolled student gets when a trainer re-issues.
+
+    Deliberately not the welcome: that one congratulates someone on getting in,
+    which reads badly the second time and worse if they never lost access. This
+    one says plainly that the password was reset, so a student who did not ask
+    for it knows something happened to their account rather than wondering.
+    """
+    greeting_name = (name or "").strip() or email
+    course_name = (course or "").strip()
+
+    subject = (
+        f"{course_name} - your sign-in details have been reset"
+        if course_name
+        else "Your Python Learning Platform sign-in details have been reset"
+    )
+
+    opening = textwrap.fill(
+        "Your trainer has issued a new password for your account on the Python"
+        f" Learning Platform{f' for {course_name}' if course_name else ''}."
+        " The password you had before no longer works.",
+        width=74,
+    )
+    body = f"""Hello {greeting_name},
+
+{opening}
+
+Here is how to sign in:
+
+    Email:    {email}
+    Password: {password}
+
+Please change it once you are in: open the profile menu in the top right,
+choose Settings, and set one only you know.
+
+If you were not expecting this, tell your trainer -- somebody reset it for you.
+
+-- The training team
+"""
+    return Message(to=email, subject=subject, body=body)
+
+
 def mailto_link(message: Message) -> str:
     """The same message as a link the trainer's own mail client can open.
 
