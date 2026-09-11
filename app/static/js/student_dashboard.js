@@ -15,6 +15,22 @@
   // exists would land on an unfiltered list.
   const CARDS = [
     {
+      // First card by requirement: what is closing in, before what merely
+      // exists. Its value is counted, not read off `stats`, because it must
+      // equal the length of the list it opens -- same predicate, same clock.
+      key: "upcoming",
+      label: "Upcoming deadlines",
+      sub: "Open work due in 7 days",
+      filter: "open",
+      deadline: "week",
+      tone: "warn",
+      icon: "⏰",
+      count: (d) =>
+        d.assignments.filter(
+          (a) => OPEN.includes(a.status) && D.matchesDeadline(a, "week")
+        ).length,
+    },
+    {
       key: "assigned",
       label: "Assigned",
       sub: "Exercises given to you",
@@ -53,13 +69,16 @@
     const s = data.stats;
     const host = document.getElementById("stats");
     host.textContent = "";
+    host.classList.add("five"); // five cards, one row -- see .stat-grid.five
     CARDS.forEach((c) => {
-      const value = s[c.key];
+      const value = c.count ? c.count(data) : s[c.key];
       const tone = c.tone === "warn" || c.tone === "bad" ? (value ? c.tone : "") : c.tone || "";
+      const href = `/student/exercises?filter=${c.filter}` +
+                   (c.deadline ? `&deadline=${c.deadline}` : "");
       host.append(
         el(
           "a",
-          { class: `stat ${tone}`, href: `/student/exercises?filter=${c.filter}` },
+          { class: `stat ${tone}`, href },
           el("span", { class: "stat-icon" }, c.icon),
           el("span", { class: "value" }, value),
           el("span", { class: "label" }, c.label),

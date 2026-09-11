@@ -12,7 +12,16 @@
 
   function renderStats() {
     const s = data.stats;
+    // First card by requirement: what is closing in, before the roster. It
+    // counts `pending` rather than `deadlines` (which groups by exercise), so
+    // the number equals the length of the list the card opens.
+    const upcoming = (data.pending || []).filter((p) => D.matchesDeadline(p, "week"));
+
     const cards = [
+      { label: "Upcoming deadlines", value: upcoming.length,
+        sub: "Open work due in 7 days",
+        tone: upcoming.length ? "warn" : "",
+        href: "/trainer/pending?deadline=week", icon: "⏰" },
       { label: "Students", value: s.students, sub: "On your roster",
         href: "/trainer/students", icon: "👥" },
       { label: "Pending submissions", value: s.pending,
@@ -30,6 +39,7 @@
 
     const host = document.getElementById("stats");
     host.textContent = "";
+    host.classList.add("six"); // six cards, two rows of three -- .stat-grid.six
     cards.forEach((c) =>
       host.append(
         el("a", { class: `stat ${c.tone || ""}`, href: c.href },

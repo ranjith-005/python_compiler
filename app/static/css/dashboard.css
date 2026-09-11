@@ -578,6 +578,12 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 @media (max-width: 1100px) { .stat-grid.five { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 720px)  { .stat-grid.five { grid-template-columns: repeat(2, 1fr); } }
 
+/* Six never fits one readable row at 220px a card, so it is two rows of three
+   by design rather than by overflow. */
+.stat-grid.six { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 1100px) { .stat-grid.six { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 720px)  { .stat-grid.six { grid-template-columns: repeat(2, 1fr); } }
+
 /* Reference styling: soft tinted cards, rounded, icon over a big number.
    Colour cycles by position so a dashboard with four cards and one with five
    both read as a set. */
