@@ -101,6 +101,36 @@ window.Dash = (function () {
     return `Due ${when(iso)} (${ago(iso)})`;
   }
 
+  // The deadline windows the Exercises pages filter by, and the dashboard
+  // cards count with. Shared so a card's number is always the length of the
+  // list it links to -- two copies of this arithmetic would drift the moment
+  // one of them rounded differently.
+  const DEADLINE_MODES = ["all", "overdue", "week", "month", "none"];
+
+  // Windows are from now, not calendar weeks, and they overlap on purpose:
+  // something due tomorrow is in both "7 days" and "30 days", because a person
+  // filtering for the month expects everything landing in it.
+  function matchesDeadline(item, mode) {
+    if (mode === "all") return true;
+    const raw = item.due_date;
+    if (mode === "none") return !raw;
+    if (!raw) return false;
+    const dueAt = new Date(raw);
+    const now = new Date();
+    if (mode === "overdue") return dueAt < now;
+    const days = (dueAt - now) / 86400000;
+    if (mode === "week") return days >= 0 && days <= 7;
+    if (mode === "month") return days >= 0 && days <= 30;
+    return true;
+  }
+
+  // A dashboard card links to a list page with ?deadline=<mode>; that page
+  // reads it back here so the card and the list always agree.
+  function initialDeadline() {
+    const requested = new URLSearchParams(window.location.search).get("deadline");
+    return DEADLINE_MODES.includes(requested) ? requested : "all";
+  }
+
   // el("div", {class: "row", onclick: fn}, child, child…)
   function el(tag, props, ...children) {
     const node = document.createElement(tag);
@@ -480,6 +510,9 @@ window.Dash = (function () {
     when,
     ago,
     due,
+    matchesDeadline,
+    initialDeadline,
+    DEADLINE_MODES,
     el,
     pill,
     fill,

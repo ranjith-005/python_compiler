@@ -27,6 +27,14 @@
         <button data-filter="in_progress">In progress</button>
         <button data-filter="submitted">Submitted</button>
         <button data-filter="completed">Completed</button>
+        <span class="spacer"></span>
+        <select id="deadline-filter" class="deadline-filter" aria-label="Filter by deadline">
+          <option value="all">All deadlines</option>
+          <option value="overdue">Overdue</option>
+          <option value="week">Due in 7 days</option>
+          <option value="month">Due in 30 days</option>
+          <option value="none">No deadline</option>
+        </select>
       </div>
     </div>
     <div class="panel-body" id="assign-list"></div>

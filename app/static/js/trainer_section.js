@@ -15,8 +15,12 @@
   // over `due_date`, which the dashboard endpoint already returns.
   const fromInput = document.getElementById("filter-from");
   const toInput = document.getElementById("filter-to");
+  // The dashboard's "Upcoming deadlines" card links here with ?deadline=week.
+  let deadlineMode = D.initialDeadline();
 
   function dueInRange(dueDate) {
+    // Composed with the From/To range: a row must satisfy both controls.
+    if (!D.matchesDeadline({ due_date: dueDate }, deadlineMode)) return false;
     if (!dueDate) return true; // no due date is never filtered out
     const from = fromInput ? fromInput.value : "";
     const to = toInput ? toInput.value : "";
@@ -121,5 +125,14 @@
   if (fromInput && toInput) {
     fromInput.addEventListener("input", render);
     toInput.addEventListener("input", render);
+  }
+
+  const deadlineEl = document.getElementById("deadline-filter");
+  if (deadlineEl) {
+    deadlineEl.value = deadlineMode; // reflect ?deadline= in the control
+    deadlineEl.addEventListener("change", () => {
+      deadlineMode = deadlineEl.value;
+      render();
+    });
   }
 })();

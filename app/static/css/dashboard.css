@@ -570,9 +570,10 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 /* Two cards should sit at a readable width, not stretch across the page. */
 .stat-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
 
-/* The student dashboard's five overview cards: always one row, never the
-   3-then-2 wrap `auto-fit` produces. Two classes beat the `.stat-grid` rules
-   above regardless of source order. */
+/* Fixed grids for the two card counts the dashboards actually render, so
+   neither falls into the ragged 4-then-1 / 5-then-1 wrap `auto-fit` produces.
+   The count is a class set when the cards are built. Two classes beat the
+   `.stat-grid` rules above regardless of source order. */
 .stat-grid.five { grid-template-columns: repeat(5, 1fr); }
 @media (max-width: 1100px) { .stat-grid.five { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 720px)  { .stat-grid.five { grid-template-columns: repeat(2, 1fr); } }
@@ -1399,3 +1400,9 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .field .check input { width: auto; }
 .field-note { margin: 0; font-size: 12.5px; color: var(--text-dim); }
 .field-note.bad { color: var(--red); }
+
+.deadline-filter {
+  padding: 7px 11px; border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 13px;
+}

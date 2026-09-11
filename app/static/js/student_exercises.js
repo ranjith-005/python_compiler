@@ -44,11 +44,15 @@
   }
 
   let filter = initialFilter();
+  // The dashboard's "Upcoming deadlines" card links here with ?deadline=week.
+  let deadlineMode = D.initialDeadline();
 
   // ── overview cards' filter mapping, mirrored here as the tab logic ─────────
 
   function matches(a) {
     if (search && !a.title.toLowerCase().includes(search.toLowerCase())) return false;
+    // Composed, not alternative: "To do" + "Overdue" means both, not either.
+    if (!D.matchesDeadline(a, deadlineMode)) return false;
     if (filter === "all") return true;
     if (filter === "open") return OPEN.includes(a.status);
     if (filter === "completed") return a.status === "approved" || a.status === "completed";
@@ -265,6 +269,15 @@
   document
     .querySelectorAll("#filters button")
     .forEach((b) => b.classList.toggle("active", b.dataset.filter === filter));
+
+  const deadlineEl = document.getElementById("deadline-filter");
+  if (deadlineEl) {
+    deadlineEl.value = deadlineMode; // reflect ?deadline= in the control
+    deadlineEl.addEventListener("change", () => {
+      deadlineMode = deadlineEl.value;
+      renderAssignments();
+    });
+  }
   document.querySelectorAll("#filters button").forEach((b) =>
     b.addEventListener("click", () => setFilter(b.dataset.filter))
   );
