@@ -10,6 +10,9 @@
 {% block content %}
 {{ topbar(user['role'], name, back=back, heading='My profile') }}
 
+{% set parts = (name or user['email']).split() %}
+{% set initials = ((parts[0][0] if parts else '?') ~ (parts[-1][0] if parts|length > 1 else ''))|upper %}
+
 <main class="dash-main narrow">
   <div class="dash-head">
     <div>
@@ -18,18 +21,46 @@
     </div>
   </div>
 
+  {# Same shape as the trainer's view of a student (`student_personal.html`):
+     a hero that says who this is, then one field per tile. The two-column
+     label/value rows this replaced put each value hard against the next
+     column's label, so "Priya" and "Last name" collided. #}
   <section class="panel profile-card">
-    <header>
-      <h2>Account details</h2>
+    <div class="profile-hero">
+      <span class="avatar big" aria-hidden="true">{{ initials }}</span>
+      <div>
+        <h2>{{ name or user['email'] }}</h2>
+        <p class="sub">{{ user['email'] }}</p>
+      </div>
       <span class="spacer"></span>
       <span class="role-chip {{ 'student' if user['role'] == 'student' else '' }}">{{ user['role']|title }}</span>
-    </header>
-    <div class="panel-body profile-fields">
-      <div><span>First name</span><strong>{{ user['first_name'] or user['full_name'] or '—' }}</strong></div>
-      <div><span>Last name</span><strong>{{ user['last_name'] or '—' }}</strong></div>
-      <div><span>Email</span><strong>{{ user['email'] }}</strong></div>
-      <div><span>Phone</span><strong>{{ user['phone'] or '—' }}</strong></div>
     </div>
   </section>
+
+  <section class="panel">
+    <header><h2>Account details</h2></header>
+    <div class="panel-body info-grid pairs">
+      <div class="info-item">
+        <span class="k">First name</span>
+        <span class="v">{{ user['first_name'] or user['full_name'] or '—' }}</span>
+      </div>
+      <div class="info-item">
+        <span class="k">Last name</span>
+        <span class="v">{{ user['last_name'] or '—' }}</span>
+      </div>
+      <div class="info-item">
+        <span class="k">Email</span>
+        <span class="v">{{ user['email'] }}</span>
+      </div>
+      <div class="info-item">
+        <span class="k">Phone</span>
+        <span class="v">{{ user['phone'] or '—' }}</span>
+      </div>
+    </div>
+  </section>
+
+  <div class="page-toolbar">
+    <a class="cb-btn" href="/settings">Change password in Settings</a>
+  </div>
 </main>
 {% endblock %}

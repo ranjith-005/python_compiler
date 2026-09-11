@@ -1,9 +1,10 @@
-// Student dashboard (SRS §3): four overview cards, each a link into the
-// exercises page pre-filtered, the deadlines still open and due, a placeholder
-// for online sessions, and the activity feed ten at a time.
+// Student dashboard (SRS §3): five overview cards, each a link into the
+// exercises page pre-filtered, a calendar carrying deadlines, the trainer's
+// online sessions and the student's own marks, and the activity feed ten at
+// a time.
 (function () {
   const D = window.Dash;
-  const { el, pill, fill } = D;
+  const { el } = D;
 
   let data = null;
 
@@ -24,7 +25,6 @@
       filter: "open",
       deadline: "week",
       tone: "warn",
-      icon: "⏰",
       count: (d) =>
         d.assignments.filter(
           (a) => OPEN.includes(a.status) && D.matchesDeadline(a, "week")
@@ -35,14 +35,12 @@
       label: "Assigned",
       sub: "Exercises given to you",
       filter: "all",
-      icon: "📘",
     },
     {
       key: "in_progress",
       label: "In progress",
       sub: "Opened, not submitted",
       filter: "in_progress",
-      icon: "✍️",
     },
     {
       key: "submitted",
@@ -50,7 +48,6 @@
       sub: "Submitted to your trainer",
       filter: "submitted",
       tone: "warn",
-      icon: "📤",
     },
     {
       key: "completed",
@@ -58,7 +55,6 @@
       sub: "Approved by your trainer",
       filter: "completed",
       tone: "good",
-      icon: "✅",
     },
   ];
 
@@ -79,7 +75,6 @@
         el(
           "a",
           { class: `stat ${tone}`, href },
-          el("span", { class: "stat-icon" }, c.icon),
           el("span", { class: "value" }, value),
           el("span", { class: "label" }, c.label),
           el("span", { class: "sub" }, c.sub)
@@ -88,21 +83,28 @@
     });
   }
 
-  // ── calendar ────────────────────────────────────────────────────────────
+  // -- calendar -----------------------------------------------------------
 
-  // Calendar replaces the deadline list (spec: deadlines are a glance here and
-  // actionable on the Exercises page). Unlike the trainer's, the student
-  // payload carries no `deadlines` array -- open work with a due date is
-  // derived from `assignments`, exactly as the old list did. Those rows carry
+  // The student's calendar carries three things: the deadlines on their own
+  // open work, the online sessions their trainer scheduled, and whatever they
+  // marked for themselves. Only the first is derived here -- the payload
+  // carries no `deadlines` array for a student, so open work with a due date
+  // is read off `assignments`, exactly as the old list did. Those rows carry
   // an ASSIGNMENT id, so the link goes to the solve page.
-  let calMonth = new Date();
-
-  function paintCalendar() {
-    if (!data) return;
-    const due = data.assignments.filter((a) => OPEN.includes(a.status) && a.due_date);
-    D.renderCalendar("calendar", due, calMonth,
-                     (a) => `/student/assignments/${a.id}/solve`);
+  function deadlineMarks() {
+    if (!data) return [];
+    return data.assignments
+      .filter((a) => OPEN.includes(a.status) && a.due_date)
+      .map((a) => ({
+        kind: "deadline",
+        title: a.title,
+        sub: D.when(a.due_date),
+        date: a.due_date,
+        link: `/student/assignments/${a.id}/solve`,
+      }));
   }
+
+  const calendar = D.initCalendar({ deadlinesFor: deadlineMarks });
 
   // ── load ─────────────────────────────────────────────────────────────────
 
@@ -114,7 +116,7 @@
       return;
     }
     renderStats();
-    paintCalendar();
+    calendar.repaint();
     D.renderNotifications(data.notifications, data.unread);
   }
 
@@ -124,15 +126,8 @@
     // Wired once: the pager owns its own paging from here, so a later reload
     // of the cards must not stack a second set of click handlers on it.
     D.activityPager("activity-list", "activity-pager", data.activity, data.activity_total);
-    // Same once-only rule as the pager: the month buttons keep their own
-    // state, so a card reload must not stack a second pair of handlers.
-    document.getElementById("cal-prev").addEventListener("click", () => {
-      calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1);
-      paintCalendar();
-    });
-    document.getElementById("cal-next").addEventListener("click", () => {
-      calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1);
-      paintCalendar();
-    });
+    // The month buttons and the event dialog were wired once when the
+    // calendar was built; this only fetches the rows they paint.
+    calendar.reload();
   });
 })();

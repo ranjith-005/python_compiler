@@ -24,12 +24,11 @@
   // <div>. Requirement: on-time rate, average tests passed and last active go
   // nowhere, everything else opens the matching view.
   function stat(label, value, sub, tone, opts) {
-    const { icon = "•", href = null, active = false } = opts || {};
+    const { href = null, active = false } = opts || {};
     const classes = `stat ${tone || ""} ${active ? "active" : ""}`.trim();
     return el(
       href ? "a" : "div",
       href ? { class: classes, href } : { class: classes },
-      el("span", { class: "stat-icon" }, icon),
       el("span", { class: "value" }, value),
       el("span", { class: "label" }, label),
       el("span", { class: "sub" }, sub)
@@ -89,21 +88,21 @@
 
     fill($("stats"), [
       stat("Assigned", data.assigned, "Exercises from you", "", {
-        icon: "📘", href: card("all"), active: view === "all" }),
+        href: card("all"), active: view === "all" }),
       stat("Completed", data.completed, "Marked done", "good", {
-        icon: "✅", href: card("completed"), active: view === "completed" }),
+        href: card("completed"), active: view === "completed" }),
       stat("Pending", data.pending, "Still open", "", {
-        icon: "⏳", href: card("open"), active: view === "open" }),
+        href: card("open"), active: view === "open" }),
       stat("Awaiting review", data.awaiting, "Submitted, not yet reviewed", "", {
-        icon: "📤", href: card("submitted"), active: view === "submitted" }),
+        href: card("submitted"), active: view === "submitted" }),
       stat("Late", data.late, "Submitted after the due date", data.late ? "bad" : "", {
-        icon: "⏰", href: card("late"), active: view === "late" }),
+        href: card("late"), active: view === "late" }),
       // The three figures below are read-only by requirement: no href, so
       // nothing about them invites a click.
-      stat("On-time rate", `${data.on_time_rate}%`, "Of what was submitted", "", { icon: "🎯" }),
-      stat("Avg tests passed", `${data.avg_tests}%`, "Across graded submissions", "", { icon: "🧪" }),
+      stat("On-time rate", `${data.on_time_rate}%`, "Of what was submitted", ""),
+      stat("Avg tests passed", `${data.avg_tests}%`, "Across graded submissions", ""),
       stat("Last active", data.last_active ? D.when(data.last_active) : "Never",
-           "Most recent activity", "", { icon: "🕑" }),
+           "Most recent activity", ""),
     ]);
 
     $("ex-heading").textContent =

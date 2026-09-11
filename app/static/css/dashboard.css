@@ -166,19 +166,9 @@ a.stat:hover, .stat.linked:hover {
 .stat:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
 .stat.active { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 16%, transparent); }
 
-/* The tinted glyph tile the reference design leads each card with. */
-.stat .stat-icon {
-  display: grid; place-items: center;
-  width: 42px; height: 42px;
-  margin-bottom: 16px;
-  border-radius: 11px;
-  background: color-mix(in srgb, var(--blue) 12%, transparent);
-  font-size: 20px; line-height: 1;
-}
-.stat.warn .stat-icon { background: color-mix(in srgb, var(--amber) 16%, transparent); }
-.stat.good .stat-icon { background: color-mix(in srgb, var(--green) 14%, transparent); }
-.stat.bad  .stat-icon { background: color-mix(in srgb, var(--red) 12%, transparent); }
-
+/* No glyph tile: the cards read as figures, and an emoji per card was noise
+   competing with the number that is the point. Tone still carries through the
+   tint and the sub-label colour. */
 .stat .value { display: block; font-size: 30px; line-height: 1.1; font-weight: 700; letter-spacing: -.02em; }
 .stat .label { display: block; margin-top: 6px; font-size: 13px; color: var(--text-dim); }
 .stat .sub { display: block; margin-top: 8px; font-size: 12px; color: var(--text-mute); }
@@ -463,11 +453,6 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
    The dashboard's primary buttons sit inline in toolbars and dialog footers, so
    take the width back (scoped to .dash, leaving the auth page alone). */
 .dash .cb-btn.primary { width: auto; }
-.profile-fields { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1px; background:var(--border); }
-.profile-fields div { padding:18px; background:var(--surface); display:grid; gap:5px; }
-.profile-fields span { font-size:12px; color:var(--text-dim); }
-.profile-fields strong { font-size:15px; }
-@media (max-width: 600px) { .profile-fields { grid-template-columns:1fr; } }
 
 /* ══════════════════════ Phase A: shell + alignment ══════════════════════ */
 
@@ -570,19 +555,12 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 /* Two cards should sit at a readable width, not stretch across the page. */
 .stat-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
 
-/* Fixed grids for the two card counts the dashboards actually render, so
-   neither falls into the ragged 4-then-1 / 5-then-1 wrap `auto-fit` produces.
-   The count is a class set when the cards are built. Two classes beat the
-   `.stat-grid` rules above regardless of source order. */
+/* Five cards on both overviews: one row, never the 3-then-2 wrap `auto-fit`
+   produces. The count is a class set when the cards are built. Two classes
+   beat the `.stat-grid` rules above regardless of source order. */
 .stat-grid.five { grid-template-columns: repeat(5, 1fr); }
 @media (max-width: 1100px) { .stat-grid.five { grid-template-columns: repeat(3, 1fr); } }
 @media (max-width: 720px)  { .stat-grid.five { grid-template-columns: repeat(2, 1fr); } }
-
-/* Six never fits one readable row at 220px a card, so it is two rows of three
-   by design rather than by overflow. */
-.stat-grid.six { grid-template-columns: repeat(3, 1fr); }
-@media (max-width: 1100px) { .stat-grid.six { grid-template-columns: repeat(2, 1fr); } }
-@media (max-width: 720px)  { .stat-grid.six { grid-template-columns: repeat(2, 1fr); } }
 
 /* Reference styling: soft tinted cards, rounded, icon over a big number.
    Colour cycles by position so a dashboard with four cards and one with five
@@ -601,9 +579,6 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .stat-grid > *:nth-child(5n+5) { background: var(--tint-amber); }
 .panel-grid.single { grid-template-columns: 1fr; }
 
-.profile-fields > div { display: flex; justify-content: space-between; gap: 16px; padding: 11px 0; }
-.profile-fields > div + div { border-top: 1px solid var(--border); }
-.profile-fields span { color: var(--text-dim); font-size: 13px; }
 
 /* ══════════════════════ Phase B: detail pages ══════════════════════════ */
 
@@ -1350,6 +1325,8 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .profile-hero h2 { margin: 0 0 4px; font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
 .profile-hero .sub { color: var(--text-dim); font-size: 14px; }
 .profile-hero .spacer { flex: 1; }
+.profile-hero > div { min-width: 0; }
+.profile-hero .sub { margin: 0; }
 
 .info-grid {
   display: grid;
@@ -1357,6 +1334,12 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
   gap: 14px;
   padding: 20px;
 }
+/* Four fields, so two rows of two rather than the 3-then-1 that `auto-fit`
+   leaves. The eight-field view next door keeps the auto grid, where the same
+   rule would make a needlessly tall column. */
+.info-grid.pairs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 600px) { .info-grid.pairs { grid-template-columns: 1fr; } }
+
 .info-item {
   padding: 14px 16px;
   border: 1px solid var(--border);
@@ -1391,18 +1374,67 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
   padding: 8px 0; font-size: 11px; font-weight: 600;
   letter-spacing: .04em; text-transform: uppercase; color: var(--text-dim);
 }
+/* A day is a button now, not a span: every day opens its own panel, including
+   the empty ones, because that is how a date gets marked. */
 .cal-day {
-  position: relative; padding: 10px 0; border-radius: 9px;
-  font-size: 13.5px; color: var(--text);
+  position: relative;
+  display: block; width: 100%;
+  padding: 9px 0 15px; border: 0; border-radius: 9px;
+  background: none; font: inherit; font-size: 13.5px; color: var(--text);
+  cursor: pointer;
 }
+.cal-day:hover { background: var(--cell-bg); }
+.cal-day:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .cal-day.today { background: var(--accent-fill); color: var(--on-accent); font-weight: 600; }
-.cal-day.has-due:hover { background: var(--cell-bg); }
+.cal-day.today:hover { background: var(--accent-fill); }
+.cal-num { display: block; line-height: 1.1; }
+
+/* Dots sit in a row under the number, one per kind present. Three kinds, so
+   the row cannot outgrow the cell. */
+.cal-dots {
+  position: absolute; left: 0; right: 0; bottom: 5px;
+  display: flex; justify-content: center; gap: 3px;
+}
 .cal-dot {
-  position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%);
+  display: inline-block;
   width: 5px; height: 5px; border-radius: 50%; background: var(--blue-dark);
 }
+.cal-dot.deadline { background: var(--red); }
+.cal-dot.session  { background: var(--green); }
+.cal-dot.personal { background: var(--amber); }
+/* On the selected-today cell the tints lose contrast against the fill, so the
+   dots go solid instead of coloured. */
 .cal-day.today .cal-dot { background: var(--on-accent); }
 .cal-label { font-size: 13px; color: var(--text-dim); min-width: 120px; }
+
+.cal-legend {
+  display: flex; flex-wrap: wrap; gap: 14px;
+  padding: 0 16px 14px;
+  font-size: 12px; color: var(--text-dim);
+}
+.cal-legend span { display: inline-flex; align-items: center; gap: 6px; }
+
+/* What is on the day you pressed. Bordered off the grid above it so the two
+   read as question and answer rather than one long panel. */
+.cal-day-panel { border-top: 1px solid var(--border); }
+.cal-day-head {
+  font-size: 12.5px; font-weight: 600;
+  color: var(--text-dim); margin-bottom: 10px;
+}
+.cal-day-list { list-style: none; margin: 0; padding: 0; }
+.cal-day-list li {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: 10px;
+  padding: 9px 0;
+}
+.cal-day-list li + li { border-top: 1px solid var(--border); }
+.cal-day-body .title { font-size: 13.5px; font-weight: 500; word-break: break-word; }
+.cal-day-body .meta {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  margin-top: 5px; font-size: 12px; color: var(--text-mute);
+}
+.dash a.cal-day-link { color: inherit; text-decoration: none; display: block; }
+.dash a.cal-day-link:hover .title { color: var(--blue); }
 
 /* Enrolment sheet: a generated password sits in a read-only field with its
    Generate button beside it, so the two read as one control. */

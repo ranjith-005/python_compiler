@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_topbar.html" import topbar %}
+{% from "_calendar.html" import calendar_panel, event_sheet %}
 {% block title %}Trainer dashboard · Python Learning Platform{% endblock %}
 {% block body_class %}colab dash{% endblock %}
 {% block head %}
@@ -20,19 +21,11 @@
 
   <section class="stat-grid" id="stats"></section>
 
-  {# Same shape as the student's: a calendar of what is due, the viewer's own
-     activity beside it. Sessions are not built yet and no longer hold a slot. #}
+  {# Same shape as the student's, minus the deadline dots: a trainer schedules
+     online sessions here and marks their own dates, and reads deadlines on the
+     Exercises and Pending pages where they can be acted on. #}
   <div class="dash-split">
-    <section class="panel" id="calendar-panel">
-      <header>
-        <h2>Calendar</h2>
-        <span class="spacer"></span>
-        <button class="cb-btn ghost" id="cal-prev" aria-label="Previous month">‹</button>
-        <span class="cal-label" id="cal-label"></span>
-        <button class="cb-btn ghost" id="cal-next" aria-label="Next month">›</button>
-      </header>
-      <div class="panel-body" id="calendar"></div>
-    </section>
+    {{ calendar_panel(can_schedule=true) }}
 
     <section class="panel" id="activity-panel">
       <header><h2>Recent activity</h2></header>
@@ -57,6 +50,8 @@
   </section>
 
 </main>
+
+{{ event_sheet(can_schedule=true) }}
 
 <div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
 <div class="toast" id="toast" hidden></div>

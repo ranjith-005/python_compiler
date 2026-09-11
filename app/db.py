@@ -297,6 +297,35 @@ CREATE TABLE IF NOT EXISTS module_access (
     last_accessed TEXT NOT NULL,
     PRIMARY KEY (module_id, student_id)
 );
+
+-- ── things on the calendar that are not deadlines ────────────────────────
+-- Deadlines are never stored here: they are derived from `assignments`, and a
+-- copy would be a second answer to "when is this due". This table holds only
+-- what nothing else knows.
+--
+-- `kind` decides who sees a row, and it is the whole access rule:
+--
+--   'personal'  a note its owner made for themselves. Visible to that owner
+--               and to nobody else, trainer or not.
+--   'session'   an online session a trainer scheduled. Visible to the trainer
+--               who owns it and to every student, which is the same audience
+--               the roster already assumes.
+--
+-- `event_date` is a plain YYYY-MM-DD, not a timestamp: these are marks on a
+-- day, and giving them a time would imply a precision the form never asks for.
+CREATE TABLE IF NOT EXISTS calendar_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    owner_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind        TEXT NOT NULL DEFAULT 'personal',   -- 'personal' | 'session'
+    title       TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    event_date  TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_owner
+    ON calendar_events(owner_id, event_date);
+CREATE INDEX IF NOT EXISTS idx_calendar_events_kind
+    ON calendar_events(kind, event_date);
 """
 
 

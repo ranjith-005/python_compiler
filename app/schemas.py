@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, EmailStr, Field, field_validator
@@ -222,3 +223,27 @@ class ResendCredentialsIn(BaseModel):
 
     password: str = Field(min_length=8, max_length=72)
     course: str = Field(default="", max_length=120)
+
+
+class CalendarEventIn(BaseModel):
+    """One mark on the calendar: what, optionally why, and which day.
+
+    `event_date` is validated as a plain YYYY-MM-DD rather than parsed into a
+    datetime, because that is exactly what the <input type="date"> sends and
+    what the grid compares against. Accepting a full timestamp here would let
+    two rows for the same day sort differently.
+    """
+
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(default="", max_length=500)
+    event_date: str = Field(min_length=10, max_length=10)
+    kind: Literal["personal", "session"] = "personal"
+
+    @field_validator("event_date")
+    @classmethod
+    def _is_a_date(cls, value: str) -> str:
+        try:
+            date.fromisoformat(value)
+        except ValueError:
+            raise ValueError("Give the date as YYYY-MM-DD.") from None
+        return value

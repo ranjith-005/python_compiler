@@ -392,10 +392,41 @@ window.Dash = (function () {
     });
   }
 
-  // Month grid with a dot on any date carrying a deadline. Deliberately not a
-  // list: deadlines are actionable on the Exercises page, and here they are
-  // only a glance at where the month is busy.
-  function renderCalendar(hostId, deadlines, monthDate, linkFor) {
+  // -- the calendar --------------------------------------------------------
+  //
+  // Three things can land on a day and they are told apart by colour, not by
+  // position: a deadline (derived from assignments, never stored), an online
+  // session a trainer scheduled, and a personal note its owner made. A day
+  // carrying several shows one dot per kind, in a fixed order, so the same
+  // combination always looks the same.
+  //
+  // Clicking a day opens what is on it rather than jumping to the first item:
+  // a day with both a deadline and a session had no way to reach the second
+  // when the cell was a single link.
+
+  const MARK_KINDS = ["deadline", "session", "personal"];
+
+  // A local YYYY-MM-DD. Not toISOString(), which converts to UTC first and so
+  // files an 11pm event under the following day for anyone east of Greenwich.
+  function dayKey(year, month, day) {
+    return year + "-" + String(month + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+  }
+
+  function dateKeyOf(iso) {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return dayKey(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function keyOfMark(mark) {
+    if (!mark || !mark.date) return null;
+    return mark.date.length === 10 ? mark.date : dateKeyOf(mark.date);
+  }
+
+  // `marks` is a flat list of { kind, title, sub, date, link, id, mine }.
+  // Callers build it from whatever they hold; this function does not know
+  // what an assignment is.
+  function renderCalendar(hostId, marks, monthDate, onDay) {
     const host = document.getElementById(hostId);
     if (!host) return;
     const base = monthDate || new Date();
@@ -403,12 +434,11 @@ window.Dash = (function () {
     const month = base.getMonth();
 
     const byDay = new Map();
-    (deadlines || []).forEach((d) => {
-      const due = new Date(d.due_date);
-      if (due.getFullYear() !== year || due.getMonth() !== month) return;
-      const day = due.getDate();
-      if (!byDay.has(day)) byDay.set(day, []);
-      byDay.get(day).push(d);
+    (marks || []).forEach((m) => {
+      const key = keyOfMark(m);
+      if (!key) return;
+      if (!byDay.has(key)) byDay.set(key, []);
+      byDay.get(key).push(m);
     });
 
     const label = document.getElementById("cal-label");
@@ -421,8 +451,7 @@ window.Dash = (function () {
     const first = new Date(year, month, 1).getDay();
     const days = new Date(year, month + 1, 0).getDate();
     const today = new Date();
-    const isThisMonth =
-      today.getFullYear() === year && today.getMonth() === month;
+    const isThisMonth = today.getFullYear() === year && today.getMonth() === month;
 
     host.textContent = "";
     const grid = el("div", { class: "cal-grid" });
@@ -432,28 +461,217 @@ window.Dash = (function () {
     for (let i = 0; i < first; i += 1) grid.append(el("span", { class: "cal-pad" }));
 
     for (let day = 1; day <= days; day += 1) {
-      const hits = byDay.get(day) || [];
+      const key = dayKey(year, month, day);
+      const hits = byDay.get(key) || [];
       const cell = el(
-        "span",
+        "button",
         {
+          type: "button",
           class:
             "cal-day" +
             (isThisMonth && today.getDate() === day ? " today" : "") +
             (hits.length ? " has-due" : ""),
         },
-        String(day)
+        el("span", { class: "cal-num" }, String(day))
       );
+
       if (hits.length) {
-        cell.append(el("i", { class: "cal-dot", "aria-hidden": "true" }));
-        cell.title = hits.map((h) => h.title).join(", ");
-        cell.style.cursor = "pointer";
-        cell.addEventListener("click", () => {
-          if (linkFor) window.location.href = linkFor(hits[0]);
+        const dots = el("span", { class: "cal-dots", "aria-hidden": "true" });
+        MARK_KINDS.forEach((kind) => {
+          if (hits.some((h) => h.kind === kind)) {
+            dots.append(el("i", { class: "cal-dot " + kind }));
+          }
         });
+        cell.append(dots);
+        cell.title = hits.map((h) => h.title).join(", ");
       }
+
+      // Every day is clickable, not only a marked one: someone adding a note
+      // for next Tuesday should be able to press next Tuesday.
+      cell.addEventListener("click", () => onDay && onDay(key, hits));
       grid.append(cell);
     }
     host.append(grid);
+  }
+
+  const KIND_LABEL = {
+    deadline: ["Deadline", "red"],
+    session: ["Online session", "green"],
+    personal: ["My event", "amber"],
+  };
+
+  // What is on the day you pressed, rendered under the grid rather than as a
+  // modal so the month stays visible beside it.
+  function renderDay(hostId, key, hits, onDelete) {
+    const host = document.getElementById(hostId);
+    if (!host) return;
+    host.textContent = "";
+    host.hidden = false;
+
+    const heading = new Date(key + "T00:00:00").toLocaleDateString(undefined, {
+      weekday: "long", day: "numeric", month: "long", year: "numeric",
+    });
+    host.append(el("div", { class: "cal-day-head" }, heading));
+
+    if (!hits.length) {
+      host.append(el("p", { class: "empty-note" }, "Nothing on this day."));
+      return;
+    }
+
+    const list = el("ul", { class: "cal-day-list" });
+    hits.forEach((h) => {
+      const known = KIND_LABEL[h.kind] || ["Event", "grey"];
+      const body = el(
+        "div",
+        { class: "cal-day-body" },
+        el("div", { class: "title" }, h.title),
+        el("div", { class: "meta" }, pill(known[0], known[1]),
+           h.sub ? el("span", {}, h.sub) : null)
+      );
+      list.append(el(
+        "li",
+        {},
+        h.link ? el("a", { class: "cal-day-link", href: h.link }, body) : body,
+        // Only your own marks can be removed, and a deadline is nobody's mark.
+        h.mine && onDelete
+          ? el("button", {
+              class: "icon-btn", type: "button", title: "Remove this event",
+              "aria-label": "Remove " + h.title,
+              onclick: () => onDelete(h),
+            }, "✕")
+          : null
+      ));
+    });
+    host.append(list);
+  }
+
+  // Both dashboards keep a calendar, so the whole of it -- loading events, the
+  // month buttons, the day panel and the add dialog -- lives here rather than
+  // being written twice with two sets of bugs.
+  //
+  // `deadlinesFor` is the only part that differs by role: the student derives
+  // deadlines from their own assignments, the trainer passes none, which is
+  // what makes the trainer's calendar sessions-only.
+  function initCalendar(options) {
+    const opts = options || {};
+    const canScheduleSessions = opts.canScheduleSessions || false;
+    const deadlinesFor = opts.deadlinesFor || (() => []);
+
+    let month = new Date();
+    let events = [];
+    let openDay = null;
+
+    function marks() {
+      const fromEvents = events.map((e) => ({
+        kind: e.kind === "session" ? "session" : "personal",
+        title: e.title,
+        sub: e.description,
+        date: e.event_date,
+        id: e.id,
+        mine: e.mine,
+      }));
+      return deadlinesFor().concat(fromEvents);
+    }
+
+    function paint() {
+      const all = marks();
+      renderCalendar("calendar", all, month, (key, hits) => {
+        openDay = key;
+        renderDay("cal-day-panel", key, hits, remove);
+      });
+      // Keep the open day in step with the data behind it, so removing the
+      // last item on a day leaves "Nothing on this day" rather than a stale row.
+      if (openDay) {
+        renderDay("cal-day-panel", openDay,
+                  all.filter((m) => keyOfMark(m) === openDay), remove);
+      }
+    }
+
+    async function load() {
+      try {
+        const data = await api("/api/calendar");
+        events = data.events || [];
+      } catch (err) {
+        events = [];
+      }
+      paint();
+    }
+
+    async function remove(mark) {
+      try {
+        await api("/api/calendar/" + mark.id, { method: "DELETE" });
+        events = events.filter((e) => e.id !== mark.id);
+        flash("Event removed.", "ok");
+        paint();
+      } catch (err) {
+        flash(err.message || "Could not remove that event.", "error");
+      }
+    }
+
+    const form = document.getElementById("event-form");
+    const dateField = document.getElementById("event-date");
+    const kindRow = document.getElementById("event-kind-row");
+    const note = document.getElementById("event-note");
+
+    function say(text, kind) {
+      if (!note) return;
+      note.textContent = text;
+      note.className = "field-note" + (kind ? " " + kind : "");
+      note.hidden = !text;
+    }
+
+    const addBtn = document.getElementById("cal-add");
+    if (addBtn && form) {
+      addBtn.addEventListener("click", () => {
+        form.reset();
+        say("");
+        // Only a trainer schedules sessions, so only a trainer is asked which
+        // kind this is.
+        if (kindRow) kindRow.hidden = !canScheduleSessions;
+        const now = new Date();
+        // The day you were looking at, or today: never an empty date field.
+        dateField.value = openDay || dayKey(now.getFullYear(), now.getMonth(), now.getDate());
+        openSheet("event-sheet");
+      });
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const values = Object.fromEntries(new FormData(form).entries());
+        const kind = canScheduleSessions ? (values.kind || "personal") : "personal";
+        say("Saving...");
+        try {
+          const created = await api("/api/calendar", {
+            method: "POST",
+            body: JSON.stringify({
+              title: (values.title || "").trim(),
+              description: (values.description || "").trim(),
+              event_date: values.event_date,
+              kind: kind,
+            }),
+          });
+          events.push(created);
+          closeSheet("event-sheet");
+          flash(kind === "session" ? "Online session scheduled." : "Event added.", "ok");
+          // Land on the day just filled in, so the new dot is explained.
+          openDay = created.event_date;
+          month = new Date(created.event_date + "T00:00:00");
+          paint();
+        } catch (err) {
+          say(err.message || "Could not save that event.", "bad");
+        }
+      });
+    }
+
+    document.getElementById("cal-prev").addEventListener("click", () => {
+      month = new Date(month.getFullYear(), month.getMonth() - 1, 1);
+      paint();
+    });
+    document.getElementById("cal-next").addEventListener("click", () => {
+      month = new Date(month.getFullYear(), month.getMonth() + 1, 1);
+      paint();
+    });
+
+    return { reload: load, repaint: paint };
   }
 
   // Header search. Debounced because it fires per keystroke, and a query per
@@ -523,6 +741,9 @@ window.Dash = (function () {
     renderNotifications,
     renderActivity,
     renderCalendar,
+    renderDay,
+    initCalendar,
+    dayKey,
     activityPager,
     ACTIVITY_PAGE,
     ICONS,

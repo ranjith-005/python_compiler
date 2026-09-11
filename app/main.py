@@ -10,8 +10,8 @@ from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from . import (assignments, auth, dashboards, files, modules, notebooks, search,
-               settings_routes, ws)
+from . import (assignments, auth, calendar_routes, dashboards, files, modules,
+               notebooks, search, settings_routes, ws)
 from .config import settings
 from .db import get_conn, init_db
 from .auth import home_for
@@ -81,6 +81,7 @@ app.include_router(modules.router)
 app.include_router(notebooks.router)
 app.include_router(files.router)
 app.include_router(search.router)
+app.include_router(calendar_routes.router)
 app.include_router(settings_routes.router)
 app.include_router(ws.router)
 

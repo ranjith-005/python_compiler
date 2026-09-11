@@ -1,0 +1,83 @@
+{#
+  The calendar panel and its add-event dialog, shared by both dashboards.
+
+  Written once for the same reason `_topbar.html` is: the two overviews carry
+  the same grid, the same day panel and the same form, and the only thing that
+  differs is whether the person looking at it can schedule an online session.
+  Two copies would be two places to fix a dot.
+
+  Usage:  {% from "_calendar.html" import calendar_panel, event_sheet %}
+          {{ calendar_panel(can_schedule=true) }}
+          {{ event_sheet(can_schedule=true) }}
+
+  `can_schedule` only decides whether the kind field is offered. The server
+  decides whether it is allowed -- a student posting kind='session' is refused
+  there, not here.
+#}
+
+{% macro calendar_panel(can_schedule=False) %}
+<section class="panel" id="calendar-panel">
+  <header>
+    <h2>Calendar</h2>
+    <span class="spacer"></span>
+    <button class="cb-btn ghost" id="cal-prev" aria-label="Previous month">‹</button>
+    <span class="cal-label" id="cal-label"></span>
+    <button class="cb-btn ghost" id="cal-next" aria-label="Next month">›</button>
+    <button class="cb-btn" id="cal-add" type="button">+ Event</button>
+  </header>
+  <div class="panel-body" id="calendar"></div>
+
+  {# A dot is only legible if something says what its colour means. Deadlines
+     never appear on a trainer's calendar, so neither does that key. #}
+  <div class="cal-legend">
+    {% if not can_schedule %}<span><i class="cal-dot deadline"></i>Deadline</span>{% endif %}
+    <span><i class="cal-dot session"></i>Online session</span>
+    <span><i class="cal-dot personal"></i>My event</span>
+  </div>
+
+  {# Filled in when a day is pressed; empty until then rather than showing
+     today by default, which would read as though today were selected. #}
+  <div class="panel-body cal-day-panel" id="cal-day-panel" hidden></div>
+</section>
+{% endmacro %}
+
+{% macro event_sheet(can_schedule=False) %}
+<div class="sheet" id="event-sheet" hidden>
+  <div class="sheet-card">
+    <header>
+      <h2>Add to the calendar</h2>
+      <button class="icon-btn" data-close="event-sheet" aria-label="Close">✕</button>
+    </header>
+    <form class="sheet-body" id="event-form" autocomplete="off">
+      <div class="field">
+        <label for="event-title">Event name</label>
+        <input id="event-title" name="title" maxlength="120" required
+               placeholder="Revise recursion before the test">
+      </div>
+      <div class="field">
+        <label for="event-description">Description</label>
+        <textarea id="event-description" name="description" rows="3" maxlength="500"
+                  placeholder="Optional — what this is for."></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label for="event-date">Date</label>
+          <input id="event-date" name="event_date" type="date" required>
+        </div>
+        <div class="field" id="event-kind-row" {% if not can_schedule %}hidden{% endif %}>
+          <label for="event-kind">Kind</label>
+          <select id="event-kind" name="kind">
+            <option value="personal">My own event</option>
+            <option value="session">Online session (visible to students)</option>
+          </select>
+        </div>
+      </div>
+      <p class="field-note" id="event-note" hidden></p>
+    </form>
+    <div class="sheet-foot">
+      <button class="cb-btn ghost" type="button" data-close="event-sheet">Cancel</button>
+      <button class="cb-btn primary" type="submit" form="event-form">Add</button>
+    </div>
+  </div>
+</div>
+{% endmacro %}

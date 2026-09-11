@@ -1,7 +1,7 @@
-// Trainer dashboard (SRS §2): five linked overview cards, the activity feed
-// ten at a time, and the placeholder for online sessions. Everything the
-// cards used to show inline lives on its own page (students, pending, queue,
-// exercises, completed).
+// Trainer dashboard (SRS §2): five linked overview cards, a calendar for the
+// online sessions this trainer schedules and their own marks, and the activity
+// feed ten at a time. Everything the cards used to show inline lives on its
+// own page (students, pending, queue, exercises, completed).
 (function () {
   const D = window.Dash;
   const { el } = D;
@@ -12,38 +12,31 @@
 
   function renderStats() {
     const s = data.stats;
-    // First card by requirement: what is closing in, before the roster. It
-    // counts `pending` rather than `deadlines` (which groups by exercise), so
-    // the number equals the length of the list the card opens.
-    const upcoming = (data.pending || []).filter((p) => D.matchesDeadline(p, "week"));
-
+    // No upcoming-deadlines card here: a trainer reads deadlines on the
+    // Exercises and Pending pages, where the deadline filter makes them
+    // actionable. A duplicate count on the overview earned nothing.
     const cards = [
-      { label: "Upcoming deadlines", value: upcoming.length,
-        sub: "Open work due in 7 days",
-        tone: upcoming.length ? "warn" : "",
-        href: "/trainer/pending?deadline=week", icon: "⏰" },
       { label: "Students", value: s.students, sub: "On your roster",
-        href: "/trainer/students", icon: "👥" },
+        href: "/trainer/students" },
       { label: "Pending submissions", value: s.pending,
         sub: s.overdue ? `${s.overdue} past due` : "Assigned, not yet in",
-        tone: s.overdue ? "bad" : "", href: "/trainer/pending", icon: "⏳" },
+        tone: s.overdue ? "bad" : "", href: "/trainer/pending" },
       { label: "Awaiting review", value: s.awaiting_review,
         sub: "Submitted, needs your verdict",
-        tone: s.awaiting_review ? "warn" : "", href: "/trainer/queue", icon: "📝" },
+        tone: s.awaiting_review ? "warn" : "", href: "/trainer/queue" },
       { label: "Exercises", value: s.exercises,
         sub: `${s.published} published · ${s.drafts} draft`,
-        href: "/trainer/exercises", icon: "📚" },
+        href: "/trainer/exercises" },
       { label: "Completed", value: s.completed, sub: "Finished by your students",
-        tone: "good", href: "/trainer/completed", icon: "🏁" },
+        tone: "good", href: "/trainer/completed" },
     ];
 
     const host = document.getElementById("stats");
     host.textContent = "";
-    host.classList.add("six"); // six cards, two rows of three -- .stat-grid.six
+    host.classList.add("five"); // five cards, one row -- see .stat-grid.five
     cards.forEach((c) =>
       host.append(
         el("a", { class: `stat ${c.tone || ""}`, href: c.href },
-          el("span", { class: "stat-icon" }, c.icon),
           el("strong", { class: "value", text: String(c.value) }),
           el("span", { class: "label", text: c.label }),
           el("span", { class: "sub", text: c.sub })
@@ -52,18 +45,14 @@
     );
   }
 
-  // ── calendar ──────────────────────────────────────────────────────────────
+  // -- calendar -----------------------------------------------------------
 
-  // Calendar replaces the deadline list (spec: deadlines are a glance here and
-  // actionable on the Exercises page). The trainer's deadline rows carry an
-  // EXERCISE id, so the link differs from the student's.
-  let calMonth = new Date();
-
-  function paintCalendar() {
-    if (!data) return;
-    D.renderCalendar("calendar", data.deadlines, calMonth,
-                     (d) => `/trainer/exercises/${d.id}`);
-  }
+  // No deadline dots here, by requirement: a trainer reads deadlines on the
+  // Exercises and Pending pages, where the deadline filter makes them
+  // actionable. What is left is what the calendar alone knows -- the online
+  // sessions this trainer scheduled, and their own marks. Passing no
+  // `deadlinesFor` is the whole of that difference.
+  const calendar = D.initCalendar({ canScheduleSessions: true });
 
   // ── reopen requests ───────────────────────────────────────────────────────
 
@@ -136,7 +125,7 @@
       return;
     }
     renderStats();
-    paintCalendar();
+    calendar.repaint();
     renderRequests();
     D.renderNotifications(data.notifications, data.unread);
   }
@@ -147,15 +136,8 @@
     // Wired once: the pager owns its own paging from here, so a later reload
     // of the cards must not stack a second set of click handlers on it.
     D.activityPager("activity-list", "activity-pager", data.activity, data.activity_total);
-    // Same once-only rule as the pager: the month buttons keep their own
-    // state, so a card reload must not stack a second pair of handlers.
-    document.getElementById("cal-prev").addEventListener("click", () => {
-      calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() - 1, 1);
-      paintCalendar();
-    });
-    document.getElementById("cal-next").addEventListener("click", () => {
-      calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + 1, 1);
-      paintCalendar();
-    });
+    // The month buttons and the event dialog were wired once when the
+    // calendar was built; this only fetches the rows they paint.
+    calendar.reload();
   });
 })();

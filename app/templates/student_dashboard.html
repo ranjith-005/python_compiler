@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "_topbar.html" import topbar %}
+{% from "_calendar.html" import calendar_panel, event_sheet %}
 {% block title %}My dashboard · Python Learning Platform{% endblock %}
 {% block body_class %}colab dash{% endblock %}
 {% block head %}
@@ -20,19 +21,10 @@
 
   <section class="stat-grid" id="stats"></section>
 
-  {# A calendar of what is due, the viewer's own activity beside it. Sessions
-     are not built yet and no longer hold a slot. #}
+  {# A calendar of what is due, what the trainer has scheduled and whatever
+     the student marked themselves; the viewer's own activity beside it. #}
   <div class="dash-split">
-    <section class="panel" id="calendar-panel">
-      <header>
-        <h2>Calendar</h2>
-        <span class="spacer"></span>
-        <button class="cb-btn ghost" id="cal-prev" aria-label="Previous month">‹</button>
-        <span class="cal-label" id="cal-label"></span>
-        <button class="cb-btn ghost" id="cal-next" aria-label="Next month">›</button>
-      </header>
-      <div class="panel-body" id="calendar"></div>
-    </section>
+    {{ calendar_panel() }}
 
     <section class="panel" id="activity-panel">
       <header><h2>Recent activity</h2></header>
@@ -48,6 +40,8 @@
   </div>
 
 </main>
+
+{{ event_sheet() }}
 
 <div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
 <div class="toast" id="toast" hidden></div>
