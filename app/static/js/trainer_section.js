@@ -43,9 +43,6 @@
     list.append(el("p", { class: "empty-note", text: message }));
   }
 
-  // The three not-yet-submitted statuses this worklist is made of.
-  const OUTSTANDING = { assigned: "Assigned", in_progress: "In progress", pending: "Pending" };
-
   const RENDER = {
     exercises(data) {
       const rows = (data.exercises || []).filter((x) => dueInRange(x.due_date));
@@ -76,16 +73,35 @@
     },
     pending(data) {
       // Everything not yet submitted: assigned, in progress or past due.
+      // One row per exercise, however many students still owe it -- opening
+      // the row is what names them, on the exercise's own pending view.
       const rows = (data.pending || []).filter((x) => dueInRange(x.due_date));
       if (!rows.length) return empty("Nothing outstanding — everything has been submitted.");
-      rows.forEach((x) =>
+
+      const byExercise = new Map();
+      rows.forEach((x) => {
+        let group = byExercise.get(x.exercise_id);
+        if (!group) {
+          group = { exercise: x.exercise, exercise_id: x.exercise_id,
+                    due_date: x.due_date, students: 0, overdue: 0 };
+          byExercise.set(x.exercise_id, group);
+        }
+        group.students += 1;
+        if (x.overdue) group.overdue += 1;
+        // The soonest deadline across the class is the one the trainer acts on.
+        if (x.due_date && (!group.due_date || x.due_date < group.due_date)) {
+          group.due_date = x.due_date;
+        }
+      });
+
+      byExercise.forEach((g) =>
         list.append(
           row(
-            x.exercise,
-            [x.display, OUTSTANDING[x.status] || x.status,
-             x.due_date ? due(x.due_date) : null,
-             x.overdue ? "Past due" : null],
-            `/trainer/exercises/${x.exercise_id}?view=pending`
+            g.exercise,
+            [`${g.students} student${g.students === 1 ? "" : "s"} pending`,
+             g.due_date ? due(g.due_date) : null,
+             g.overdue ? `${g.overdue} past due` : null],
+            `/trainer/exercises/${g.exercise_id}?view=pending`
           )
         )
       );
