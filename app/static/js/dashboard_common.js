@@ -253,6 +253,11 @@ window.Dash = (function () {
   // Renders one page of activity into `listId` and drives the Prev/Next pair
   // in `pagerId`. The first page arrives with the dashboard payload, so the
   // panel paints without a second round trip; Next fetches from there on.
+  //
+  // The category filter is applied by the server, not over the fifteen rows
+  // already on screen: an exercise that happened twenty events ago is still an
+  // exercise, and filtering client-side would both hide it and leave the pager
+  // counting a total for a different set of rows.
   function activityPager(listId, pagerId, firstPage, total) {
     const list = document.getElementById(listId);
     const pager = document.getElementById(pagerId);
@@ -262,23 +267,25 @@ window.Dash = (function () {
     const filterSel = document.getElementById("activity-filter");
     let offset = 0;
     let busy = false;
-    let currentPage = firstPage || [];
 
     function getFilter() {
       return filterSel ? filterSel.value : "all";
     }
 
-    function paint(items) {
-      const filter = getFilter();
-      const visible = filter === "all"
-        ? items
-        : items.filter((a) => (a.kind || "").includes(filter) || (a.summary || "").toLowerCase().includes(filter));
+    const EMPTY = {
+      all: "No activity yet.",
+      exercise: "No exercise activity yet.",
+      module: "No module activity yet.",
+      submission: "No submission activity yet.",
+    };
 
+    function paint(items) {
       list.textContent = "";
-      if (!visible.length) {
-        list.append(el("li", { class: "empty-note" }, filter === "all" ? "No activity yet." : `No ${filter} activity on this page.`));
+      if (!items.length) {
+        const filter = getFilter();
+        list.append(el("li", { class: "empty-note" }, EMPTY[filter] || EMPTY.all));
       }
-      visible.forEach((a) => {
+      items.forEach((a) => {
         const { line, tag } = attribute(a);
         list.append(
           el(
@@ -315,11 +322,11 @@ window.Dash = (function () {
       prev.disabled = next.disabled = true;
       try {
         const page = await api(
-          `/api/dashboard/activity?limit=${ACTIVITY_PAGE}&offset=${nextOffset}`
+          `/api/dashboard/activity?limit=${ACTIVITY_PAGE}&offset=${nextOffset}` +
+            `&category=${encodeURIComponent(getFilter())}`
         );
         offset = page.offset;
         total = page.total;
-        currentPage = page.items;
         busy = false;
         paint(page.items);
       } catch (err) {
@@ -329,8 +336,10 @@ window.Dash = (function () {
       }
     }
 
+    // Changing the filter asks for a new first page: the whole history is
+    // re-selected, not the fifteen rows that happen to be on screen.
     if (filterSel) {
-      filterSel.addEventListener("change", () => paint(currentPage));
+      filterSel.addEventListener("change", () => go(0));
     }
     prev.addEventListener("click", () => go(Math.max(0, offset - ACTIVITY_PAGE)));
     next.addEventListener("click", () => go(offset + ACTIVITY_PAGE));
@@ -369,15 +378,46 @@ window.Dash = (function () {
   }
 
   // Assignment list filters (trainer student detail, exercise detail, student
-  // exercises): the five canonical statuses, one definition for every page.
-  // "open" is not a status of its own -- it is an alias for in_progress.
-  const ASSIGNMENT_STATUSES = ["assigned", "in_progress", "submitted", "pending", "completed"];
+  // exercises): one definition for every page.
+  //
+  // Work the student has not submitted falls into exactly two buckets, and the
+  // due date is what decides which: still in hand is "assigned", past the due
+  // date is "pending". Whether they have opened it does not change the bucket,
+  // so "in_progress" is no longer a filter of its own -- it is part of
+  // assigned, and "open" stays as an alias for the same thing.
+  const ASSIGNMENT_STATUSES = ["assigned", "pending", "submitted", "completed"];
+  const PRE_SUBMIT = ["assigned", "in_progress", "pending"];
+
+  function assignmentOverdue(row) {
+    // `status` is authoritative once the server has swept it to pending; the
+    // due date is the fallback for a row read before that sweep ran.
+    if (row.status === "pending" || row.overdue) return true;
+    const d = parse(row.due_date);
+    return Boolean(d && d.getTime() < Date.now());
+  }
+
+  // Which of the four buckets a row belongs to, for labels as well as filters.
+  function assignmentBucket(row) {
+    if (row.status === "completed" || row.status === "submitted") return row.status;
+    return assignmentOverdue(row) ? "pending" : "assigned";
+  }
 
   function assignmentMatchesFilter(row, filter) {
     if (!filter || filter === "all") return true;
-    if (filter === "open") filter = "in_progress";
+    if (filter === "in_progress" || filter === "open") filter = "assigned";
+    if (filter === "assigned" || filter === "pending") {
+      return PRE_SUBMIT.includes(row.status) && assignmentBucket(row) === filter;
+    }
     return row.status === filter;
   }
+
+  // Wording for each bucket, shared by every list that shows a status pill.
+  const ASSIGNMENT_LABELS = {
+    assigned: ["Assigned", "grey"],
+    pending: ["Pending · past due", "red"],
+    submitted: ["Submitted", "amber"],
+    completed: ["Completed", "green"],
+  };
 
   return {
     api,
@@ -401,5 +441,8 @@ window.Dash = (function () {
     TONES,
     ASSIGNMENT_STATUSES,
     assignmentMatchesFilter,
+    assignmentBucket,
+    assignmentOverdue,
+    ASSIGNMENT_LABELS,
   };
 })();

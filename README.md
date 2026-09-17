@@ -101,8 +101,10 @@ tally, trainer feedback and any query your trainer raised, all on the exercise i
 **Start** opens the exercise in a Monaco editor — problem statement above, your solution on
 the left, stdin and output on the right. **Run** executes what you have written and shows
 its output; **Submit** runs it against every test case, hidden ones included, and records the
-verdict (Accepted, Wrong Answer, Runtime Error, Syntax Error). Resubmit until the trainer
-approves.
+verdict (Accepted, Wrong Answer, Runtime Error, Syntax Error). A hidden test stays hidden
+while it passes; one that fails is shown in full, because "a hidden test failed" on its own
+gives you nothing to fix. Once every test passes, Submit files the work and returns you to
+your exercise list; once the trainer approves it, the editor is closed for good.
 
 ### Learning modules — `/trainer/modules`, `/student/modules`
 
@@ -172,7 +174,8 @@ feedback, so both dashboards open with real content. `--reset` recreates it.
 - **Cache-busted assets**, sticky toolbar, resizable panels, toasts, keyboard shortcuts
 - **Two portals** — trainers and students sign in to their own role-scoped dashboard
 - **Exercise authoring** — statement, formats, samples, constraints, due date, draft/published
-- **Public and hidden test cases** — hidden ones count towards the verdict, never shown
+- **Public and hidden test cases** — a hidden case counts towards the verdict and is
+  revealed only when it fails
 - **Automatic evaluation** on submit: Accepted, Wrong Answer, Runtime Error, Syntax Error
 - **Review loop** — approve or request modifications, with comments the student sees inline
 - **Progress tracking and notifications** for both roles, plus per-user activity feeds

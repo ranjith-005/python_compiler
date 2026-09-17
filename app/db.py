@@ -134,11 +134,16 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, created_at DESC);
 
+-- `kind` says what happened ("assigned", "submitted"); `category` says what it
+-- happened to. The two are not derivable from each other: a module and an
+-- exercise are both "assigned", and "created" covers an exercise, a module and
+-- an enrolled student. The feed's filter reads `category`.
 CREATE TABLE IF NOT EXISTS activities (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     actor_id   INTEGER REFERENCES users(id) ON DELETE SET NULL,
     kind       TEXT NOT NULL,
+    category   TEXT NOT NULL DEFAULT '',
     summary    TEXT NOT NULL,
     link       TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
@@ -364,6 +369,7 @@ def init_db() -> None:
         conn.executescript(PLATFORM_SCHEMA)
         _migrate_user_columns(conn)
         _migrate_platform_columns(conn)
+        _migrate_activity_category(conn)
         _migrate_module_columns(conn)
         _migrate_section_columns(conn)
         _backfill_solution_code(conn)
@@ -437,6 +443,32 @@ def _migrate_user_columns(conn: sqlite3.Connection) -> None:
         "last_name = COALESCE(NULLIF(last_name, ''), "
         "trim(substr(full_name, instr(full_name || ' ', ' ') + 1)))"
     )
+
+
+def _migrate_activity_category(conn: sqlite3.Connection) -> None:
+    """Add `activities.category` and label the rows written before it existed.
+
+    The back-fill reads the link and the summary, which is exactly the guesswork
+    `category` exists to remove -- but it is the only evidence an old row has,
+    and a feed of unlabelled history filters to nothing without it.
+    """
+    existing = {row["name"] for row in conn.execute("PRAGMA table_info(activities)")}
+    if "category" not in existing:
+        conn.execute("ALTER TABLE activities ADD COLUMN category TEXT NOT NULL DEFAULT ''")
+
+    key = "activity_category_v1"
+    if conn.execute("SELECT 1 FROM migrations WHERE key = ?", (key,)).fetchone():
+        return
+    conn.execute(
+        "UPDATE activities SET category = CASE"
+        "  WHEN kind IN ('submitted', 'approve', 'complete', 'completed',"
+        "                'request_changes', 'changes_requested', 'reviewed') THEN 'submission'"
+        "  WHEN link LIKE '%/modules%' OR summary LIKE '%module%' THEN 'module'"
+        "  WHEN kind = 'created' AND summary LIKE '%enrolled%' THEN 'account'"
+        "  ELSE 'exercise' END"
+        " WHERE category = ''"
+    )
+    conn.execute("INSERT INTO migrations (key, applied_at) VALUES (?, ?)", (key, utcnow()))
 
 
 def _migrate_platform_columns(conn: sqlite3.Connection) -> None:
@@ -628,6 +660,10 @@ def notify(conn: sqlite3.Connection, user_id: int, kind: str, title: str, link: 
     )
 
 
+# What an activity is about, which is what the feed's filter selects on.
+ACTIVITY_CATEGORIES = ("exercise", "module", "submission", "account")
+
+
 def record_activity(
     conn: sqlite3.Connection,
     user_id: int,
@@ -635,10 +671,17 @@ def record_activity(
     summary: str,
     actor_id: int | None = None,
     link: str = "",
+    category: str = "",
 ) -> None:
-    """Append to one user's recent-activity feed."""
+    """Append to one user's recent-activity feed.
+
+    ``category`` is one of ACTIVITY_CATEGORIES and is what the Recent activity
+    filter matches on. It is passed explicitly at every call site rather than
+    guessed from ``kind``, because the same kind covers different things --
+    "assigned" is written for both an exercise and a module.
+    """
     conn.execute(
-        "INSERT INTO activities (user_id, actor_id, kind, summary, link, created_at)"
-        " VALUES (?, ?, ?, ?, ?, ?)",
-        (user_id, actor_id, kind, summary, link, utcnow()),
+        "INSERT INTO activities (user_id, actor_id, kind, category, summary, link, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (user_id, actor_id, kind, category, summary, link, utcnow()),
     )

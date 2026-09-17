@@ -255,6 +255,11 @@ a.row:focus-visible { outline: 2px solid var(--blue); outline-offset: -2px; }
 .bar { width: 110px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
 .bar span { display: block; height: 100%; border-radius: 3px; background: var(--blue); transition: width .3s; }
 .bar.done span { background: var(--green); }
+/* The figure beside a progress bar in a list row. */
+.bar-percent {
+  font-size: 12px; font-weight: 600; color: var(--text-dim);
+  min-width: 34px; text-align: right; font-variant-numeric: tabular-nums;
+}
 
 .student-row { grid-template-columns: 1fr auto auto; }
 .student-row .avatar {
@@ -887,6 +892,14 @@ pre.code-editor .line::before {
   color: var(--text);
   resize: none;
 }
+/* Heading strip above a run of sections that is not wrapped in a panel. */
+.sections-head {
+  display: flex; align-items: center; gap: 10px;
+  margin: 26px 0 6px;
+}
+.sections-head h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.sections-head .spacer { flex: 1; }
+
 /* Modern polish for section panels */
 .section-panel {
   padding-bottom: 40px;
@@ -1090,6 +1103,34 @@ pre.code-editor .line::before {
   font-size: 13px; line-height: 1.55; color: var(--text-dim);
 }
 .request-quote.answer { border-left-color: var(--blue); }
+
+/* Answering a query happens in a section under it, not in a browser prompt
+   that covers the request being answered. */
+.query-item { border-bottom: 1px solid var(--border); }
+.query-item:last-child { border-bottom: 0; }
+.query-item .row { border-bottom: 0; }
+.query-item:has(.query-decision) { background: var(--cell-bg); }
+
+.query-decision {
+  padding: 4px 16px 16px;
+  border-left: 3px solid var(--blue);
+  margin: 0 16px 14px 16px;
+  background: var(--surface);
+  border-radius: 0 8px 8px 0;
+}
+.query-decision.decline { border-left-color: var(--red); }
+.decision-head {
+  padding-top: 11px;
+  font-size: 12.5px; font-weight: 600; color: var(--text-dim);
+}
+.decision-input {
+  display: block; width: 100%; margin-top: 8px; padding: 9px 11px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); color: var(--text);
+  font: 13px/1.55 var(--sans); resize: vertical;
+}
+.decision-input:focus { outline: 2px solid var(--blue); outline-offset: 1px; }
+.decision-actions { display: flex; gap: 8px; margin-top: 10px; }
 
 /* ── the test-case drawer ── */
 .drawer-scrim {

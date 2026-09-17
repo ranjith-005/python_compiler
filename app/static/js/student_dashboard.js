@@ -8,33 +8,22 @@
   let data = null;
 
   // The filter mapping is fixed by spec: card -> ?filter= key on
-  // /student/exercises -> the assignment status it matches there. One card
-  // per canonical status, so the figure and the list always agree.
+  // /student/exercises -> the rows it matches there. One card per bucket, so
+  // the figure and the list always agree.
+  //
+  // Unsubmitted work is one card, not two: whether it has been opened does not
+  // change what the student owes, only the due date does. Everything still in
+  // hand is Assigned; once the due date passes the same work is Pending.
   const CARDS = [
     {
-      key: "assigned",
+      count: (s) => s.assigned + s.in_progress,
       label: "Assigned",
-      sub: "Not opened yet",
+      sub: "Due date still ahead",
       filter: "assigned",
       icon: "📘",
     },
     {
-      key: "in_progress",
-      label: "In progress",
-      sub: "Opened, not submitted",
-      filter: "in_progress",
-      icon: "✍️",
-    },
-    {
-      key: "submitted",
-      label: "Awaiting review",
-      sub: "Submitted to your trainer",
-      filter: "submitted",
-      tone: "warn",
-      icon: "📤",
-    },
-    {
-      key: "pending",
+      count: (s) => s.pending,
       label: "Pending",
       sub: "Past due, not submitted",
       filter: "pending",
@@ -42,7 +31,15 @@
       icon: "⏰",
     },
     {
-      key: "completed",
+      count: (s) => s.submitted,
+      label: "Awaiting review",
+      sub: "Submitted to your trainer",
+      filter: "submitted",
+      tone: "warn",
+      icon: "📤",
+    },
+    {
+      count: (s) => s.completed,
       label: "Completed",
       sub: "Approved by your trainer",
       filter: "completed",
@@ -59,7 +56,7 @@
     const host = document.getElementById("stats");
     host.textContent = "";
     CARDS.forEach((c) => {
-      const value = s[c.key];
+      const value = c.count(s);
       const tone = c.tone === "warn" || c.tone === "bad" ? (value ? c.tone : "") : c.tone || "";
       host.append(
         el(

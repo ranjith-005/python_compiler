@@ -107,18 +107,36 @@ def test_code_that_does_not_compile_says_so_without_running(client):
     assert v["detail"]
 
 
-def test_a_hidden_case_reports_pass_or_fail_but_never_its_input(client):
-    """Hiding a case is pointless if failing it prints the case (SRS §10)."""
+def test_a_hidden_case_that_passes_keeps_its_input_hidden(client):
+    """A hidden case the student got right stays hidden: nothing to fix, and
+    revealing it would hand over the answer key (SRS §10)."""
+    assignment_id = a_task(client)
+    v = check(client, assignment_id, SUM)
+
+    hidden = [c for c in v["cases"] if c["hidden"]]
+    assert hidden, "the seeded exercise should carry a hidden case"
+    for case in hidden:
+        assert case["passed"]
+        assert "stdin" not in case
+        assert "expected" not in case
+        assert "actual" not in case
+
+
+def test_a_hidden_case_that_fails_is_shown_in_full(client):
+    """"One hidden test failed" with nothing else gives the student nothing to
+    work with, so a failing hidden case is opened up."""
     assignment_id = a_task(client)
     v = check(client, assignment_id, WRONG)
 
     hidden = [c for c in v["cases"] if c["hidden"]]
     assert hidden, "the seeded exercise should carry a hidden case"
     for case in hidden:
-        assert "stdin" not in case
-        assert "expected" not in case
-        assert "actual" not in case
-        assert case["error"] or case["passed"]
+        assert not case["passed"]
+        assert case["revealed"] is True
+        assert "stdin" in case
+        assert "expected" in case
+        assert "actual" in case
+        assert case["error"]
 
 
 def test_running_the_tests_records_no_submission(client):

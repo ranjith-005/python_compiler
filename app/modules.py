@@ -287,13 +287,13 @@ def _process_upload(job_id: str, raw: bytes, suffix: str, filename: str,
                 record_activity(
                     conn, trainer_id, "updated",
                     f'{trainer_label} re-uploaded content for the module "{name}"',
-                    trainer_id, "/trainer/modules",
+                    trainer_id, "/trainer/modules", category="module",
                 )
             else:
                 record_activity(
                     conn, trainer_id, "created",
                     f'{trainer_label} uploaded the module "{name}"',
-                    trainer_id, "/trainer/modules",
+                    trainer_id, "/trainer/modules", category="module",
                 )
             conn.commit()
         except Exception:
@@ -722,6 +722,16 @@ def publish_module(module_id: int, user: sqlite3.Row = Depends(require_trainer))
         ).fetchall():
             notify(conn, int(row["student_id"]), "assigned",
                    "A module you were given has been updated", "/student/modules")
+        # Publishing is the edit that reaches students, so it is the one the
+        # trainer's own feed records for a module already in their hands.
+        module = conn.execute(
+            "SELECT title FROM modules WHERE id = ?", (module_id,)
+        ).fetchone()
+        record_activity(
+            conn, int(user["id"]), "updated",
+            f'{display_name(user)} published the module "{module["title"]}"',
+            int(user["id"]), "/trainer/modules", category="module",
+        )
     return {"id": module_id, "status": "published", "sections": len(drafts)}
 
 
@@ -772,6 +782,7 @@ def assign_module(
             record_activity(
                 conn, student_id, "assigned",
                 f'{actor} assigned the module "{title}"', trainer_id, "/student/modules",
+                category="module",
             )
     return {"id": module_id, "assigned": assigned}
 
@@ -1114,6 +1125,7 @@ def complete_section(
             record_activity(
                 conn, student_id, "completed",
                 f'Completed the module "{title}"', student_id, "/student/modules",
+                category="submission",
             )
     return {
         "id": section_id,

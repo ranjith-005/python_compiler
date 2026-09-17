@@ -141,15 +141,20 @@ def _evaluate(code: str, tests: list[sqlite3.Row], cwd) -> dict:
             case["error"] = "Output did not match the expected result."
             failure_kind = failure_kind or "wrong_answer"
 
-        # A hidden case reports only whether it passed and why it did not. Its
-        # input, its expected output and the student's actual output all stay
-        # unpublished, or hiding it would have achieved nothing (SRS §10).
-        if not hidden:
+        # A hidden case stays hidden for as long as it passes: revealing the
+        # ones that pass would hand over the answer key for an exercise the
+        # student has already got right (SRS §10). A hidden case that FAILS is
+        # opened up -- input, expected output and what the code actually
+        # printed -- because "one hidden test failed" with nothing else to go
+        # on gives the student nothing to fix.
+        if not hidden or not case["passed"]:
             case["stdin"] = test["stdin"] or ""
             case["expected"] = expected
             case["actual"] = (stdout or "").strip()
             if not timed_out and returncode != 0:
                 case["error"] = (stderr or "").strip()[-800:] or case["error"]
+        if hidden and not case["passed"]:
+            case["revealed"] = True
         cases.append(case)
         if not case["passed"] and not detail:
             detail = case["error"]
@@ -206,7 +211,7 @@ def create_student(body: NewStudentIn, user: sqlite3.Row = Depends(require_train
         record_activity(
             conn, int(user["id"]), "created",
             f'{display_name(user)} enrolled {full_name or email}',
-            int(user["id"]), "/trainer/students",
+            int(user["id"]), "/trainer/students", category="account",
         )
     return {"id": student_id, "email": email, "display": full_name or email}
 
@@ -337,6 +342,7 @@ def create_exercise(body: ExerciseIn, user: sqlite3.Row = Depends(require_traine
                     f"{display_name(user)} assigned \"{body.title.strip()}\"",
                     trainer_id,
                     "/student",
+                    category="exercise",
                 )
 
         # Named, like every other line in the feed: the reference design's
@@ -350,6 +356,7 @@ def create_exercise(body: ExerciseIn, user: sqlite3.Row = Depends(require_traine
             f" and assigned it to {assigned} student(s)",
             trainer_id,
             "/trainer",
+            category="exercise",
         )
 
     return {"id": exercise_id, "assigned": assigned}
@@ -398,7 +405,10 @@ def review_submission(
             "request_changes": f"Changes requested: {row['title']}",
         }[body.action]
         notify(conn, int(row["student_id"]), body.action, headline, "/student")
-        record_activity(conn, int(row["student_id"]), body.action, headline, int(user["id"]), "/student")
+        record_activity(
+            conn, int(row["student_id"]), body.action, headline, int(user["id"]), "/student",
+            category="submission",
+        )
         record_activity(
             conn,
             int(user["id"]),
@@ -406,6 +416,7 @@ def review_submission(
             f"Reviewed a submission for \"{row['title']}\"",
             int(user["id"]),
             "/trainer",
+            category="submission",
         )
 
     return {"ok": True, "review_status": review_status, "assignment_status": assignment_status}
@@ -625,11 +636,11 @@ def raise_access_request(
         notify(conn, trainer_id, "query", f'{who} asked to reopen "{title}"', "/trainer")
         record_activity(
             conn, trainer_id, "query", f'{who} asked to reopen "{title}"',
-            student_id, "/trainer",
+            student_id, "/trainer", category="exercise",
         )
         record_activity(
             conn, student_id, "query", f'You asked to reopen "{title}"',
-            student_id, "/student",
+            student_id, "/student", category="exercise",
         )
     return {"id": int(cur.lastrowid), "status": "pending"}
 
@@ -709,7 +720,7 @@ def decide_access_request(
             conn, student_id, status_next,
             f'{display_name(user)} {"reopened" if status_next == "approved" else "declined to reopen"}'
             f' "{title}"',
-            trainer_id, "/student/exercises",
+            trainer_id, "/student/exercises", category="exercise",
         )
     return {"id": request_id, "status": status_next, "message": body.message.strip()}
 
@@ -814,6 +825,7 @@ def submit_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_st
             f" - {verdict['passed']}/{verdict['total']} tests passed",
             student_id,
             "/trainer",
+            category="submission",
         )
         record_activity(
             conn,
@@ -822,6 +834,7 @@ def submit_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_st
             f"Submitted \"{title}\" - {verdict['result'].replace('_', ' ')}",
             student_id,
             "/student",
+            category="submission",
         )
 
     return {"id": int(cur.lastrowid), **verdict}
@@ -1115,6 +1128,7 @@ def assign_exercise(
                 f'{actor} assigned "{title}"',
                 trainer_id,
                 "/student",
+                category="exercise",
             )
     return {"id": exercise_id, "assigned": assigned}
 
@@ -1157,6 +1171,7 @@ def raise_query(
             f'{actor} raised a {body.severity} on "{title}"',
             trainer_id,
             "/student",
+            category="exercise",
         )
     return {"id": int(cur.lastrowid), "severity": body.severity}
 

@@ -34,6 +34,20 @@ html:has(body.colab) { background: var(--bg); height: auto; }
   top: 0;
   z-index: 20;
 }
+/* The site-wide Back control, left of the brand. It is a button, not a link:
+   where it goes depends on where the reader came from. */
+.cb-back {
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 30px; padding: 0 11px 0 8px;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: transparent; color: var(--text);
+  font: 500 13px var(--sans); cursor: pointer;
+  flex-shrink: 0;
+}
+.cb-back:hover { background: var(--cell-bg); }
+.cb-back:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+.cb-back[hidden] { display: none; }
+
 .cb-brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .cb-logo { color: var(--amber); font-size: 22px; line-height: 1; }
 .cb-logo-link { text-decoration: none; }

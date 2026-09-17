@@ -18,7 +18,7 @@ from .assignment_status import (
     PRE_SUBMIT_STATUSES,
     sync_overdue_assignments,
 )
-from .db import get_conn, utcnow
+from .db import ACTIVITY_CATEGORIES as _CATEGORIES, get_conn, utcnow
 from .deps import get_current_user, require_student, require_trainer
 from .names import display_name
 
@@ -32,18 +32,26 @@ PRESENCE_WINDOW_MIN = 5
 # week is one or two pages, few enough that a page scrolls rather than runs off.
 ACTIVITY_PAGE = 15
 
+# The filter's accepted values: one per category, plus "all".
+ACTIVITY_CATEGORIES = ("all", *_CATEGORIES)
+
 # Who did this to you, and in what capacity. A student needs to see that the
 # warning on their exercise came from their trainer and not from the system.
 ACTIVITY_SELECT = """
-    SELECT a.id, a.kind, a.summary, a.link, a.created_at, a.actor_id,
+    SELECT a.id, a.kind, a.category, a.summary, a.link, a.created_at, a.actor_id,
            u.role AS actor_role, u.full_name AS actor_full_name,
            u.first_name AS actor_first_name, u.last_name AS actor_last_name,
            u.email AS actor_email
     FROM activities a
     LEFT JOIN users u ON u.id = a.actor_id
-    WHERE a.user_id = ?
+    WHERE a.user_id = ? AND (? = 'all' OR a.category = ?)
     ORDER BY a.created_at DESC, a.id DESC
 """
+
+ACTIVITY_COUNT = (
+    "SELECT COUNT(*) FROM activities"
+    " WHERE user_id = ? AND (? = 'all' OR category = ?)"
+)
 
 # One row per assignment: its most recent submission, or NULLs if never submitted.
 LATEST_SUBMISSION = """
@@ -135,16 +143,18 @@ def _feed(conn: sqlite3.Connection, user_id: int) -> dict:
     """
     notifications, unread = _notifications(conn, user_id)
     activity = _with_actor(
-        _rows(conn.execute(ACTIVITY_SELECT + " LIMIT ?", (user_id, ACTIVITY_PAGE))),
+        _rows(
+            conn.execute(
+                ACTIVITY_SELECT + " LIMIT ?", (user_id, "all", "all", ACTIVITY_PAGE)
+            )
+        ),
         user_id,
     )
     return {
         "notifications": notifications,
         "unread": unread,
         "activity": activity,
-        "activity_total": _scalar(
-            conn, "SELECT COUNT(*) FROM activities WHERE user_id = ?", (user_id,)
-        ),
+        "activity_total": _scalar(conn, ACTIVITY_COUNT, (user_id, "all", "all")),
     }
 
 
@@ -491,24 +501,37 @@ def mark_notifications_read(user: sqlite3.Row = Depends(get_current_user)) -> di
 def full_activity(
     limit: int = Query(ACTIVITY_PAGE, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    category: str = Query("all"),
     user: sqlite3.Row = Depends(get_current_user),
 ) -> dict:
     """One page of the signed-in account's activity, newest first.
 
     Both dashboards show fifteen at a time and step through with Next, so the
     total travels with the page; the history page asks for a large limit and
-    filters what it gets client-side.
+    searches what it gets client-side.
+
+    ``category`` narrows the feed to one kind of thing -- exercises, modules or
+    submissions. It is applied here rather than over the page the browser
+    already holds: filtering fifteen rows client-side hides everything older
+    than those fifteen and leaves the pager counting the wrong total.
     """
+    if category not in ACTIVITY_CATEGORIES:
+        category = "all"
     with get_conn() as conn:
         items = _with_actor(
             _rows(
                 conn.execute(
-                    ACTIVITY_SELECT + " LIMIT ? OFFSET ?", (user["id"], limit, offset)
+                    ACTIVITY_SELECT + " LIMIT ? OFFSET ?",
+                    (user["id"], category, category, limit, offset),
                 )
             ),
             int(user["id"]),
         )
-        total = _scalar(
-            conn, "SELECT COUNT(*) FROM activities WHERE user_id = ?", (user["id"],)
-        )
-    return {"items": items, "total": total, "limit": limit, "offset": offset}
+        total = _scalar(conn, ACTIVITY_COUNT, (user["id"], category, category))
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "category": category,
+    }

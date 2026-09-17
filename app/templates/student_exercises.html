@@ -21,12 +21,13 @@
       <input class="dash-search" id="assign-search" type="search" placeholder="Search exercises">
     </header>
     <div class="panel-body pad" style="padding-bottom:0">
+      {# Four tabs, no All: the page opens on Assigned, which is the work
+         still in hand. Assigned and Pending are the same unsubmitted work
+         split by the due date — before it, and past it. #}
       <div class="filters" id="filters">
-        <button class="active" data-filter="all">All</button>
-        <button data-filter="assigned">Assigned</button>
-        <button data-filter="in_progress">In progress</button>
-        <button data-filter="submitted">Submitted</button>
+        <button class="active" data-filter="assigned">Assigned</button>
         <button data-filter="pending">Pending</button>
+        <button data-filter="submitted">Submitted</button>
         <button data-filter="completed">Completed</button>
       </div>
     </div>

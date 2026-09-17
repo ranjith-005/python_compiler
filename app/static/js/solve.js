@@ -107,8 +107,8 @@
         el("section", { class: "case hidden-case" },
           el("header", {}, el("h3", {}, `${hiddenCount} hidden test${hiddenCount > 1 ? "s" : ""}`)),
           el("p", { class: "case-note" },
-            "These run against your code too. Their input is not shown, but you will be " +
-            "told which ones fail.")
+            "These run against your code too. Their input stays hidden while they pass — " +
+            "a hidden test that fails is shown to you in full.")
         )
       );
     }
@@ -149,14 +149,17 @@
             c.passed ? "✓ Passed" : "✕ Failed")
         )
       );
-      if (c.hidden) {
-        // Its input stays hidden whether it passed or failed; only the reason
-        // it failed is reported.
-        card.append(
-          el("p", { class: "case-note" },
-            c.passed ? "Passed — input not shown." : c.error || "Failed — input not shown.")
-        );
+      // A hidden test that passed stays hidden. One that failed is opened up,
+      // because the student cannot fix what they cannot see.
+      if (c.hidden && c.passed) {
+        card.append(el("p", { class: "case-note" }, "Passed — input not shown."));
       } else {
+        if (c.hidden) {
+          card.append(
+            el("p", { class: "case-note" },
+              "This hidden test failed, so it is shown to you in full.")
+          );
+        }
         if (!c.passed && c.error) {
           card.append(el("p", { class: "case-error" }, c.error));
         }
@@ -416,10 +419,23 @@
       const v = await D.api(`/api/assignments/${id}/submit`, { method: "POST" });
       showResults(v);
       openDrawer();
+      const allPassed = v.total > 0 && v.passed === v.total;
       D.flash(
         `Submitted — ${v.passed}/${v.total} test cases passed`,
-        v.result === "accepted" ? "success" : "info"
+        allPassed ? "success" : "info"
       );
+      if (allPassed) {
+        // Nothing is left to do on this page once every test passes: the work
+        // is with the trainer now, so the student is put back on the exercise
+        // list rather than left staring at the editor. The pause is there so
+        // the verdict is read before the page changes.
+        submitBtn.disabled = true;
+        runBtn.disabled = true;
+        setTimeout(() => {
+          window.location.href = "/student/exercises";
+        }, 1400);
+        return;
+      }
       load();
     } catch (err) {
       D.flash(err.message, "error");

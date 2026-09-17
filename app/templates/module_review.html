@@ -73,15 +73,19 @@
     </div>
   </section>
 
-  <section class="panel hide-on-update">
-    <header>
+  {# The module reads the way a student reads it: the sections are the page,
+     not a list inside a box. Each one is separated by a rule, exactly as on
+     /student/modules/<id>. The editing view keeps a card per section, because
+     there the fields are the point. #}
+  <div class="hide-on-update">
+    <div class="sections-head">
       <h2>Sections</h2>
       <span class="count" id="b-count">0</span>
       <span class="spacer"></span>
       <button class="cb-btn edit-only" id="add-section">Add section</button>
-    </header>
-    <div class="panel-body" id="b-list"></div>
-  </section>
+    </div>
+    <div id="b-list"></div>
+  </div>
 </main>
 <div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
 <div class="toast" id="toast" hidden></div>

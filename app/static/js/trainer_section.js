@@ -134,26 +134,20 @@
     approved: ["Access granted", "green"],
     rejected: ["Declined", "red"],
   };
+  // The four buckets, worded as everywhere else: unsubmitted work reads
+  // "Assigned" until its due date passes, and "Pending" after it.
   const ASSIGNMENT_STATE = {
-    assigned: ["Assigned", "grey"],
-    in_progress: ["In progress", "blue"],
-    submitted: ["Submitted", "amber"],
+    ...D.ASSIGNMENT_LABELS,
     pending: ["Pending · past due", "red"],
-    completed: ["Completed", "green"],
   };
 
   let queries = null;
   let historyMode = false;
   const historyBtn = document.getElementById("history-toggle");
 
-  async function decide(request, action) {
+  async function decide(request, action, message) {
     // The message is written for this student on this query, so two students
     // asking about the same exercise can be answered differently.
-    const prompt_ = action === "approve"
-      ? `Message to ${request.student_display} (optional):`
-      : `Why are you declining ${request.student_display}? They will see this:`;
-    const message = window.prompt(prompt_, "");
-    if (message === null) return;
     try {
       await D.api(`/api/access-requests/${request.id}/decide`, {
         method: "POST",
@@ -166,10 +160,68 @@
     }
   }
 
+  // The reply used to be typed into a window.prompt, which covered the query
+  // the trainer was answering. It is written in a section of its own under
+  // that query instead: the request stays on screen while it is answered.
+  function decisionForm(r, action, close) {
+    const approve = action === "approve";
+    const box = el("textarea", {
+      rows: "2",
+      class: "decision-input",
+      placeholder: approve
+        ? `Message to ${r.student_display} (optional)`
+        : `Why are you declining ${r.student_display}? They will see this.`,
+    });
+    const confirm = el(
+      "button",
+      {
+        class: `cb-btn ${approve ? "primary" : ""}`,
+        onclick: async () => {
+          const message = box.value.trim();
+          if (!approve && !message) {
+            return D.flash("Write a reason before declining.", "error");
+          }
+          confirm.disabled = true;
+          await decide(r, action, message);
+        },
+      },
+      approve ? "Grant access" : "Decline query"
+    );
+    const form = el(
+      "div",
+      { class: `query-decision ${approve ? "approve" : "decline"}` },
+      el(
+        "div",
+        { class: "decision-head" },
+        approve
+          ? `Reopen "${r.title}" for ${r.student_display}`
+          : `Decline ${r.student_display}'s request`
+      ),
+      box,
+      el(
+        "div",
+        { class: "decision-actions" },
+        confirm,
+        el("button", { class: "cb-btn", onclick: close }, "Cancel")
+      )
+    );
+    setTimeout(() => box.focus(), 0);
+    return form;
+  }
+
   function queryRow(r) {
     const request = QUERY_STATUS[r.status] || [r.status, "grey"];
-    const state = ASSIGNMENT_STATE[r.assignment_status] || [r.assignment_status, "grey"];
-    return el(
+    const bucket = D.assignmentBucket({ status: r.assignment_status, due_date: r.due_date });
+    const state = ASSIGNMENT_STATE[bucket] || [r.assignment_status, "grey"];
+    const item = el("div", { class: "query-item" });
+    const decision = el("div", { class: "decision-slot" });
+
+    function openForm(action) {
+      decision.textContent = "";
+      decision.append(decisionForm(r, action, () => (decision.textContent = "")));
+    }
+
+    const body = el(
       "div",
       { class: "row" },
       el(
@@ -195,12 +247,15 @@
             { class: "actions" },
             el("a", { class: "cb-btn", href: `/trainer/exercises/${r.exercise_id}?view=pending` },
                "Exercise"),
-            el("button", { class: "cb-btn", onclick: () => decide(r, "reject") }, "Decline"),
-            el("button", { class: "cb-btn primary", onclick: () => decide(r, "approve") },
+            el("button", { class: "cb-btn", onclick: () => openForm("reject") }, "Decline"),
+            el("button", { class: "cb-btn primary", onclick: () => openForm("approve") },
                "Grant access")
           )
         : null
     );
+
+    item.append(body, decision);
+    return item;
   }
 
   function renderQueries() {

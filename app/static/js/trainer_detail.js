@@ -6,17 +6,17 @@
   const PAGE = window.PAGE || {};
   const $ = (id) => document.getElementById(id);
 
-  const STATUS = {
-    assigned: ["Assigned", "grey"],
-    in_progress: ["In progress", "blue"],
-    submitted: ["Submitted", "amber"],
-    pending: ["Pending", "red"],
-    completed: ["Completed", "green"],
-  };
+  // The four buckets a row can be in. Unsubmitted work is Assigned while the
+  // due date is ahead and Pending once it has passed, so an opened-but-unsent
+  // exercise reads the same as one never opened -- what separates them is the
+  // deadline, not the click.
+  const STATUS = { ...D.ASSIGNMENT_LABELS, pending: ["Pending", "red"] };
   const SEVERITY = { note: "grey", warning: "amber", urgent: "red" };
 
-  function statusPill(value) {
-    const [text, tone] = STATUS[value] || [value || "—", "grey"];
+  // Takes the assignment row, not a status string: which bucket it is in
+  // depends on its due date as well as its stored status.
+  function statusPill(row) {
+    const [text, tone] = STATUS[D.assignmentBucket(row)] || [row.status || "—", "grey"];
     return pill(text, tone);
   }
 
@@ -62,12 +62,13 @@
   const { assignmentMatchesFilter } = D;
 
   // Which assignment rows each card -- and each dropdown value -- narrows the
-  // list to. "open" stays as an alias for in_progress; it is not a status.
+  // list to. "in_progress" and "open" stay as aliases for assigned so an older
+  // link still lands somewhere sensible; neither is a bucket of its own.
   const CARD_FILTERS = {
     all: () => true,
     assigned: (e) => assignmentMatchesFilter(e, "assigned"),
-    in_progress: (e) => assignmentMatchesFilter(e, "in_progress"),
-    open: (e) => assignmentMatchesFilter(e, "in_progress"),
+    in_progress: (e) => assignmentMatchesFilter(e, "assigned"),
+    open: (e) => assignmentMatchesFilter(e, "assigned"),
     submitted: (e) => assignmentMatchesFilter(e, "submitted"),
     pending: (e) => assignmentMatchesFilter(e, "pending"),
     completed: (e) => assignmentMatchesFilter(e, "completed"),
@@ -75,9 +76,9 @@
   };
   const CARD_TITLES = {
     all: "every exercise",
-    assigned: "exercises not opened yet",
-    in_progress: "exercises still in progress",
-    open: "exercises still in progress",
+    assigned: "exercises still within their due date",
+    in_progress: "exercises still within their due date",
+    open: "exercises still within their due date",
     submitted: "exercises awaiting your review",
     pending: "exercises past due without a submission",
     completed: "completed exercises",
@@ -127,7 +128,7 @@
         node: row(
           e.title,
           [
-            statusPill(e.status),
+            statusPill(e),
             el("span", {}, `Assigned ${D.when(e.assigned_at)}`),
             e.submitted_at ? el("span", {}, `Submitted ${D.when(e.submitted_at)}`) : null,
             e.late ? pill("Late", "red") : null,
@@ -229,7 +230,7 @@
 
     $("title").textContent = e.title;
     $("subtitle").textContent = `${data.student.display} · ${
-      (STATUS[e.status] || [e.status])[0]
+      (STATUS[D.assignmentBucket(e)] || [e.status])[0]
     }`;
 
     const step = (label, value) => row(label, [el("span", {}, value)]);
@@ -255,13 +256,7 @@
       rejected: ["Declined", "red"],
     };
 
-    async function decideQuery(action) {
-      const who = data.student.display;
-      const prompt_ = action === "approve"
-        ? `Message to ${who} (optional):`
-        : `Why are you declining ${who}? They will see this:`;
-      const message = window.prompt(prompt_, "");
-      if (message === null) return;
+    async function decideQuery(action, message) {
       try {
         await api(`/api/access-requests/${e.query_id}/decide`, {
           method: "POST",
@@ -274,6 +269,51 @@
       }
     }
 
+    // The reply is written in a section under the query, never in a browser
+    // prompt that covers the request it is answering (same as /trainer/queries).
+    function decisionForm(action, close) {
+      const who = data.student.display;
+      const approve = action === "approve";
+      const box = el("textarea", {
+        rows: "2",
+        class: "decision-input",
+        placeholder: approve
+          ? `Message to ${who} (optional)`
+          : `Why are you declining ${who}? They will see this.`,
+      });
+      const confirm = el(
+        "button",
+        {
+          class: `cb-btn ${approve ? "primary" : ""}`,
+          onclick: async () => {
+            const message = box.value.trim();
+            if (!approve && !message) return flash("Write a reason before declining.", "error");
+            confirm.disabled = true;
+            await decideQuery(action, message);
+          },
+        },
+        approve ? "Grant access" : "Decline query"
+      );
+      const form = el(
+        "div",
+        { class: `query-decision ${approve ? "approve" : "decline"}` },
+        el(
+          "div",
+          { class: "decision-head" },
+          approve ? `Reopen "${e.title}" for ${who}` : `Decline ${who}'s request`
+        ),
+        box,
+        el(
+          "div",
+          { class: "decision-actions" },
+          confirm,
+          el("button", { class: "cb-btn", onclick: close }, "Cancel")
+        )
+      );
+      setTimeout(() => box.focus(), 0);
+      return form;
+    }
+
     const host = $("query-access");
     if (!e.query_id) {
       const note = e.status === "pending"
@@ -284,7 +324,13 @@
     }
 
     const state = QUERY_STATUS[e.query_status] || [e.query_status, "grey"];
-    const exerciseState = STATUS[e.status] || [e.status, "grey"];
+    const exerciseBucket = D.assignmentBucket(e);
+    const exerciseState = STATUS[exerciseBucket] || [e.status, "grey"];
+    const decision = el("div", { class: "decision-slot" });
+    function openForm(action) {
+      decision.textContent = "";
+      decision.append(decisionForm(action, () => (decision.textContent = "")));
+    }
     fill(
       host,
       [
@@ -312,12 +358,13 @@
             ? el(
                 "div",
                 { class: "actions" },
-                el("button", { class: "cb-btn", onclick: () => decideQuery("reject") }, "Decline"),
-                el("button", { class: "cb-btn primary", onclick: () => decideQuery("approve") },
+                el("button", { class: "cb-btn", onclick: () => openForm("reject") }, "Decline"),
+                el("button", { class: "cb-btn primary", onclick: () => openForm("approve") },
                    "Grant access")
               )
             : null
         ),
+        decision,
       ],
       ""
     );
@@ -440,7 +487,7 @@
         filtered.map((s) =>
           row(
             s.display,
-            [statusPill(s.status), el("span", {}, `Assigned ${D.when(s.assigned_at)}`)],
+            [statusPill(s), el("span", {}, `Assigned ${D.when(s.assigned_at)}`)],
             el("span", { class: "chev" }, "›"),
             () => {
               window.location.href = `/trainer/students/${s.id}/exercises/${x.id}`;
@@ -460,7 +507,7 @@
         pendingStudents.map((s) =>
           row(
             s.display,
-            [statusPill(s.status), el("span", {}, `Assigned ${D.when(s.assigned_at)}`)],
+            [statusPill(s), el("span", {}, `Assigned ${D.when(s.assigned_at)}`)],
             el("span", { class: "chev" }, "›"),
             () => {
               window.location.href = `/trainer/students/${s.id}/exercises/${x.id}`;

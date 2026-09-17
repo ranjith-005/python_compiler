@@ -272,8 +272,13 @@ def test_student_exercises_page_absorbs_the_list(client):
     # The "From your trainer" sidebar is gone: a query belongs to one
     # assignment, so it renders on that assignment's card instead.
     assert 'id="query-list"' not in html
-    for tab in ("All", "Assigned", "In progress", "Submitted", "Pending", "Completed"):
-        assert tab in html, tab
+    # Four tabs, and no All: the page opens on the work still in hand.
+    # "Assigned" and "Pending" are the same unsubmitted work either side of
+    # the due date, so "In progress" is not a tab of its own.
+    for tab in ("Assigned", "Pending", "Submitted", "Completed"):
+        assert f'data-filter="{tab.lower()}"' in html, tab
+    assert 'data-filter="all"' not in html
+    assert 'data-filter="in_progress"' not in html
     # The changes-requested tab was dropped along with its dashboard card.
     assert 'data-filter="changes_requested"' not in html
 
@@ -284,8 +289,12 @@ def test_dashboard_stat_cards_are_links_with_the_fixed_filter_mapping(client):
     # Cards navigate, so they must be built as <a>, never <button>.
     assert '"a",' in script and "class: `stat" in script
     assert "/student/exercises?filter=${c.filter}" in script
-    for filter_key in ("assigned", "in_progress", "submitted", "pending", "completed"):
+    # One card per bucket on the exercises page. Unsubmitted work is a single
+    # card -- Assigned before the due date, Pending after it -- so there is no
+    # in-progress card pointing at a filter that no longer exists.
+    for filter_key in ("assigned", "pending", "submitted", "completed"):
         assert f'filter: "{filter_key}"' in script
+    assert 'filter: "in_progress"' not in script
     # Changes requested was removed from both the cards and the filter tabs.
     assert 'filter: "changes_requested"' not in script
 

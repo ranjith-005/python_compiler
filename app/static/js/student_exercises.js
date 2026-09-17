@@ -11,9 +11,10 @@
   let data = null;
   let search = "";
 
+  // Wording for the four buckets on this page; the buckets themselves come
+  // from D.assignmentBucket, so the pill and the tab always agree.
   const STATUS = {
     assigned: ["Assigned", "grey"],
-    in_progress: ["In progress", "blue"],
     submitted: ["Submitted · awaiting review", "blue"],
     pending: ["Pending · past due", "amber"],
     completed: ["Completed", "green"],
@@ -25,21 +26,24 @@
     syntax_error: "red",
     pending: "grey",
   };
-  const { assignmentMatchesFilter } = D;
-  // One tab per canonical status. "open" is not one of them -- it survives
-  // only as an alias for in_progress wherever an older link says open.
-  const TAB_FILTERS = ["all", "assigned", "in_progress", "submitted", "pending", "completed"];
+  const { assignmentMatchesFilter, assignmentBucket } = D;
+  // One tab per bucket. There is no All tab: the page opens on the work that
+  // is still in hand. "in_progress" and "open" survive only as aliases for
+  // "assigned", so an older link still lands somewhere sensible.
+  const TAB_FILTERS = ["assigned", "pending", "submitted", "completed"];
+  const FILTER_ALIASES = { all: "assigned", in_progress: "assigned", open: "assigned" };
   const SEVERITY = { note: "grey", warning: "amber", urgent: "red" };
 
   function label(value) {
     return String(value || "").replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
   }
 
-  // The dashboard's cards link here with ?filter=<key>; default to "all"
+  // The dashboard's cards link here with ?filter=<key>; default to "assigned"
   // for a bare visit or an unrecognised value.
   function initialFilter() {
     const requested = new URLSearchParams(window.location.search).get("filter");
-    return TAB_FILTERS.includes(requested) ? requested : "all";
+    const resolved = FILTER_ALIASES[requested] || requested;
+    return TAB_FILTERS.includes(resolved) ? resolved : "assigned";
   }
 
   let filter = initialFilter();
@@ -114,7 +118,8 @@
     fill(
       document.getElementById("assign-list"),
       items.map((a) => {
-        const [text, tone] = STATUS[a.status] || [label(a.status), "grey"];
+        const bucket = assignmentBucket(a);
+        const [text, tone] = STATUS[bucket] || [label(bucket), "grey"];
         const closed = a.status === "completed";
         const card = el(
           "div",
@@ -155,7 +160,7 @@
             ),
             // Past due work is submitted from the solve page, which knows
             // whether the trainer has reopened it.
-            !closed && a.status !== "assigned" && a.status !== "pending"
+            !closed && a.status !== "assigned" && bucket !== "pending"
               ? el("button", { class: "cb-btn", onclick: () => submit(a) }, "Submit")
               : null
           )
@@ -185,9 +190,7 @@
 
         return card;
       }),
-      filter === "all"
-        ? "No exercises assigned to you yet."
-        : "Nothing in this view — try another filter."
+      "Nothing in this view — try another filter."
     );
   }
 
@@ -241,7 +244,9 @@
       el(
         "p",
         { class: "help" },
-        "Hidden test cases are included in the verdict but their details are not shown."
+        allPassed
+          ? "Hidden test cases are included in the verdict; their details stay hidden."
+          : "Open the exercise to see which cases failed — a hidden test that fails is shown in full."
       )
     );
     D.openSheet("result-sheet");

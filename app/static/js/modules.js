@@ -718,7 +718,13 @@
         el(
           "div",
           { style: "display: flex; align-items: center; gap: 12px; width: auto; max-width: 300px; flex-shrink: 0;" },
-          el("div", { style: "flex: 1; min-width: 100px;" }, progressBar(m.progress)),
+          // The bar alone reads as "some of it"; the number says how much.
+          el(
+            "div",
+            { style: "flex: 1; min-width: 100px; display: flex; align-items: center; gap: 8px;" },
+            progressBar(m.progress),
+            el("span", { class: "bar-percent" }, `${m.progress}%`)
+          ),
           el(
             "button",
             {

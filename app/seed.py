@@ -212,7 +212,8 @@ def seed() -> None:
                     (exercise_id, position, stdin, expected, hidden),
                 )
             record_activity(
-                conn, trainer_id, "created", f'Created "{spec["title"]}"', trainer_id, "/trainer"
+                conn, trainer_id, "created", f'Created "{spec["title"]}"', trainer_id, "/trainer",
+                category="exercise",
             )
 
         summing = exercise_ids["Sum of two numbers"]
@@ -305,12 +306,12 @@ def seed() -> None:
         )
         record_activity(
             conn, trainer_id, "query", 'Meera Nair asked to reopen "Reverse a string"',
-            meera, "/trainer",
+            meera, "/trainer", category="exercise",
         )
         notify(conn, karthik, "approved", "Reopened: Reverse a string", "/student/exercises")
         record_activity(
             conn, karthik, "approved", 'Demo Trainer reopened "Reverse a string"',
-            trainer_id, "/student/exercises",
+            trainer_id, "/student/exercises", category="exercise",
         )
         notify(
             conn, demo_student, "rejected", "Reopen request declined: Reverse a string",
@@ -318,7 +319,7 @@ def seed() -> None:
         )
         record_activity(
             conn, demo_student, "rejected", 'Demo Trainer declined to reopen "Reverse a string"',
-            trainer_id, "/student/exercises",
+            trainer_id, "/student/exercises", category="exercise",
         )
 
         # ── notifications and activity feeds (§17) ───────────────────────────
@@ -327,27 +328,38 @@ def seed() -> None:
         record_activity(
             conn, trainer_id, "submitted",
             'Rahul Verma submitted "Sum of two numbers" - 0/3 tests passed', rahul, "/trainer",
+            category="submission",
         )
         record_activity(
             conn, trainer_id, "submitted",
             'Aditi Sharma submitted "FizzBuzz" - 2/2 tests passed', aditi, "/trainer",
+            category="submission",
         )
         record_activity(
             conn, trainer_id, "reviewed", 'Requested modifications on "FizzBuzz" from Meera Nair',
-            trainer_id, "/trainer",
+            trainer_id, "/trainer", category="submission",
         )
 
         for student in student_ids:
             notify(conn, student, "assigned", 'New exercise assigned: Sum of two numbers', "/student")
             record_activity(
                 conn, student, "assigned", 'Demo Trainer assigned "Sum of two numbers"',
-                trainer_id, "/student",
+                trainer_id, "/student", category="exercise",
             )
         notify(conn, meera, "request_changes", "Changes requested: FizzBuzz", "/student")
-        record_activity(conn, meera, "request_changes", "Changes requested: FizzBuzz", trainer_id, "/student")
+        record_activity(
+            conn, meera, "request_changes", "Changes requested: FizzBuzz", trainer_id, "/student",
+            category="submission",
+        )
         notify(conn, aditi, "approve", "Solution approved: Sum of two numbers", "/student")
-        record_activity(conn, aditi, "approve", "Solution approved: Sum of two numbers", trainer_id, "/student")
-        record_activity(conn, rahul, "submitted", 'Submitted "Sum of two numbers" - wrong answer', rahul, "/student")
+        record_activity(
+            conn, aditi, "approve", "Solution approved: Sum of two numbers", trainer_id, "/student",
+            category="submission",
+        )
+        record_activity(
+            conn, rahul, "submitted", 'Submitted "Sum of two numbers" - wrong answer', rahul,
+            "/student", category="submission",
+        )
 
     print("Demo data created.\n")
     for email, name in TRAINERS:

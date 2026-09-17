@@ -20,6 +20,15 @@
 {% set home = '/trainer' if role == 'trainer' else '/student' %}
 <header class="cb-topbar">
 
+  {# Site-wide back control: returns to the page visited before this one.
+     Hidden on the first page of a session, where there is nothing behind. #}
+  <button class="cb-back" id="nav-back" type="button" title="Back" aria-label="Go back" hidden>
+    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+         stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <polyline points="15 18 9 12 15 6"></polyline>
+    </svg>
+    <span>Back</span>
+  </button>
 
   <a class="cb-brand" href="{{ home }}">
     <span class="brand-mark" aria-hidden="true">
@@ -136,6 +145,48 @@
 
 <script>
   // Self-contained so the bar works on pages that load no other script.
+
+  // ── back button ─────────────────────────────────────────────────────────
+  // Browser history is not enough here: several pages are reached through a
+  // server redirect or a scripted location change, and one back step can land
+  // on a URL that immediately bounces forward again. So the visited pages are
+  // tracked in sessionStorage instead, one entry per page, and Back walks that
+  // list. The fallback is the page's declared parent, used only when this is
+  // the first page of the session.
+  (function () {
+    const KEY = "nav:history";
+    const FALLBACK = {{ (back or '')|tojson }};
+    const here = location.pathname + location.search;
+
+    let stack = [];
+    try {
+      stack = JSON.parse(sessionStorage.getItem(KEY) || "[]");
+    } catch (e) {
+      stack = [];
+    }
+    if (!Array.isArray(stack)) stack = [];
+
+    if (stack.length >= 2 && stack[stack.length - 2] === here) {
+      // Arrived by pressing Back: drop the page we just left.
+      stack.pop();
+    } else if (stack[stack.length - 1] !== here) {
+      stack.push(here);
+      if (stack.length > 30) stack.shift();
+    }
+    try {
+      sessionStorage.setItem(KEY, JSON.stringify(stack));
+    } catch (e) {}
+
+    const target = stack.length >= 2 ? stack[stack.length - 2] : FALLBACK;
+    const back = document.getElementById("nav-back");
+    if (back && target) {
+      back.hidden = false;
+      back.addEventListener("click", () => {
+        location.href = target;
+      });
+    }
+  })();
+
   (function () {
     const btn = document.getElementById("profile-menu");
     const panel = document.getElementById("profile-panel");
