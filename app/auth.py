@@ -7,7 +7,7 @@ import sqlite3
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
 from .db import WELCOME_CELLS, create_notebook, get_conn, utcnow, utcnow_precise
-from .deps import get_current_user
+from .deps import get_current_user, get_optional_user
 from .schemas import Credentials, PasswordChangeIn
 from .security import (
     clear_session_cookie,
@@ -91,7 +91,18 @@ def login(creds: Credentials, response: Response) -> dict:
 
 
 @router.post("/logout")
-def logout(response: Response) -> dict:
+def logout(
+    response: Response, user: sqlite3.Row | None = Depends(get_optional_user)
+) -> dict:
+    # Stamp the real sign-out moment, unthrottled: the trainer's "Last
+    # active" card must show when this user actually logged out, not the
+    # last request the 60-second presence throttle happened to catch.
+    # No (valid) session means a cookie-cleanup call - still log out fine.
+    if user is not None:
+        with get_conn() as conn:
+            conn.execute(
+                "UPDATE users SET last_seen_at = ? WHERE id = ?", (utcnow(), int(user["id"]))
+            )
     clear_session_cookie(response)
     return {"ok": True}
 

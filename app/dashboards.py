@@ -11,15 +11,18 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Query
 
+from .assignment_status import (
+    ACTIVE_LIST,
+    ACTIVE_STATUSES,
+    PRE_SUBMIT_LIST,
+    PRE_SUBMIT_STATUSES,
+    sync_overdue_assignments,
+)
 from .db import get_conn, utcnow
 from .deps import get_current_user, require_student, require_trainer
 from .names import display_name
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
-
-# Statuses that mean "the student still owes work on this assignment".
-OPEN_STATUSES = ("assigned", "in_progress", "changes_requested")
-OPEN_LIST = ",".join("?" * len(OPEN_STATUSES))
 
 # How recently a student must have been seen for the roster to call them
 # online. Long enough that reading a page does not flicker them offline.
@@ -137,6 +140,26 @@ def _feed(conn: sqlite3.Connection, user_id: int) -> dict:
     }
 
 
+@router.get("/notifications")
+def get_notifications(user: sqlite3.Row = Depends(get_current_user)) -> dict:
+    user_id = int(user["id"])
+    with get_conn() as conn:
+        notifications = _rows(
+            conn.execute(
+                "SELECT id, kind, title, link, created_at, read_at FROM notifications"
+                " WHERE user_id = ? ORDER BY read_at IS NOT NULL, created_at DESC, id DESC"
+                " LIMIT 5",
+                (user_id,),
+            )
+        )
+        unread = _scalar(
+            conn,
+            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL",
+            (user_id,),
+        )
+        return {"notifications": notifications, "unread": unread}
+
+
 @router.get("/trainer")
 def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
     """Everything the trainer overview shows (SRS §2)."""
@@ -144,6 +167,7 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
     now = utcnow()
 
     with get_conn() as conn:
+        sync_overdue_assignments(conn, now)
         stats = {
             "students": _scalar(
                 conn, "SELECT COUNT(*) FROM users WHERE role = 'student' AND is_active = 1"
@@ -161,11 +185,13 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
                 "SELECT COUNT(*) FROM exercises WHERE trainer_id = ? AND status = 'draft'",
                 (trainer_id,),
             ),
+            # Everything not yet submitted -- assigned, in progress or past
+            # due. ``overdue`` below is the past-due slice of this figure.
             "pending": _scalar(
                 conn,
                 "SELECT COUNT(*) FROM assignments a JOIN exercises e ON e.id = a.exercise_id"
-                f" WHERE e.trainer_id = ? AND a.status IN ({OPEN_LIST})",
-                (trainer_id, *OPEN_STATUSES),
+                f" WHERE e.trainer_id = ? AND a.status IN ({ACTIVE_LIST})",
+                (trainer_id, *ACTIVE_STATUSES),
             ),
             "awaiting_review": _scalar(
                 conn,
@@ -182,9 +208,16 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
             "overdue": _scalar(
                 conn,
                 "SELECT COUNT(*) FROM assignments a JOIN exercises e ON e.id = a.exercise_id"
-                f" WHERE e.trainer_id = ? AND a.status IN ({OPEN_LIST})"
-                " AND a.due_date IS NOT NULL AND a.due_date < ?",
-                (trainer_id, *OPEN_STATUSES, now),
+                " WHERE e.trainer_id = ? AND a.status = 'pending'",
+                (trainer_id,),
+            ),
+            # Queries students raised on pending exercises and are waiting on
+            # the trainer. The Query raised card links to the page that answers
+            # them; the answered ones are that page's history.
+            "new_queries": _scalar(
+                conn,
+                "SELECT COUNT(*) FROM access_requests WHERE trainer_id = ? AND status = 'pending'",
+                (trainer_id,),
             ),
         }
 
@@ -209,13 +242,13 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
             conn.execute(
                 "SELECT a.id, a.status, a.due_date, a.last_opened_at,"
                 "       u.full_name AS student, u.email AS student_email,"
-                "       e.title AS exercise"
+                "       e.title AS exercise, e.id AS exercise_id"
                 " FROM assignments a"
                 " JOIN exercises e ON e.id = a.exercise_id"
                 " JOIN users u ON u.id = a.student_id"
-                f" WHERE e.trainer_id = ? AND a.status IN ({OPEN_LIST})"
+                f" WHERE e.trainer_id = ? AND a.status IN ({ACTIVE_LIST})"
                 " ORDER BY a.due_date IS NULL, a.due_date ASC",
-                (trainer_id, *OPEN_STATUSES),
+                (trainer_id, *ACTIVE_STATUSES),
             )
         )
         for row in pending:
@@ -245,14 +278,14 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
                 "SELECT u.id, u.full_name AS name, u.email, u.is_active, u.last_seen_at,"
                 "       COUNT(a.id) AS assigned,"
                 "       SUM(CASE WHEN a.status = 'completed' THEN 1 ELSE 0 END) AS completed,"
-                f"      SUM(CASE WHEN a.status IN ({OPEN_LIST}) THEN 1 ELSE 0 END) AS pending,"
+                f"      SUM(CASE WHEN a.status IN ({ACTIVE_LIST}) THEN 1 ELSE 0 END) AS pending,"
                 "       SUM(CASE WHEN a.status = 'submitted' THEN 1 ELSE 0 END) AS awaiting"
                 " FROM users u"
                 " LEFT JOIN assignments a ON a.student_id = u.id"
                 "   AND a.exercise_id IN (SELECT id FROM exercises WHERE trainer_id = ?)"
                 " WHERE u.role = 'student'"
                 " GROUP BY u.id ORDER BY u.full_name COLLATE NOCASE",
-                (*OPEN_STATUSES, trainer_id),
+                (*ACTIVE_STATUSES, trainer_id),
             )
         )
         online_after = (
@@ -299,36 +332,17 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
             conn.execute(
                 "SELECT e.id, e.title, a.due_date,"
                 "       COUNT(*) AS assigned,"
-                f"      SUM(CASE WHEN a.status IN ({OPEN_LIST}) THEN 1 ELSE 0 END) AS outstanding"
+                f"      SUM(CASE WHEN a.status IN ({PRE_SUBMIT_LIST}) THEN 1 ELSE 0 END) AS outstanding"
                 " FROM assignments a JOIN exercises e ON e.id = a.exercise_id"
                 " WHERE e.trainer_id = ? AND a.due_date IS NOT NULL"
-                f"   AND a.status IN ({OPEN_LIST})"
+                f"   AND a.status IN ({PRE_SUBMIT_LIST})"
                 " GROUP BY e.id, a.due_date"
                 " ORDER BY a.due_date ASC",
-                (*OPEN_STATUSES, trainer_id, *OPEN_STATUSES),
+                (*PRE_SUBMIT_STATUSES, trainer_id, *PRE_SUBMIT_STATUSES),
             )
         )
         for row in deadlines:
             row["overdue"] = bool(row["due_date"] and row["due_date"] < now)
-
-        # Students asking for a closed exercise back. Pending ones first,
-        # because those are the only ones that need the trainer to act.
-        access_requests = _rows(
-            conn.execute(
-                "SELECT r.id, r.assignment_id, r.message, r.created_at, r.status,"
-                "       r.decision_message, r.decided_at,"
-                "       e.title AS exercise, u.full_name AS student, u.email AS student_email"
-                " FROM access_requests r"
-                " JOIN exercises e ON e.id = r.exercise_id"
-                " JOIN users u ON u.id = r.student_id"
-                " WHERE r.trainer_id = ?"
-                " ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END,"
-                "          r.created_at DESC LIMIT 50",
-                (trainer_id,),
-            )
-        )
-        for row in access_requests:
-            row["display"] = _display(row, "student", "student_email")
 
         feed = _feed(conn, trainer_id)
 
@@ -336,7 +350,6 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
         "user": {"name": display_name(user), "email": user["email"]},
         "stats": stats,
         "deadlines": deadlines,
-        "access_requests": access_requests,
         "queries": queries,
         "review_queue": review_queue,
         "pending": pending,
@@ -348,6 +361,52 @@ def trainer_dashboard(user: sqlite3.Row = Depends(require_trainer)) -> dict:
     }
 
 
+@router.get("/trainer/overdue-exercises")
+def overdue_exercises(user: sqlite3.Row = Depends(require_trainer)) -> dict:
+    """Overdue exercises grouped by exercise, each with the list of students
+    who have not yet completed/submitted (for the Pending Submissions page)."""
+    trainer_id = int(user["id"])
+    now = utcnow()
+    with get_conn() as conn:
+        sync_overdue_assignments(conn, now)
+        rows = _rows(
+            conn.execute(
+                "SELECT e.id AS exercise_id, e.title, e.due_date,"
+                "       u.id AS student_id, u.full_name AS student, u.email AS student_email,"
+                "       a.status, a.last_opened_at"
+                " FROM assignments a"
+                " JOIN exercises e ON e.id = a.exercise_id"
+                " JOIN users u ON u.id = a.student_id"
+                " WHERE e.trainer_id = ? AND a.status = 'pending'"
+                " ORDER BY e.due_date ASC, e.title COLLATE NOCASE, u.full_name COLLATE NOCASE",
+                (trainer_id,),
+            )
+        )
+
+        # Group into exercises → list of students
+        exercises: dict[int, dict] = {}
+        for r in rows:
+            eid = r["exercise_id"]
+            if eid not in exercises:
+                exercises[eid] = {
+                    "exercise_id": eid,
+                    "title": r["title"],
+                    "due_date": r["due_date"],
+                    "students": [],
+                }
+            exercises[eid]["students"].append(
+                {
+                    "student_id": r["student_id"],
+                    "display": _display(r, "student", "student_email"),
+                    "status": r["status"],
+                    "last_opened_at": r["last_opened_at"],
+                }
+            )
+
+    return {"exercises": list(exercises.values()), "total": len(exercises)}
+
+
+
 @router.get("/student")
 def student_dashboard(user: sqlite3.Row = Depends(require_student)) -> dict:
     """Everything the student overview shows (SRS §3)."""
@@ -355,6 +414,7 @@ def student_dashboard(user: sqlite3.Row = Depends(require_student)) -> dict:
     now = utcnow()
 
     with get_conn() as conn:
+        sync_overdue_assignments(conn, now)
         assignments = _rows(
             conn.execute(
                 "SELECT a.id, a.status, a.due_date, a.assigned_at, a.last_opened_at,"
@@ -372,9 +432,7 @@ def student_dashboard(user: sqlite3.Row = Depends(require_student)) -> dict:
             )
         )
         for row in assignments:
-            row["overdue"] = bool(
-                row["due_date"] and row["due_date"] < now and row["status"] in OPEN_STATUSES
-            )
+            row["overdue"] = row["status"] == "pending"
             # Trim the statement down to a dashboard-sized preview.
             statement = (row.pop("problem_statement") or "").strip()
             row["preview"] = statement[:180] + ("..." if len(statement) > 180 else "")
@@ -382,21 +440,17 @@ def student_dashboard(user: sqlite3.Row = Depends(require_student)) -> dict:
             row["trainer"] = _display(row, "trainer", "trainer_email")
 
         stats = {
-            "assigned": len(assignments),
+            "assigned": sum(1 for a in assignments if a["status"] == "assigned"),
             "in_progress": sum(1 for a in assignments if a["status"] == "in_progress"),
             "submitted": sum(1 for a in assignments if a["status"] == "submitted"),
-            "changes_requested": sum(
-                1 for a in assignments if a["status"] == "changes_requested"
-            ),
-            "completed": sum(
-                1 for a in assignments if a["status"] in ("approved", "completed")
-            ),
-            "overdue": sum(1 for a in assignments if a["overdue"]),
+            "pending": sum(1 for a in assignments if a["status"] == "pending"),
+            "completed": sum(1 for a in assignments if a["status"] == "completed"),
+            "overdue": sum(1 for a in assignments if a["status"] == "pending"),
         }
 
         # "Continue where you left off" (§3): the most recently opened piece of
         # open work, falling back to whatever is due soonest.
-        open_work = [a for a in assignments if a["status"] in OPEN_STATUSES]
+        open_work = [a for a in assignments if a["status"] in ACTIVE_STATUSES]
         resume = None
         if open_work:
             opened = [a for a in open_work if a["last_opened_at"]]

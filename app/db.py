@@ -369,6 +369,9 @@ def init_db() -> None:
         _backfill_solution_code(conn)
         _migrate_snippets_to_notebooks(conn)
         _migrate_blocks_to_sections(conn)
+        from .assignment_status import migrate_assignment_statuses
+
+        migrate_assignment_statuses(conn)
 
 
 def _migrate_snippets_to_notebooks(conn: sqlite3.Connection) -> None:

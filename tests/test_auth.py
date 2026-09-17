@@ -1,6 +1,6 @@
 from conftest import register
 
-from app.db import get_conn
+from app.db import get_conn, utcnow
 
 
 def test_deactivated_account_loses_http_access(client):
@@ -64,6 +64,34 @@ def test_logout_clears_session(client):
     register(client)
     assert client.get("/auth/me").status_code == 200
     client.post("/auth/logout")
+    assert client.get("/auth/me").status_code == 401
+
+
+def test_logout_records_the_real_last_seen_time(client):
+    """Logout stamps users.last_seen_at so the trainer's "Last active" card
+    shows the true signed-out moment, not a dummy or throttled time."""
+    user_id = register(client).json()["id"]
+    with get_conn() as conn:
+        # Pretend the user has been idle since 2000, so whatever logout
+        # writes is provably a fresh, real stamp.
+        conn.execute(
+            "UPDATE users SET last_seen_at = '2000-01-01T00:00:00+00:00' WHERE id = ?",
+            (user_id,),
+        )
+
+    before = utcnow()
+    assert client.post("/auth/logout").status_code == 200
+
+    with get_conn() as conn:
+        seen = conn.execute(
+            "SELECT last_seen_at FROM users WHERE id = ?", (user_id,)
+        ).fetchone()["last_seen_at"]
+    assert seen >= before
+
+
+def test_logout_without_a_session_still_succeeds(client):
+    # A stale or missing cookie must not turn the logout button into an error.
+    assert client.post("/auth/logout").status_code == 200
     assert client.get("/auth/me").status_code == 401
 
 

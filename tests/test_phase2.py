@@ -272,7 +272,7 @@ def test_student_exercises_page_absorbs_the_list(client):
     # The "From your trainer" sidebar is gone: a query belongs to one
     # assignment, so it renders on that assignment's card instead.
     assert 'id="query-list"' not in html
-    for tab in ("All", "To do", "In progress", "Submitted", "Completed"):
+    for tab in ("All", "Assigned", "In progress", "Submitted", "Pending", "Completed"):
         assert tab in html, tab
     # The changes-requested tab was dropped along with its dashboard card.
     assert 'data-filter="changes_requested"' not in html
@@ -284,7 +284,7 @@ def test_dashboard_stat_cards_are_links_with_the_fixed_filter_mapping(client):
     # Cards navigate, so they must be built as <a>, never <button>.
     assert '"a",' in script and "class: `stat" in script
     assert "/student/exercises?filter=${c.filter}" in script
-    for filter_key in ("all", "in_progress", "submitted", "completed"):
+    for filter_key in ("assigned", "in_progress", "submitted", "pending", "completed"):
         assert f'filter: "{filter_key}"' in script
     # Changes requested was removed from both the cards and the filter tabs.
     assert 'filter: "changes_requested"' not in script

@@ -1,7 +1,8 @@
 // Trainer dashboard (SRS §2): five linked overview cards, the activity feed
 // ten at a time, and the placeholder for online sessions. Everything the
 // cards used to show inline lives on its own page (students, pending, queue,
-// exercises, completed).
+// exercises, queries) -- the reopen-requests panel included, which the Query
+// raised card now answers on its own page with the history behind a button.
 (function () {
   const D = window.Dash;
   const { el } = D;
@@ -21,11 +22,13 @@
       { label: "Awaiting review", value: s.awaiting_review,
         sub: "Submitted, needs your verdict",
         tone: s.awaiting_review ? "warn" : "", href: "/trainer/queue", icon: "📝" },
-      { label: "Exercises", value: s.exercises,
-        sub: `${s.published} published · ${s.drafts} draft`,
-        href: "/trainer/exercises", icon: "📚" },
-      { label: "Completed", value: s.completed, sub: "Finished by your students",
-        tone: "good", href: "/trainer/completed", icon: "🏁" },
+      // No Exercises card: the top bar already links the Exercises module,
+      // so a fifth card would just duplicate that navigation.
+      // ?? 0: a server still running the previous payload must not render
+      // "undefined" on the dashboard while it waits for a restart.
+      { label: "Query raised", value: s.new_queries ?? 0,
+        sub: "New queries from students",
+        tone: s.new_queries ? "warn" : "", href: "/trainer/queries", icon: "❓" },
     ];
 
     const host = document.getElementById("stats");
@@ -33,9 +36,8 @@
     cards.forEach((c) =>
       host.append(
         el("a", { class: `stat ${c.tone || ""}`, href: c.href },
-          el("span", { class: "stat-icon" }, c.icon),
-          el("strong", { class: "value", text: String(c.value) }),
           el("span", { class: "label", text: c.label }),
+          el("strong", { class: "value", text: String(c.value) }),
           el("span", { class: "sub", text: c.sub })
         )
       )
@@ -63,72 +65,13 @@
           )
         )
       ),
-      "No deadlines coming up."
+      "No upcoming deadlines."
     );
   }
 
-  // ── reopen requests ───────────────────────────────────────────────────────
-
-  async function decide(request, action) {
-    // The message is written for this student on this request, so two people
-    // asking about the same exercise can be answered differently.
-    const prompt_ = action === "approve"
-      ? `Message to ${request.display} (optional):`
-      : `Why are you declining ${request.display}? They will see this:`;
-    const message = window.prompt(prompt_, "");
-    if (message === null) return;
-    try {
-      await D.api(`/api/access-requests/${request.id}/decide`, {
-        method: "POST",
-        body: JSON.stringify({ action, message }),
-      });
-      D.flash(action === "approve" ? "Exercise reopened" : "Request declined", "success");
-      await load();
-    } catch (err) {
-      D.flash(err.message, "error");
-    }
-  }
-
-  function renderRequests() {
-    const items = data.access_requests || [];
-    const panel = document.getElementById("requests-panel");
-    panel.hidden = items.length === 0;
-    if (!items.length) return;
-
-    document.getElementById("request-count").textContent =
-      items.filter((r) => r.status === "pending").length;
-
-    D.fill(
-      document.getElementById("request-list"),
-      items.map((r) => {
-        const row = el("div", { class: "row" },
-          el("div", {},
-            el("div", { class: "title" }, `${r.display} — ${r.exercise}`),
-            el("div", { class: "meta" },
-              r.status === "pending"
-                ? D.pill("Waiting", "amber")
-                : D.pill(r.status === "approved" ? "Reopened" : "Declined",
-                         r.status === "approved" ? "green" : "red"),
-              el("span", {}, D.ago(r.created_at))
-            ),
-            r.message ? el("div", { class: "request-quote" }, r.message) : null,
-            r.decision_message
-              ? el("div", { class: "request-quote answer" }, `You replied: ${r.decision_message}`)
-              : null
-          ),
-          r.status === "pending"
-            ? el("div", { class: "actions" },
-                el("button", { class: "cb-btn", onclick: () => decide(r, "reject") }, "Decline"),
-                el("button", { class: "cb-btn primary", onclick: () => decide(r, "approve") },
-                   "Reopen")
-              )
-            : null
-        );
-        return row;
-      }),
-      "No reopen requests."
-    );
-  }
+  // Reopen requests no longer render here: the Query raised card links to
+  // /trainer/queries, where the new ones wait and the answered ones live
+  // behind the History button.
 
   async function load() {
     try {
@@ -139,7 +82,6 @@
     }
     renderStats();
     renderDeadlines();
-    renderRequests();
     D.renderNotifications(data.notifications, data.unread);
   }
 

@@ -58,4 +58,13 @@
       submitBtn.textContent = "Sign in";
     }
   });
+
+  document.querySelectorAll(".test-fill-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      emailEl.value = btn.getAttribute("data-email") || "";
+      passwordEl.value = btn.getAttribute("data-pass") || "";
+      hideError();
+      emailEl.focus();
+    });
+  });
 })();

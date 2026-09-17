@@ -203,7 +203,7 @@
     const note = document.getElementById("locked-note");
     const actions = document.getElementById("locked-actions");
     const state = document.getElementById("request-state");
-    const closed = a.status === "approved" || a.status === "completed";
+    const closed = a.status === "completed";
 
     if (!a.locked) {
       note.hidden = true;

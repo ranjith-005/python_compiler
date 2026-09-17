@@ -19,10 +19,12 @@ what comes back.
 
 from __future__ import annotations
 
+import base64
 import io
 import re
 import struct
 from dataclasses import dataclass, field
+from html import escape as _esc
 
 SUPPORTED_SUFFIXES = (".pdf", ".ppt", ".pptx")
 UNSUPPORTED_MESSAGE = "Unsupported file format. Please upload a PDF, PPT, or PPTX file."
@@ -37,6 +39,8 @@ _CONTINUATION = re.compile(
     r"(cont\.?d?\b|continued|\(\s*\d+\s*(of|/)\s*\d+\s*\)|\.\.\.$)", re.I
 )
 
+# Text to ignore, like platform names or boilerplate confidentiality notices.
+_IGNORED_TEXT = re.compile(r"(?:tonyshive|confidential\s*\(internal\s*use\s*only\))", re.I)
 
 # -- the topic taxonomy (module req 11) --------------------------------------
 # Order matters: the first entry whose keywords appear in a heading wins, so
@@ -126,6 +130,9 @@ class Unit:
     kind: str           # 'page' | 'slide'
     title: str
     lines: list[str] = field(default_factory=list)
+    # Rich HTML fragments produced by the slide extractor (tables, images).
+    # Each entry is a self-contained HTML string inserted after the text.
+    html_fragments: list[str] = field(default_factory=list)
 
     @property
     def label(self) -> str:
@@ -195,32 +202,66 @@ def _looks_like_heading(line: str) -> bool:
 
 def _extract_pdf(raw: bytes) -> list[Unit]:
     try:
-        from pypdf import PdfReader
+        import pdfplumber
     except ImportError as exc:
-        raise DocumentError(_missing("PDF", "pypdf")) from exc
+        raise DocumentError(_missing("PDF", "pdfplumber")) from exc
 
     try:
-        reader = PdfReader(io.BytesIO(raw))
-        pages = reader.pages
+        pdf = pdfplumber.open(io.BytesIO(raw))
     except Exception as exc:
         raise DocumentError("That PDF could not be read. It may be corrupt.") from exc
 
     units: list[Unit] = []
     # Every page, however many there are. Read one at a time so a 200-page file
     # never has more than one page of text in memory at once.
-    for number, page in enumerate(pages, start=1):
+    for number, page in enumerate(pdf.pages, start=1):
         try:
-            text = page.extract_text() or ""
+            tables = page.find_tables()
+            html_fragments = []
+            for t in tables:
+                table_data = t.extract()
+                rows_html = []
+                for i, row in enumerate(table_data):
+                    cells = []
+                    for cell in row:
+                        text = _esc(_clean(cell or ""))
+                        tag = "th" if i == 0 else "td"
+                        cells.append(f"<{tag} style='padding:6px 10px;border:1px solid #ddd;'>{text}</{tag}>")
+                    rows_html.append("<tr>" + "".join(cells) + "</tr>")
+                html_fragments.append(
+                    "<div style='overflow-x:auto;margin:12px 0;'>"
+                    "<table style='border-collapse:collapse;width:100%;font-size:13px;'>"
+                    + "".join(rows_html)
+                    + "</table></div>"
+                )
+            
+            def not_in_table(obj):
+                if obj.get("object_type") != "char":
+                    return True
+                x0, top, x1, bottom = obj["x0"], obj["top"], obj["x1"], obj["bottom"]
+                for t in tables:
+                    tx0, ttop, tx1, tbottom = t.bbox
+                    if tx0 <= x0 <= tx1 and ttop <= top <= tbottom:
+                        return False
+                return True
+                
+            filtered_page = page.filter(not_in_table) if tables else page
+            text = filtered_page.extract_text() or ""
         except Exception:
             text = ""
+            html_fragments = []
+
         lines = [_clean(line) for line in text.splitlines()]
         lines = [line for line in lines
-                 if line and not re.fullmatch(r"[\d\s/of-]+", line, re.I)]
-        if not lines:
+                 if line and not re.fullmatch(r"[\d\s/of-]+", line, re.I)
+                 and not _IGNORED_TEXT.search(line)]
+
+
+        if not lines and not html_fragments:
             continue
-        title = lines[0] if _looks_like_heading(lines[0]) else ""
+        title = lines[0] if lines and _looks_like_heading(lines[0]) else ""
         body = lines[1:] if title else lines
-        units.append(Unit(index=number, kind="page", title=title, lines=body))
+        units.append(Unit(index=number, kind="page", title=title, lines=body, html_fragments=html_fragments))
 
     if not units:
         raise DocumentError(
@@ -318,18 +359,29 @@ def _extract_ppt_binary(raw: bytes, cause: Exception | None = None) -> list[Unit
     return units
 
 
-def _shape_lines(shape) -> list[str]:
-    """Text of one shape: paragraphs, and table cells row by row."""
+def _shape_lines(shape) -> tuple[list[str], str | None]:
+    """Text lines and optional HTML fragment (table or image) for one shape."""
+    html_fragment: str | None = None
     lines: list[str] = []
     if getattr(shape, "has_table", False):
-        for row in shape.table.rows:
-            cells = [_clean(cell.text) for cell in row.cells]
-            joined = " | ".join(cell for cell in cells if cell)
-            if joined:
-                lines.append(joined)
-        return lines
+        # Build a proper HTML table instead of pipe-joined text.
+        rows_html = []
+        for i, row in enumerate(shape.table.rows):
+            cells = []
+            for cell in row.cells:
+                text = _esc(_clean(cell.text))
+                tag = "th" if i == 0 else "td"
+                cells.append(f"<{tag} style='padding:6px 10px;border:1px solid #ddd;'>{text}</{tag}>")
+            rows_html.append("<tr>" + "".join(cells) + "</tr>")
+        html_fragment = (
+            "<div style='overflow-x:auto;margin:12px 0;'>"
+            "<table style='border-collapse:collapse;width:100%;font-size:13px;'>"
+            + "".join(rows_html)
+            + "</table></div>"
+        )
+        return lines, html_fragment
     if not getattr(shape, "has_text_frame", False):
-        return lines
+        return lines, html_fragment
     for paragraph in shape.text_frame.paragraphs:
         text = _clean(
             "".join(run.text for run in paragraph.runs) or paragraph.text, keep_indent=True
@@ -338,7 +390,14 @@ def _shape_lines(shape) -> list[str]:
             continue
         # Keep the deck's own bullet levels; they are the topic's structure.
         lines.append(("  " * min(paragraph.level, 3)) + text)
-    return lines
+    return lines, html_fragment
+
+
+def _shape_image_html(shape) -> str | None:
+    """Return an <img> HTML string if this shape carries a picture, else None.
+    (Disabled to prevent extracting platform logos).
+    """
+    return None
 
 
 def _extract_pptx(raw: bytes, suffix: str) -> list[Unit]:
@@ -372,23 +431,29 @@ def _extract_pptx(raw: bytes, suffix: str) -> list[Unit]:
             title_id = None
 
         lines: list[str] = []
+        html_fragments: list[str] = []
         for shape in slide.shapes:
             # The title is the section heading; it must not also be body text.
             if title_id is not None and getattr(shape, "shape_id", None) == title_id:
                 continue
-            lines.extend(_shape_lines(shape))
+            shape_lines, table_html = _shape_lines(shape)
+            shape_lines = [line for line in shape_lines if not _IGNORED_TEXT.search(line)]
+            lines.extend(shape_lines)
+            if table_html:
+                html_fragments.append(table_html)
         try:
             if slide.has_notes_slide and slide.notes_slide.notes_text_frame is not None:
                 note = _clean(slide.notes_slide.notes_text_frame.text)
-                if note:
+                if note and not _IGNORED_TEXT.search(note):
                     lines.append(note)
         except Exception:
             pass
 
         lines = [line for line in lines if line.strip()]
-        if not title and not lines:
+        if not title and not lines and not html_fragments:
             continue
-        units.append(Unit(index=number, kind="slide", title=title, lines=lines))
+        units.append(Unit(index=number, kind="slide", title=title, lines=lines,
+                          html_fragments=html_fragments))
 
     if not units:
         raise DocumentError("That presentation has no readable text.")
@@ -444,9 +509,23 @@ def _starts_new_topic(unit: Unit, current_title: str, current_topic: str,
     return current_words >= MIN_SECTION_WORDS
 
 
-def _format_content(lines: list[str]) -> str:
-    """Body lines as light markdown: bullets stay bullets, prose stays prose."""
-    out: list[str] = []
+def _format_content(lines: list[str], html_fragments: list[str] | None = None) -> str:
+    """Body lines as HTML: bullets become <ul><li>, prose becomes <p>."""
+    out_html: list[str] = []
+    bullet_buffer: list[str] = []
+    indent_stack: list[int] = []  # track nesting level
+
+    def flush_bullets():
+        if not bullet_buffer:
+            return
+        # Group into nested ul by indent
+        result = ["<ul style='margin:6px 0 6px 1.4em;padding:0;'>"]
+        for item in bullet_buffer:
+            result.append(f"<li style='margin:3px 0;'>{_esc(item)}</li>")
+        result.append("</ul>")
+        out_html.append("".join(result))
+        bullet_buffer.clear()
+
     for line in lines:
         indent = len(line) - len(line.lstrip(" "))
         text = line.strip()
@@ -454,20 +533,20 @@ def _format_content(lines: list[str]) -> str:
             continue
         bullet = _BULLET.match(text)
         if bullet:
-            out.append("  " * (indent // 2) + "- " + text[bullet.end():].strip())
+            bullet_buffer.append(text[bullet.end():].strip())
         elif indent >= 2:
-            out.append("  " * (indent // 2) + "- " + text)
+            bullet_buffer.append(text)
         else:
-            out.append(text)
-    # One blank line between prose blocks so the player's markdown sees
-    # paragraphs; consecutive bullets stay together as one list.
-    rendered: list[str] = []
-    for line in out:
-        if rendered and not line.lstrip().startswith("-") and \
-                not rendered[-1].lstrip().startswith("-"):
-            rendered.append("")
-        rendered.append(line)
-    return "\n".join(rendered).strip()
+            flush_bullets()
+            out_html.append(f"<p style='margin:6px 0;'>{_esc(text)}</p>")
+
+    flush_bullets()
+
+    # Append any rich HTML fragments (tables, images) at the end of the section.
+    if html_fragments:
+        out_html.extend(html_fragments)
+
+    return "".join(out_html)
 
 
 def _dedent(run: list[str]) -> str:
@@ -548,6 +627,7 @@ def build_sections(units: list[Unit]) -> list[DraftSection]:
             if not _starts_new_topic(unit, current["title"], current["topic"],
                                      current["words"]):
                 current["lines"].extend(unit.lines)
+                current["html_fragments"].extend(unit.html_fragments)
                 current["words"] += unit.words
                 current["last"] = unit.index
                 if not current["title"] and unit.title:
@@ -558,6 +638,7 @@ def build_sections(units: list[Unit]) -> list[DraftSection]:
             "title": unit.title,
             "topic": canonical_topic(unit.title, " ".join(unit.lines[:3])),
             "lines": list(unit.lines),
+            "html_fragments": list(unit.html_fragments),
             "words": unit.words + len(unit.title.split()),
             "kind": unit.kind,
             "first": unit.index,
@@ -573,6 +654,7 @@ def build_sections(units: list[Unit]) -> list[DraftSection]:
             if group["title"]:
                 previous["lines"].append(group["title"])
             previous["lines"].extend(group["lines"])
+            previous["html_fragments"].extend(group["html_fragments"])
             previous["words"] += group["words"]
             previous["last"] = group["last"]
             continue
@@ -592,7 +674,7 @@ def build_sections(units: list[Unit]) -> list[DraftSection]:
         sections.append(
             DraftSection(
                 title=title[:200],
-                content=_format_content(group["lines"]),
+                content=_format_content(group["lines"], group["html_fragments"]),
                 has_code_practice=has_code,
                 code_question=question,
                 reference_code=reference,

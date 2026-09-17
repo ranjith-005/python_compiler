@@ -3,8 +3,9 @@
 {% set META = {
      'exercises': ('Coding exercises', 'Everything you have written, published or draft.', 'exercises'),
      'queue':     ('Awaiting review',  'Submissions waiting on your verdict.',            none),
-     'pending':   ('Pending submissions', 'Assigned, not yet submitted.',                 none),
-     'completed': ('Completed',        'Work your students have finished.',               none)
+     'pending':   ('Pending submissions', 'Not yet submitted — assigned, in progress or past due.', none),
+     'completed': ('Completed',        'Work your students have finished.',               none),
+     'queries':   ('Queries raised',   'New queries from students with pending exercises.', none)
    } %}
 {% set title, blurb, nav = META.get(section, META['exercises']) %}
 {% block title %}{{ title }} · Python Learning Platform{% endblock %}
@@ -15,7 +16,7 @@
 {% endblock %}
 
 {% block content %}
-{{ topbar('trainer', name, back='/trainer', heading=title, current=nav) }}
+{{ topbar('trainer', name, heading=title, current=nav) }}
 
 <main class="dash-main">
   <div class="dash-head"><div><h1>{{ title }}</h1><p>{{ blurb }}</p></div></div>
@@ -39,6 +40,15 @@
         <input type="date" id="filter-from"></label>
       <label class="date-filter">To
         <input type="date" id="filter-to"></label>
+    </header>
+    {% elif section == 'queries' %}
+    {# New queries up front; the answered ones stay behind the History button
+       on this same page rather than a separate one. #}
+    <header>
+      <h2 id="queries-heading">{{ title }}</h2>
+      <span class="count" id="query-count">0</span>
+      <span class="spacer"></span>
+      <button class="cb-btn" id="history-toggle" type="button">History</button>
     </header>
     {% endif %}
     <div class="panel-body" id="section-list"></div>

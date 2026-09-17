@@ -44,13 +44,14 @@ def test_login_page_carries_the_new_brand(client):
     assert "PyCompiler" not in html
 
 
-# ── Phase 2 Task 5: five linked cards, replacing the old two ────────────────
+# ── Phase 2 Task 5: linked cards, replacing the old two ────────────────
 # (superseded from the Phase A "only two stat cards" requirement below: the
-# dashboard now links out to five pages instead of duplicating their content
-# inline, so all five labels are expected here rather than excluded.)
+# dashboard links out to its pages instead of duplicating their content
+# inline. The Exercises card was later dropped again - the top bar already
+# links the Exercises module, so a fifth card just duplicated navigation.)
 
 
-def test_five_dashboard_cards_link_to_their_own_pages(client):
+def test_dashboard_cards_link_to_their_own_pages(client):
     html = trainer_page(client)
     # The cards are built in JS, so the card set is asserted against the script.
     js = client.get("/static/js/trainer_dashboard.js").text
@@ -59,12 +60,30 @@ def test_five_dashboard_cards_link_to_their_own_pages(client):
         ("Students", "/trainer/students"),
         ("Pending submissions", "/trainer/pending"),
         ("Awaiting review", "/trainer/queue"),
-        ("Exercises", "/trainer/exercises"),
-        ("Completed", "/trainer/completed"),
+        ("Query raised", "/trainer/queries"),
     ):
         assert f'label: "{label}"' in cards, f"{label} card missing"
         assert f'href: "{href}"' in cards, f"{label} card missing its href"
+    # The Completed card gave way to Query raised; completed work stays
+    # visible on the exercise and student detail pages.
+    assert 'label: "Completed"' not in cards
+    # Exercises lives in the top bar, not as a dashboard card.
+    assert 'label: "Exercises"' not in cards
+    assert 'href: "/trainer/exercises"' not in cards
     assert "stat-grid" in html
+
+
+def test_the_queries_page_keeps_history_behind_a_button(client):
+    register_trainer(client)
+    html = client.get("/trainer/queries").text
+    assert "Queries raised" in html
+    # New queries up front; the answered ones stay behind the History button
+    # on this same page.
+    assert 'id="history-toggle"' in html
+    assert 'id="query-count"' in html
+    # The dashboard's inline reopen panel is gone: the Query raised card links
+    # here instead.
+    assert 'id="requests-panel"' not in client.get("/trainer").text
 
 
 # ── requirement 4: no search box in the awaiting-review panel ───────────────

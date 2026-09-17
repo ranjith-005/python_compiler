@@ -1,6 +1,6 @@
-// Student dashboard (SRS §3): four overview cards, each a link into the
-// exercises page pre-filtered, the deadlines still open and due, a placeholder
-// for online sessions, and the activity feed ten at a time.
+// Student dashboard (SRS §3): one card per assignment status, each a link
+// into the exercises page pre-filtered, the deadlines still open and due, a
+// placeholder for online sessions, and the activity feed ten at a time.
 (function () {
   const D = window.Dash;
   const { el, pill, fill } = D;
@@ -8,17 +8,14 @@
   let data = null;
 
   // The filter mapping is fixed by spec: card -> ?filter= key on
-  // /student/exercises -> assignment status(es) it matches there.
-  //
-  // "Changes requested" is deliberately absent: the requirement removed both
-  // that card and its filter tab, so a card pointing at a tab that no longer
-  // exists would land on an unfiltered list.
+  // /student/exercises -> the assignment status it matches there. One card
+  // per canonical status, so the figure and the list always agree.
   const CARDS = [
     {
       key: "assigned",
       label: "Assigned",
-      sub: "Exercises given to you",
-      filter: "all",
+      sub: "Not opened yet",
+      filter: "assigned",
       icon: "📘",
     },
     {
@@ -37,6 +34,14 @@
       icon: "📤",
     },
     {
+      key: "pending",
+      label: "Pending",
+      sub: "Past due, not submitted",
+      filter: "pending",
+      tone: "bad",
+      icon: "⏰",
+    },
+    {
       key: "completed",
       label: "Completed",
       sub: "Approved by your trainer",
@@ -46,8 +51,8 @@
     },
   ];
 
-  // Statuses that mean "the student still owes work on this assignment".
-  const OPEN = ["assigned", "in_progress", "changes_requested"];
+  // Work the student still owes, including anything past due.
+  const OPEN = ["assigned", "in_progress", "pending"];
 
   function renderStats() {
     const s = data.stats;
@@ -60,9 +65,8 @@
         el(
           "a",
           { class: `stat ${tone}`, href: `/student/exercises?filter=${c.filter}` },
-          el("span", { class: "stat-icon" }, c.icon),
-          el("span", { class: "value" }, value),
           el("span", { class: "label" }, c.label),
+          el("span", { class: "value" }, value),
           el("span", { class: "sub" }, c.sub)
         )
       );
@@ -104,7 +108,7 @@
           )
         )
       ),
-      "Nothing due — you're all caught up."
+      "No upcoming deadlines."
     );
   }
 

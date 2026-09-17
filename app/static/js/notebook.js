@@ -329,7 +329,7 @@
     const tools = document.createElement("div");
     tools.className = "cell-tools";
     const del = document.createElement("button");
-    del.className = "danger"; del.textContent = "🗑"; del.title = "Delete cell";
+    del.className = "danger"; del.textContent = "×"; del.title = "Delete cell";
     tools.append(del);
 
     dom.append(gutter, body, tools);
@@ -694,9 +694,9 @@
     } else {
       items.push({ icon: "🗀", label: "Open folder", run: () => loadFiles(entry.path) });
     }
-    items.push({ icon: "✏", label: "Rename", run: () => renameEntry(entry) });
+    items.push({ icon: "", label: "Rename", run: () => renameEntry(entry) });
     items.push({ sep: true });
-    items.push({ icon: "🗑", label: "Delete", danger: true, run: () => deleteEntry(entry) });
+    items.push({ icon: "", label: "Delete", danger: true, run: () => deleteEntry(entry) });
 
     items.forEach((item) => {
       if (item.sep) {
@@ -1066,7 +1066,7 @@
       { heading: "View" },
       { icon: "⌨", label: "Keyboard shortcuts", run: showShortcuts },
       { sep: true },
-      { icon: "🗑", label: "Delete this notebook", danger: true, run: deleteNotebook },
+      { icon: "", label: "Delete this notebook", danger: true, run: deleteNotebook },
     ]);
     positionAppMenu();
   }

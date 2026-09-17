@@ -293,6 +293,66 @@ def test_two_students_asking_about_one_exercise_get_their_own_answers(client):
     assert theirs["access_request"]["decision_message"] == "No — you did not start it."
 
 
+def test_the_dashboard_card_counts_only_new_queries(client):
+    """The Query raised card counts the queries waiting on the trainer."""
+    assignment_id = a_task(client, due=overdue())
+    client.post(
+        f"/api/assignments/{assignment_id}/access-request", json={"message": "I was ill."}
+    )
+
+    as_trainer(client)
+    board = client.get("/api/dashboard/trainer").json()
+    assert board["stats"]["new_queries"] == 1
+
+    request_id = client.get("/api/access-requests?status=pending").json()[0]["id"]
+    client.post(
+        f"/api/access-requests/{request_id}/decide",
+        json={"action": "approve", "message": "Finish it today."},
+    )
+
+    board = client.get("/api/dashboard/trainer").json()
+    assert board["stats"]["new_queries"] == 0
+    # The answered query is kept as history, with the exercise it reopened.
+    history = client.get("/api/access-requests").json()
+    assert history[0]["status"] == "approved"
+    assert history[0]["assignment_status"] == "pending"
+
+
+def test_student_detail_rows_carry_the_query_state(client):
+    """The per-exercise timeline page draws its Query access panel from these
+    fields, so the trainer can grant access there as well as from the
+    Query raised card."""
+    assignment_id = a_task(client, due=overdue())
+    client.post(
+        f"/api/assignments/{assignment_id}/access-request", json={"message": "I was ill."}
+    )
+
+    as_trainer(client)
+    sid = next(
+        s["id"] for s in client.get("/api/students").json() if s["email"] == STUDENT
+    )
+    rows = client.get(f"/api/students/{sid}").json()["exercises"]
+    row = next(r for r in rows if r["assignment_id"] == assignment_id)
+    assert row["query_status"] == "pending"
+    assert row["query_message"] == "I was ill."
+    assert row["query_decision"] == ""
+
+    request_id = client.get("/api/access-requests?status=pending").json()[0]["id"]
+    client.post(
+        f"/api/access-requests/{request_id}/decide",
+        json={"action": "approve", "message": "Finish it today."},
+    )
+
+    rows = client.get(f"/api/students/{sid}").json()["exercises"]
+    row = next(r for r in rows if r["assignment_id"] == assignment_id)
+    assert row["query_status"] == "approved"
+    assert row["query_decision"] == "Finish it today."
+
+    # Exercises the student never asked about carry no query state.
+    others = [r for r in rows if r["assignment_id"] != assignment_id]
+    assert all(r["query_id"] is None for r in others)
+
+
 def test_a_decision_cannot_be_made_twice(client):
     assignment_id = a_task(client, due=overdue())
     request_id = client.post(

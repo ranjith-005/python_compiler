@@ -25,36 +25,40 @@
   <div class="dash-split">
     <section class="panel" id="deadlines-panel">
       <header><h2>Upcoming deadlines</h2></header>
-      <div class="panel-body" id="deadline-list"></div>
+      <div class="panel-body scrollable" id="deadline-list"></div>
     </section>
 
     {# Online sessions are not built yet; the panel holds its place rather than
        inventing a schedule. #}
     <section class="panel" id="sessions-panel">
       <header><h2>Upcoming sessions</h2></header>
-      <div class="panel-body">
-        <div class="placeholder-note">
-          <span class="glyph" aria-hidden="true">🎥</span>
-          <strong>No live sessions scheduled</strong>
-          <p>Online sessions are still being built. Once scheduling lands, the
-             sessions you run will be listed here with their attendance.</p>
+      <div class="panel-body scrollable">
+        <div class="placeholder-note" style="text-align: center; padding: 20px;">
+          <span class="meta">No upcoming sessions.</span>
         </div>
       </div>
     </section>
   </div>
 
-  {# Students asking for an exercise back after its deadline. #}
-  <section class="panel" id="requests-panel" hidden>
-    <header>
-      <h2>Reopen requests</h2>
-      <span class="count" id="request-count">0</span>
-    </header>
-    <div class="panel-body" id="request-list"></div>
-  </section>
+  {# Reopen requests no longer render here: the Query raised card links to
+     /trainer/queries, where the new ones wait and the answered ones live
+     behind the History button. #}
 
   <section class="panel" id="activity-panel">
-    <header><h2>Recent activity</h2></header>
-    <div class="panel-body">
+    <header>
+      <h2>Recent activity</h2>
+      <span class="spacer"></span>
+      <div class="activity-filter-wrap">
+        <label for="activity-filter" style="font-size:12.5px;color:var(--text-dim)">Filter:</label>
+        <select class="activity-filter-select" id="activity-filter">
+          <option value="all">All activity</option>
+          <option value="exercise">Exercises</option>
+          <option value="module">Modules</option>
+          <option value="submission">Submissions</option>
+        </select>
+      </div>
+    </header>
+    <div class="panel-body scrollable">
       <ul class="feed timeline" id="activity-list"></ul>
     </div>
     <div class="pager" id="activity-pager" hidden>

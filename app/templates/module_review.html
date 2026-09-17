@@ -18,8 +18,14 @@
     </div>
     <div class="quick">
       <span class="pill" id="m-status">draft</span>
-      <button class="cb-btn" id="assign-btn">Assign to students</button>
+      <button class="cb-btn primary" id="student-progress-btn">Student progress (<span id="s-count">0</span>)</button>
       <button class="cb-btn primary" id="publish-btn">Publish</button>
+    </div>
+  </div>
+
+  <div class="hide-on-update">
+    <div class="panel" id="student-progress-panel" hidden style="margin-top: 10px; margin-bottom: 20px;">
+      <div class="panel-body" id="s-list"></div>
     </div>
   </div>
 
@@ -27,7 +33,28 @@
      edited here. Publishing is the only thing that moves one to the other. #}
   <p class="review-note" id="m-note"></p>
 
-  <section class="panel">
+  <section class="panel edit-only" id="validation-panel" hidden>
+    <header><h2 style="color: var(--red);">⚠️ Pre-Publish Validation Issues</h2></header>
+    <div class="panel-body" id="validation-list"></div>
+  </section>
+  
+  <section class="panel update-only">
+    <header><h2>Re-upload Content</h2></header>
+    <div class="panel-body">
+      <p class="help">Upload a new PDF/PPTX to replace all draft sections of this module. Assigned students and published content will not be affected until you publish again.</p>
+      <div class="field-row">
+        <div class="field" style="flex: 2">
+          <input id="re-file" type="file" accept=".pdf,.ppt,.pptx,application/pdf,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation">
+        </div>
+        <div class="field">
+          <button class="cb-btn" id="re-upload-btn">Upload and replace</button>
+        </div>
+      </div>
+      <p class="help process-result" id="re-result" hidden></p>
+    </div>
+  </section>
+
+  <section class="panel edit-only">
     <header><h2>Module details</h2></header>
     <div class="panel-body">
       <div class="field-row">
@@ -46,19 +73,14 @@
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel hide-on-update">
     <header>
       <h2>Sections</h2>
       <span class="count" id="b-count">0</span>
       <span class="spacer"></span>
-      <button class="cb-btn" id="add-section">Add section</button>
+      <button class="cb-btn edit-only" id="add-section">Add section</button>
     </header>
     <div class="panel-body" id="b-list"></div>
-  </section>
-
-  <section class="panel">
-    <header><h2>Student progress</h2><span class="count" id="s-count">0</span></header>
-    <div class="panel-body" id="s-list"></div>
   </section>
 </main>
 <div class="flash" id="flash" role="status" aria-live="polite" hidden></div>
@@ -66,7 +88,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>window.PAGE = { kind: "module_review", moduleId: {{ module_id }} };</script>
+<script>window.PAGE = { kind: "module_review", moduleId: "{{ module_id }}" };</script>
 <script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
 <script src="/static/js/modules.js?v={{ asset_v() }}"></script>
 {% endblock %}

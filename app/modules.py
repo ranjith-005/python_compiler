@@ -25,6 +25,7 @@ Two rules this module is careful about, because they are easy to get wrong:
 
 from __future__ import annotations
 
+import ast
 import os
 import sqlite3
 import subprocess
@@ -34,6 +35,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi.responses import FileResponse
 
 from . import documents, groq_client
 from .config import settings
@@ -218,7 +220,7 @@ def _structure(job_id: str, units: list) -> tuple[list, str]:
 
 def _process_upload(job_id: str, raw: bytes, suffix: str, filename: str,
                     title: str, description: str, trainer_id: int,
-                    trainer_label: str) -> None:
+                    trainer_label: str, existing_module_id: int | None = None) -> None:
     """Read the document, build sections, save the draft. Runs off-thread."""
     try:
         _set_job(job_id, step="extract", message="Extracting content…")
@@ -237,14 +239,32 @@ def _process_upload(job_id: str, raw: bytes, suffix: str, filename: str,
         # connections are not shared across threads.
         conn = connect()
         try:
-            cur = conn.execute(
-                "INSERT INTO modules (trainer_id, title, description, source_name,"
-                " source_type, source_path, status, created_at, updated_at)"
-                " VALUES (?, ?, ?, ?, ?, '', 'draft', ?, ?)",
-                (trainer_id, name, description.strip(), filename or "",
-                 suffix.lstrip("."), now, now),
-            )
-            module_id = int(cur.lastrowid)
+            if existing_module_id is not None:
+                module_id = existing_module_id
+                conn.execute(
+                    "UPDATE modules SET source_name = ?, source_type = ?, updated_at = ?"
+                    " WHERE id = ?",
+                    (filename or "", suffix.lstrip("."), now, module_id),
+                )
+                if title.strip() or description.strip():
+                    conn.execute(
+                        "UPDATE modules SET title = COALESCE(?, title), description = COALESCE(?, description)"
+                        " WHERE id = ?",
+                        (title.strip() or None, description.strip() or None, module_id),
+                    )
+                conn.execute(
+                    "DELETE FROM module_sections WHERE module_id = ? AND revision = 'draft'",
+                    (module_id,),
+                )
+            else:
+                cur = conn.execute(
+                    "INSERT INTO modules (trainer_id, title, description, source_name,"
+                    " source_type, source_path, status, created_at, updated_at)"
+                    " VALUES (?, ?, ?, ?, ?, '', 'draft', ?, ?)",
+                    (trainer_id, name, description.strip(), filename or "",
+                     suffix.lstrip("."), now, now),
+                )
+                module_id = int(cur.lastrowid)
 
             # Keep the original file with the module (module req 18).
             settings.MODULE_SOURCE_ROOT.mkdir(parents=True, exist_ok=True)
@@ -262,11 +282,19 @@ def _process_upload(job_id: str, raw: bytes, suffix: str, filename: str,
                     reference=section.reference_code,
                     starter=section.starter_code, pages=section.source_pages,
                 )
-            record_activity(
-                conn, trainer_id, "created",
-                f'{trainer_label} uploaded the module "{name}"',
-                trainer_id, "/trainer/modules",
-            )
+            
+            if existing_module_id is not None:
+                record_activity(
+                    conn, trainer_id, "updated",
+                    f'{trainer_label} re-uploaded content for the module "{name}"',
+                    trainer_id, "/trainer/modules",
+                )
+            else:
+                record_activity(
+                    conn, trainer_id, "created",
+                    f'{trainer_label} uploaded the module "{name}"',
+                    trainer_id, "/trainer/modules",
+                )
             conn.commit()
         except Exception:
             conn.rollback()
@@ -340,6 +368,123 @@ def upload_status(job_id: str, user: sqlite3.Row = Depends(require_trainer)) -> 
 
 # ─────────────────────────── trainer: edit the draft ────────────────────────
 
+@router.post("/modules/{module_id}/reupload", status_code=status.HTTP_202_ACCEPTED)
+async def reupload_module(
+    module_id: int,
+    file: UploadFile = File(...),
+    title: str = Form(""),
+    description: str = Form(""),
+    user: sqlite3.Row = Depends(require_trainer),
+) -> dict:
+    """Accept a new PDF/PPT/PPTX to replace the module's draft sections."""
+    suffix = documents.suffix_of(file.filename or "")
+    if not suffix:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, documents.UNSUPPORTED_MESSAGE)
+
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "That file is empty.")
+    if len(raw) > settings.MAX_MODULE_BYTES:
+        limit = settings.MAX_MODULE_BYTES // 1_000_000
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f"That file is larger than {limit} MB."
+        )
+
+    with get_conn() as conn:
+        _own_module(conn, module_id, int(user["id"]))
+
+    job_id = _new_job()
+    thread = threading.Thread(
+        target=_process_upload,
+        args=(job_id, raw, suffix, file.filename or "", title, description,
+              int(user["id"]), display_name(user), module_id),
+        daemon=True,
+    )
+    thread.start()
+    return {"job_id": job_id, "state": "running"}
+
+
+@router.get("/modules/{module_id}/source")
+def get_module_source(module_id: int, user: sqlite3.Row = Depends(require_trainer)):
+    """Download the original uploaded material (PDF/PPT/PPTX) for the module."""
+    with get_conn() as conn:
+        row = _own_module(conn, module_id, int(user["id"]))
+        source_path = row["source_path"]
+        if not source_path or not os.path.exists(source_path):
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Source file not found on server.")
+        return FileResponse(source_path, filename=row["source_name"] or "module_source")
+
+
+@router.get("/modules/{module_id}/validate")
+def validate_module(module_id: int, user: sqlite3.Row = Depends(require_trainer)) -> dict:
+    """Check draft sections for syntax errors or structural issues before publishing."""
+    with get_conn() as conn:
+        _own_module(conn, module_id, int(user["id"]))
+        drafts = _draft_sections(conn, module_id)
+        
+    errors = []
+    
+    for section in drafts:
+        sec_id = int(section["id"])
+        sec_title = section["title"] or f"Section {section['display_order'] + 1}"
+        
+        # Check basic fields
+        if not section["title"]:
+            errors.append({
+                "type": "missing_title",
+                "field": "title",
+                "message": "Missing section title",
+                "section_id": sec_id,
+                "section_title": sec_title
+            })
+            
+        if not section["content"] and not section["code_question"]:
+            errors.append({
+                "type": "empty_content",
+                "field": "content",
+                "message": "Section has no content and no coding question",
+                "section_id": sec_id,
+                "section_title": sec_title
+            })
+            
+        # Check Python code syntax
+        if section["has_code_practice"]:
+            if section["reference_code"]:
+                try:
+                    ast.parse(section["reference_code"])
+                except SyntaxError as e:
+                    errors.append({
+                        "type": "syntax_error",
+                        "field": "reference_code",
+                        "line": e.lineno,
+                        "message": f"SyntaxError in reference code: {e.msg} (line {e.lineno})",
+                        "section_id": sec_id,
+                        "section_title": sec_title
+                    })
+            
+            if section["starter_code"]:
+                try:
+                    ast.parse(section["starter_code"])
+                except SyntaxError as e:
+                    errors.append({
+                        "type": "syntax_error",
+                        "field": "starter_code",
+                        "line": e.lineno,
+                        "message": f"SyntaxError in starter code: {e.msg} (line {e.lineno})",
+                        "section_id": sec_id,
+                        "section_title": sec_title
+                    })
+            
+            if not section["code_question"] and not section["reference_code"] and not section["starter_code"]:
+                errors.append({
+                    "type": "missing_code_practice",
+                    "field": "code_question",
+                    "message": "Code practice is enabled but no question or code was provided",
+                    "section_id": sec_id,
+                    "section_title": sec_title
+                })
+                
+    return {"valid": len(errors) == 0, "errors": errors}
 
 @router.patch("/modules/{module_id}")
 def update_module(

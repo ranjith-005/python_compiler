@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-{{ topbar('student', name, back='/student', heading='My exercises', current='exercises') }}
+{{ topbar('student', name, heading='My exercises', current='exercises') }}
 
 <main class="dash-main">
   {# Requirement: no separate "From your trainer" panel — a trainer's query
@@ -23,9 +23,10 @@
     <div class="panel-body pad" style="padding-bottom:0">
       <div class="filters" id="filters">
         <button class="active" data-filter="all">All</button>
-        <button data-filter="open">To do</button>
+        <button data-filter="assigned">Assigned</button>
         <button data-filter="in_progress">In progress</button>
         <button data-filter="submitted">Submitted</button>
+        <button data-filter="pending">Pending</button>
         <button data-filter="completed">Completed</button>
       </div>
     </div>

@@ -14,12 +14,12 @@
   Activity is deliberately absent: both dashboards carry a paged Recent
   activity panel, so a second route to the same feed in the nav was redundant.
 #}
-{% macro topbar(role, name, back=None, heading=None, bell=False, current=None) %}
+{% macro topbar(role, name, back=None, heading=None, bell=True, current=None) %}
 {% set parts = (name or '?').split() %}
 {% set initials = ((parts[0][0] if parts else '?') ~ (parts[-1][0] if parts|length > 1 else ''))|upper %}
 {% set home = '/trainer' if role == 'trainer' else '/student' %}
 <header class="cb-topbar">
-  {% if back %}<a class="cb-btn ghost back-btn" href="{{ back }}">← Back</a>{% endif %}
+
 
   <a class="cb-brand" href="{{ home }}">
     <span class="brand-mark" aria-hidden="true">
@@ -32,7 +32,6 @@
     <span class="cb-title">Python Learning Platform</span>
   </a>
 
-  {% if heading %}<span class="cb-heading">{{ heading }}</span>{% endif %}
 
   <nav class="cb-nav">
     <a class="cb-link {{ 'active' if current == 'dashboard' }}" href="{{ home }}">Dashboard</a>
@@ -161,6 +160,13 @@
         await fetch("/auth/logout", { method: "POST" });
       } finally {
         window.location.href = "/login";
+      }
+    });
+
+    // Initialize notification bell if dashboard common library is present
+    document.addEventListener("DOMContentLoaded", () => {
+      if (window.Dash && window.Dash.initChrome) {
+        window.Dash.initChrome();
       }
     });
   })();

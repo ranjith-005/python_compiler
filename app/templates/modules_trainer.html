@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-{{ topbar('trainer', name, back='/trainer', heading='Learning modules', current='modules') }}
+{{ topbar('trainer', name, heading='Learning modules', current='modules') }}
 
 <main class="dash-main">
   <div class="dash-head">
@@ -17,9 +17,12 @@
       <p>Upload the learning material. The whole document becomes ordered
          sections you review and edit before publishing.</p>
     </div>
+    <div class="quick">
+      <button class="cb-btn primary" id="toggle-upload-btn">Upload module</button>
+    </div>
   </div>
 
-  <section class="panel">
+  <section class="panel" id="upload-panel" hidden>
     <header><h2>Upload a module</h2></header>
     <div class="panel-body">
       <div class="field-row">
@@ -41,7 +44,7 @@
            You review and edit the draft before students see it.</p>
       </div>
       <div class="row-actions page-actions">
-        <button class="cb-btn primary" id="m-upload">Upload module</button>
+        <button class="cb-btn primary" id="m-upload">Upload</button>
       </div>
 
       <!-- Module req 17: the real stage the worker is in, not a timer. -->
@@ -54,9 +57,9 @@
     </div>
   </section>
 
-  <section class="panel">
+  <section class="panel" id="modules-list-panel">
     <header>
-      <h2>Your modules</h2>
+      <h2>Modules</h2>
       <span class="count" id="m-count">0</span>
       <span class="spacer"></span>
       <input class="dash-search" id="m-search" type="search" placeholder="Search modules">
@@ -72,4 +75,15 @@
 <script>window.PAGE = { kind: "trainer_modules" };</script>
 <script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
 <script src="/static/js/modules.js?v={{ asset_v() }}"></script>
+<script>
+  const toggleBtn = document.getElementById("toggle-upload-btn");
+  const uploadPanel = document.getElementById("upload-panel");
+  const listPanel = document.getElementById("modules-list-panel");
+
+  toggleBtn.addEventListener("click", () => {
+    uploadPanel.hidden = false;
+    listPanel.hidden = true;
+    toggleBtn.hidden = true;
+  });
+</script>
 {% endblock %}

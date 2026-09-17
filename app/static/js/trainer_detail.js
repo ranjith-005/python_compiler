@@ -10,7 +10,7 @@
     assigned: ["Assigned", "grey"],
     in_progress: ["In progress", "blue"],
     submitted: ["Submitted", "amber"],
-    changes_requested: ["Changes requested", "amber"],
+    pending: ["Pending", "red"],
     completed: ["Completed", "green"],
   };
   const SEVERITY = { note: "grey", warning: "amber", urgent: "red" };
@@ -24,12 +24,11 @@
   // <div>. Requirement: on-time rate, average tests passed and last active go
   // nowhere, everything else opens the matching view.
   function stat(label, value, sub, tone, opts) {
-    const { icon = "•", href = null, active = false } = opts || {};
+    const { href = null, active = false } = opts || {};
     const classes = `stat ${tone || ""} ${active ? "active" : ""}`.trim();
     return el(
       href ? "a" : "div",
       href ? { class: classes, href } : { class: classes },
-      el("span", { class: "stat-icon" }, icon),
       el("span", { class: "value" }, value),
       el("span", { class: "label" }, label),
       el("span", { class: "sub" }, sub)
@@ -60,87 +59,107 @@
 
   // ── requirement 2: one student ───────────────────────────────────────────
 
-  // Which assignment rows each clickable card narrows the list to.
+  const { assignmentMatchesFilter } = D;
+
+  // Which assignment rows each card -- and each dropdown value -- narrows the
+  // list to. "open" stays as an alias for in_progress; it is not a status.
   const CARD_FILTERS = {
     all: () => true,
-    completed: (e) => e.status === "completed",
-    open: (e) => ["assigned", "in_progress", "changes_requested"].includes(e.status),
-    submitted: (e) => e.status === "submitted",
+    assigned: (e) => assignmentMatchesFilter(e, "assigned"),
+    in_progress: (e) => assignmentMatchesFilter(e, "in_progress"),
+    open: (e) => assignmentMatchesFilter(e, "in_progress"),
+    submitted: (e) => assignmentMatchesFilter(e, "submitted"),
+    pending: (e) => assignmentMatchesFilter(e, "pending"),
+    completed: (e) => assignmentMatchesFilter(e, "completed"),
     late: (e) => e.late,
   };
   const CARD_TITLES = {
     all: "every exercise",
-    completed: "completed exercises",
-    open: "exercises still open",
+    assigned: "exercises not opened yet",
+    in_progress: "exercises still in progress",
+    open: "exercises still in progress",
     submitted: "exercises awaiting your review",
+    pending: "exercises past due without a submission",
+    completed: "completed exercises",
     late: "exercises submitted late",
   };
 
   async function studentDetail() {
     const data = await api(`/api/students/${PAGE.studentId}`);
-    const s = data.student;
-    $("student-name").textContent = s.display;
-    $("student-sub").textContent = s.email;
-    $("personal-link").href = `/trainer/students/${PAGE.studentId}/profile`;
+    $("student-name").textContent = data.full_name;
+    $("student-sub").textContent = `Their progress on everything you have assigned.`;
+    $("personal-link").href = `/trainer/students/${PAGE.studentId}/personal`;
 
-    const requested = new URLSearchParams(window.location.search).get("view");
-    const view = CARD_FILTERS[requested] ? requested : "all";
-    const card = (key) => `/trainer/students/${PAGE.studentId}?view=${key}`;
+    const urlParams = new URLSearchParams(window.location.search);
+    const view = urlParams.get('view') || 'all';
+
+    const card = (key) => `?view=${key}`;
 
     fill($("stats"), [
       stat("Assigned", data.assigned, "Exercises from you", "", {
-        icon: "📘", href: card("all"), active: view === "all" }),
+        href: card("all"), active: view === "all" }),
       stat("Completed", data.completed, "Marked done", "good", {
-        icon: "✅", href: card("completed"), active: view === "completed" }),
-      stat("Pending", data.pending, "Still open", "", {
-        icon: "⏳", href: card("open"), active: view === "open" }),
+        href: card("completed"), active: view === "completed" }),
+      stat("Pending", data.pending, "Past due, not submitted", data.pending ? "bad" : "", {
+        href: card("pending"), active: view === "pending" }),
       stat("Awaiting review", data.awaiting, "Submitted, not yet reviewed", "", {
-        icon: "📤", href: card("submitted"), active: view === "submitted" }),
+        href: card("submitted"), active: view === "submitted" }),
       stat("Late", data.late, "Submitted after the due date", data.late ? "bad" : "", {
-        icon: "⏰", href: card("late"), active: view === "late" }),
+        href: card("late"), active: view === "late" }),
       // The three figures below are read-only by requirement: no href, so
       // nothing about them invites a click.
-      stat("On-time rate", `${data.on_time_rate}%`, "Of what was submitted", "", { icon: "🎯" }),
-      stat("Avg tests passed", `${data.avg_tests}%`, "Across graded submissions", "", { icon: "🧪" }),
+      stat("On-time rate", `${data.on_time_rate}%`, "Of what was submitted", ""),
+      stat("Avg tests passed", `${data.avg_tests}%`, "Across graded submissions", ""),
+      // Real clock stamp of when this student was last on the platform -
+      // when() renders the actual date and time, and logout always refreshes
+      // the stamp, so the card shows the true last-seen / logged-out moment.
       stat("Last active", data.last_active ? D.when(data.last_active) : "Never",
-           "Most recent activity", "", { icon: "🕑" }),
+           data.last_active ? "Last seen — logout included" : "No sessions recorded", ""),
     ]);
 
-    $("ex-heading").textContent =
-      view === "all" ? "Assigned exercises" : `Assigned exercises · ${CARD_TITLES[view]}`;
+    $("ex-heading").textContent = "Assigned exercises";
 
-    const items = data.exercises.filter(CARD_FILTERS[view]).map((e) => ({
-      text: `${e.title} ${e.status}`,
-      node: row(
-        e.title,
-        [
-          statusPill(e.status),
-          el("span", {}, `Assigned ${D.when(e.assigned_at)}`),
-          e.submitted_at ? el("span", {}, `Submitted ${D.when(e.submitted_at)}`) : null,
-          e.late ? pill("Late", "red") : null,
-          e.tests_total
-            ? el(
-                "span",
-                { class: `tests ${e.tests_passed === e.tests_total ? "" : "fail"}` },
-                `${e.tests_passed}/${e.tests_total} tests`
-              )
-            : null,
-        ],
-        el("span", { class: "chev" }, "›"),
-        // Requirement 2: clicking a course row opens that student's full
-        // progress on it.
-        () => {
-          window.location.href = `/trainer/students/${PAGE.studentId}/exercises/${e.exercise_id}`;
-        }
-      ),
-    }));
-    wireSearch(
-      "ex-search",
-      items,
-      $("ex-list"),
-      view === "all" ? "Nothing assigned yet." : `Nothing here — no ${CARD_TITLES[view]}.`,
-      "ex-count"
-    );
+    function renderExercises(viewKey) {
+      const match = CARD_FILTERS[viewKey] || CARD_FILTERS.all;
+      const filteredExercises = data.exercises.filter(match);
+      const items = filteredExercises.map((e) => ({
+        text: `${e.title} ${e.status}`,
+        node: row(
+          e.title,
+          [
+            statusPill(e.status),
+            el("span", {}, `Assigned ${D.when(e.assigned_at)}`),
+            e.submitted_at ? el("span", {}, `Submitted ${D.when(e.submitted_at)}`) : null,
+            e.late ? pill("Late", "red") : null,
+            e.tests_total
+              ? el(
+                  "span",
+                  { class: `tests ${e.tests_passed === e.tests_total ? "" : "fail"}` },
+                  `${e.tests_passed}/${e.tests_total} tests`
+                )
+              : null,
+          ],
+          el("span", { class: "chev" }, "›"),
+          () => {
+            window.location.href = `/trainer/students/${PAGE.studentId}/exercises/${e.exercise_id}`;
+          }
+        ),
+      }));
+      wireSearch(
+        "ex-search",
+        items,
+        $("ex-list"),
+        viewKey === "all" ? "Nothing assigned yet." : `Nothing here — no ${CARD_TITLES[viewKey]}.`,
+        "ex-count"
+      );
+    }
+    
+    renderExercises(view);
+    const exFilterSel = document.getElementById("ex-filter");
+    if (exFilterSel) {
+      exFilterSel.value = view; // initialize dropdown from URL if present
+      exFilterSel.addEventListener("change", (ev) => renderExercises(ev.target.value));
+    }
 
     $("q-count").textContent = data.queries.length;
     fill(
@@ -204,7 +223,7 @@
     if (!e) {
       $("title").textContent = "Not assigned";
       fill($("timeline"), [], "This exercise is not assigned to this student.");
-      fill($("submission"), [], "");
+      fill($("query-access"), [], "");
       return;
     }
 
@@ -226,28 +245,80 @@
       ""
     );
 
-    if (!e.submission_id) {
-      fill($("submission"), [], "Nothing submitted yet.");
+    // ── query access (replaces the old submission panel) ───────────────────
+    // The student's ask to reopen a pending exercise, in the same design as
+    // the queries page behind the Query raised card, so access can be granted
+    // here too — for this one student, not the whole exercise.
+    const QUERY_STATUS = {
+      pending: ["Waiting on you", "amber"],
+      approved: ["Access granted", "green"],
+      rejected: ["Declined", "red"],
+    };
+
+    async function decideQuery(action) {
+      const who = data.student.display;
+      const prompt_ = action === "approve"
+        ? `Message to ${who} (optional):`
+        : `Why are you declining ${who}? They will see this:`;
+      const message = window.prompt(prompt_, "");
+      if (message === null) return;
+      try {
+        await api(`/api/access-requests/${e.query_id}/decide`, {
+          method: "POST",
+          body: JSON.stringify({ action, message }),
+        });
+        flash(action === "approve" ? "Access granted" : "Query declined", "success");
+        await studentExercise(); // redraw with the decision applied
+      } catch (err) {
+        flash(err.message, "error");
+      }
+    }
+
+    const host = $("query-access");
+    if (!e.query_id) {
+      const note = e.status === "pending"
+        ? "No query raised yet — this student can ask for access from their solve page."
+        : "Queries appear here once the deadline passes without a submission.";
+      fill(host, [], note);
       return;
     }
+
+    const state = QUERY_STATUS[e.query_status] || [e.query_status, "grey"];
+    const exerciseState = STATUS[e.status] || [e.status, "grey"];
     fill(
-      $("submission"),
+      host,
       [
-        row("Result", [
-          pill(e.result || "—", e.result === "passed" ? "green" : "amber"),
-          el("span", { class: "tests" }, `${e.tests_passed}/${e.tests_total} tests passed`),
-          pill(e.review_status || "pending", e.review_status === "approved" ? "green" : "grey"),
-        ]),
-        e.comment ? row("Your comment", [el("span", {}, e.comment)]) : null,
-        row(
-          "Open the full review",
-          [el("span", {}, "See the submitted code and change your verdict")],
-          el("span", { class: "chev" }, "›"),
-          () => {
-            window.location.href = `/trainer/submissions/${e.submission_id}`;
-          }
+        el(
+          "div",
+          { class: "row" },
+          el(
+            "div",
+            {},
+            el(
+              "div",
+              { class: "meta" },
+              pill(state[0], state[1]),
+              pill(exerciseState[0], exerciseState[1]),
+              el("span", {}, `Raised ${D.ago(e.query_created_at)}`)
+            ),
+            e.query_message
+              ? el("div", { class: "request-quote", text: e.query_message })
+              : null,
+            e.query_decision
+              ? el("div", { class: "request-quote answer", text: `You replied: ${e.query_decision}` })
+              : null
+          ),
+          e.query_status === "pending"
+            ? el(
+                "div",
+                { class: "actions" },
+                el("button", { class: "cb-btn", onclick: () => decideQuery("reject") }, "Decline"),
+                el("button", { class: "cb-btn primary", onclick: () => decideQuery("approve") },
+                   "Grant access")
+              )
+            : null
         ),
-      ].filter(Boolean),
+      ],
       ""
     );
   }
@@ -311,58 +382,104 @@
       "This exercise has no question text."
     );
 
-    $("test-count").textContent = x.test_cases.length;
-    fill(
-      $("tests"),
-      x.test_cases.map((t, i) =>
-        row(`Test ${i + 1}`, [
-          t.is_hidden ? pill("hidden", "grey") : pill("visible", "blue"),
-          el("span", {}, `in: ${t.stdin || "—"}`),
-          el("span", {}, `out: ${t.expected_output || "—"}`),
-        ])
-      ),
-      "No test cases."
-    );
+    const allTests = x.test_cases;
 
-    $("student-count").textContent = x.students.length;
-    fill(
-      $("students"),
-      x.students.map((s) =>
-        row(
-          s.display,
-          [statusPill(s.status), el("span", {}, `Assigned ${D.when(s.assigned_at)}`)],
-          el("span", { class: "chev" }, "›"),
-          () => {
-            window.location.href = `/trainer/students/${s.id}/exercises/${x.id}`;
-          }
-        )
-      ),
-      "Not assigned to anyone yet."
-    );
+    function applyTestFilter(filter) {
+      const filtered = filter === "all"
+        ? allTests
+        : allTests.filter((t) => (filter === "hidden" ? t.is_hidden : !t.is_hidden));
+      $("test-count").textContent = filtered.length;
+      fill(
+        $("tests"),
+        filtered.map((t, i) =>
+          row(`Test ${i + 1}`, [
+            t.is_hidden ? pill("hidden", "grey") : pill("visible", "blue"),
+            el("span", {}, `in: ${t.stdin || "—"}`),
+            el("span", {}, `out: ${t.expected_output || "—"}`),
+          ])
+        ),
+        filter === "all" ? "No test cases." : `No ${filter} test cases.`
+      );
+    }
 
-    $("sub-count").textContent = x.submissions.length;
-    fill(
-      $("submissions"),
-      x.submissions.map((s) =>
-        row(
-          s.display,
-          [
-            el("span", {}, D.when(s.submitted_at)),
-            el(
-              "span",
-              { class: `tests ${s.tests_passed === s.tests_total ? "" : "fail"}` },
-              `${s.tests_passed}/${s.tests_total} tests`
-            ),
-            pill(s.review_status || "pending", s.review_status === "approved" ? "green" : "grey"),
-          ],
-          el("span", { class: "chev" }, "›"),
-          () => {
-            window.location.href = `/trainer/submissions/${s.id}`;
-          }
-        )
-      ),
-      "Nothing submitted yet."
-    );
+    applyTestFilter("all");
+    const testFilterSel = document.getElementById("test-filter");
+    if (testFilterSel) {
+      testFilterSel.addEventListener("change", (ev) => {
+        applyTestFilter(ev.target.value);
+      });
+    }
+
+    // Check if this is a pending view (from pending submissions page)
+    const urlParams = new URLSearchParams(window.location.search);
+    const isPendingView = urlParams.get('view') === 'pending';
+
+    // Update the header based on view
+    const studentHeader = document.querySelector('#students').closest('section').querySelector('header h2');
+    if (studentHeader) {
+      studentHeader.textContent = isPendingView ? 'Pending Students' : 'Assigned to';
+    }
+
+    // Hide the filter dropdown in pending view
+    const studentFilterWrap = document.querySelector('#student-filter').closest('.activity-filter-wrap');
+    if (studentFilterWrap && isPendingView) {
+      studentFilterWrap.style.display = 'none';
+    }
+
+    // All students — store and filter on tab clicks
+    const allStudents = x.students;
+
+    function applyStudentFilter(filter) {
+      const filtered =
+        filter === "all"
+          ? allStudents
+          : allStudents.filter((s) => assignmentMatchesFilter(s, filter));
+      $("student-count").textContent = filtered.length;
+      D.fill(
+        $("students"),
+        filtered.map((s) =>
+          row(
+            s.display,
+            [statusPill(s.status), el("span", {}, `Assigned ${D.when(s.assigned_at)}`)],
+            el("span", { class: "chev" }, "›"),
+            () => {
+              window.location.href = `/trainer/students/${s.id}/exercises/${x.id}`;
+            }
+          )
+        ),
+        filter === "all" ? "Not assigned to anyone yet." : `No students with status "${filter}".`
+      );
+    }
+
+    // If pending view, show only pending students by default
+    if (isPendingView) {
+      const pendingStudents = allStudents.filter((s) => assignmentMatchesFilter(s, "pending"));
+      $("student-count").textContent = pendingStudents.length;
+      D.fill(
+        $("students"),
+        pendingStudents.map((s) =>
+          row(
+            s.display,
+            [statusPill(s.status), el("span", {}, `Assigned ${D.when(s.assigned_at)}`)],
+            el("span", { class: "chev" }, "›"),
+            () => {
+              window.location.href = `/trainer/students/${s.id}/exercises/${x.id}`;
+            }
+          )
+        ),
+        "No pending students for this exercise."
+      );
+    } else {
+      $("student-count").textContent = allStudents.length;
+      applyStudentFilter("all");
+
+      const studentFilterSel = document.getElementById("student-filter");
+      if (studentFilterSel) {
+        studentFilterSel.addEventListener("change", (ev) => {
+          applyStudentFilter(ev.target.value);
+        });
+      }
+    }
   }
 
   // ── requirement 6: drafts, and assigning from here ───────────────────────

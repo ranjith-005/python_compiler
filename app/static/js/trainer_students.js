@@ -22,11 +22,23 @@
 
   function row(s) {
     const href = `/trainer/students/${s.id}`;
-    const bar = el("div", { class: "bar" }, el("span", {}));
-    // Width is set on the node rather than passed as an attribute so the
-    // percentage never travels through markup.
-    bar.firstChild.style.width = `${s.progress}%`;
-    if (s.progress === 100) bar.classList.add("done");
+    const completion = s.assigned ? Math.round(100 * s.completed / s.assigned) : 0;
+    const tone = completion === 100 ? "good" : completion >= 50 ? "" : (s.assigned > 0 ? "warn" : "");
+    const fillClass = completion === 100 ? "good" : completion >= 50 ? "" : (s.assigned > 0 ? "warn" : "");
+
+    const perfCell = el(
+      "div",
+      { class: "student-perf" },
+      el("span", { class: "perf-val" }, `${completion}% complete`),
+      el(
+        "div",
+        { class: "perf-bar" },
+        el("div", { class: `perf-bar-fill ${fillClass}`, style: `width:${completion}%` })
+      ),
+      el("span", { class: "perf-label" },
+        `${s.completed}/${s.assigned} done${s.pending ? ` · ${s.pending} pending` : ""}${s.awaiting ? ` · ${s.awaiting} to review` : ""}`
+      )
+    );
 
     return el(
       "tr",
@@ -38,12 +50,11 @@
           "div",
           { class: "who" },
           el("span", { class: "avatar" }, initials(s.display)),
-          // A real link, so the roster is navigable by keyboard too.
           el("a", { class: "name", href }, s.display)
         )
       ),
       el("td", { class: "email" }, s.email),
-      el("td", {}, bar),
+      el("td", {}, perfCell),
       el(
         "td",
         {},

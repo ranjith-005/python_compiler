@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 from . import assignments, auth, dashboards, files, modules, notebooks, settings_routes, ws
+from .assignment_status import PRE_SUBMIT_LIST, PRE_SUBMIT_STATUSES
 from .config import settings
 from .db import get_conn, init_db
 from .auth import home_for
@@ -60,15 +61,68 @@ def asset_version() -> str:
 templates.env.globals["asset_v"] = asset_version
 
 
+import asyncio
+from datetime import datetime, timedelta, timezone
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    import os
+    import sys
+    if "pytest" not in sys.modules and not os.environ.get("PYTEST_CURRENT_TEST"):
+        from .seed import ensure_default_accounts
+        ensure_default_accounts()
     registry.start_reaper()
+    
+    # Start deadline notification task
+    task = asyncio.create_task(deadline_notifier_loop())
+    
     try:
         yield
     finally:
+        task.cancel()
         registry.stop_reaper()
         await registry.shutdown_all()
+
+async def deadline_notifier_loop():
+    """Periodically check for assignments nearing their deadline and notify students."""
+    from .db import utcnow, notify
+    while True:
+        try:
+            now = datetime.fromisoformat(utcnow())
+            warning_threshold = (now + timedelta(hours=24)).isoformat(timespec="seconds")
+            
+            with get_conn() as conn:
+                # Find open assignments due in the next 24h that haven't been notified yet
+                # We can track "notified" by checking if a notification for this assignment exists.
+                rows = conn.execute(
+                    "SELECT a.id, a.student_id, a.due_date, e.title "
+                    "FROM assignments a "
+                    "JOIN exercises e ON e.id = a.exercise_id "
+                    f"WHERE a.status IN ({PRE_SUBMIT_LIST}) "
+                    "AND a.due_date IS NOT NULL "
+                    "AND a.due_date > ? AND a.due_date <= ? "
+                    "AND NOT EXISTS ("
+                    "  SELECT 1 FROM notifications n "
+                    "  WHERE n.user_id = a.student_id AND n.kind = 'deadline' "
+                    "  AND n.link = '/student/assignments/' || a.id || '/solve'"
+                    ")",
+                    (*PRE_SUBMIT_STATUSES, utcnow(), warning_threshold)
+                ).fetchall()
+                
+                for row in rows:
+                    link = f"/student/assignments/{row['id']}/solve"
+                    notify(
+                        conn, 
+                        row["student_id"], 
+                        "deadline", 
+                        f"Reminder: {row['title']} is due within 24 hours.", 
+                        link
+                    )
+        except Exception as e:
+            print(f"Deadline notifier error: {e}")
+            
+        await asyncio.sleep(60 * 60) # check every hour
 
 
 app = FastAPI(title="PyCompiler", lifespan=lifespan)
@@ -181,6 +235,11 @@ def trainer_pending_page(request: Request, user=Depends(get_optional_user)):
 @app.get("/trainer/completed", include_in_schema=False)
 def trainer_completed_page(request: Request, user=Depends(get_optional_user)):
     return _trainer_page(request, user, "trainer_section.html", {"section": "completed"})
+
+
+@app.get("/trainer/queries", include_in_schema=False)
+def trainer_queries_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "trainer_section.html", {"section": "queries"})
 
 
 @app.get("/student/exercises", include_in_schema=False)

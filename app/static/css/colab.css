@@ -331,7 +331,7 @@ html:has(body.colab) { background: var(--bg); height: auto; }
 
 /* ────────────────────────────── cells ────────────────────────────── */
 
-.cb-main { flex: 1; min-width: 0; max-width: 1000px; margin: 0 auto; padding: 20px 16px 120px; }
+.cb-main { flex: 1; min-width: 0; max-width: none; margin: 0 auto; padding: 20px 16px 120px; width: 100%; }
 .cells { display: flex; flex-direction: column; gap: 6px; }
 
 .cell {

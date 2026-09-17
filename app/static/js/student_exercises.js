@@ -12,11 +12,10 @@
   let search = "";
 
   const STATUS = {
-    assigned: ["Not started", "grey"],
+    assigned: ["Assigned", "grey"],
     in_progress: ["In progress", "blue"],
     submitted: ["Submitted · awaiting review", "blue"],
-    changes_requested: ["Changes requested", "amber"],
-    approved: ["Approved", "green"],
+    pending: ["Pending · past due", "amber"],
     completed: ["Completed", "green"],
   };
   const RESULT_TONES = {
@@ -26,10 +25,10 @@
     syntax_error: "red",
     pending: "grey",
   };
-  const OPEN = ["assigned", "in_progress", "changes_requested"];
-  // No "changes_requested" tab: the requirement dropped it from both this
-  // strip and the dashboard cards. Such work still lists under All and To do.
-  const TAB_FILTERS = ["all", "open", "in_progress", "submitted", "completed"];
+  const { assignmentMatchesFilter } = D;
+  // One tab per canonical status. "open" is not one of them -- it survives
+  // only as an alias for in_progress wherever an older link says open.
+  const TAB_FILTERS = ["all", "assigned", "in_progress", "submitted", "pending", "completed"];
   const SEVERITY = { note: "grey", warning: "amber", urgent: "red" };
 
   function label(value) {
@@ -49,10 +48,7 @@
 
   function matches(a) {
     if (search && !a.title.toLowerCase().includes(search.toLowerCase())) return false;
-    if (filter === "all") return true;
-    if (filter === "open") return OPEN.includes(a.status);
-    if (filter === "completed") return a.status === "approved" || a.status === "completed";
-    return a.status === filter;
+    return assignmentMatchesFilter(a, filter);
   }
 
   function setFilter(next) {
@@ -119,7 +115,7 @@
       document.getElementById("assign-list"),
       items.map((a) => {
         const [text, tone] = STATUS[a.status] || [label(a.status), "grey"];
-        const closed = a.status === "approved" || a.status === "completed";
+        const closed = a.status === "completed";
         const card = el(
           "div",
           { class: "assign-card" },
@@ -132,7 +128,6 @@
               "div",
               { class: "tags" },
               pill(text, tone),
-              a.overdue ? pill("Overdue", "red") : null,
               el("span", { class: a.overdue ? "tests fail" : "tests" }, D.due(a.due_date)),
               a.submission_id
                 ? pill(label(a.result), RESULT_TONES[a.result] || "grey")
@@ -158,7 +153,9 @@
               { class: "cb-btn primary", onclick: () => openAssignment(a) },
               closed ? "View" : a.status === "assigned" ? "Start" : "Continue"
             ),
-            !closed && a.status !== "assigned"
+            // Past due work is submitted from the solve page, which knows
+            // whether the trainer has reopened it.
+            !closed && a.status !== "assigned" && a.status !== "pending"
               ? el("button", { class: "cb-btn", onclick: () => submit(a) }, "Submit")
               : null
           )

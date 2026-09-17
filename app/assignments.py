@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from .config import settings
-from .dashboards import OPEN_STATUSES
+from .assignment_status import resolve_status, sync_overdue_assignments
 from .db import get_conn, notify, record_activity, utcnow
 from .deps import get_current_user, require_student, require_trainer
 from .names import display_name
@@ -304,6 +304,9 @@ def create_exercise(body: ExerciseIn, user: sqlite3.Row = Depends(require_traine
             )
 
         assigned = 0
+        # A due date already in the past arrives as ``pending``: the deadline
+        # is over and nothing has been submitted, from the moment it is given.
+        new_status = resolve_status("assigned", due, opened=False, now=now)
         if body.assign_to and body.status == "published":
             valid = {
                 int(r["id"])
@@ -316,8 +319,8 @@ def create_exercise(body: ExerciseIn, user: sqlite3.Row = Depends(require_traine
                     continue
                 conn.execute(
                     "INSERT OR IGNORE INTO assignments (exercise_id, student_id, assigned_by,"
-                    " assigned_at, due_date, status) VALUES (?, ?, ?, ?, ?, 'assigned')",
-                    (exercise_id, student_id, trainer_id, now, due),
+                    " assigned_at, due_date, status) VALUES (?, ?, ?, ?, ?, ?)",
+                    (exercise_id, student_id, trainer_id, now, due, new_status),
                 )
                 assigned += 1
                 notify(
@@ -360,8 +363,9 @@ def review_submission(
     now = utcnow()
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT s.id, s.assignment_id, s.student_id, e.title, e.trainer_id"
+            "SELECT s.id, s.assignment_id, s.student_id, e.title, e.trainer_id, a.due_date"
             " FROM submissions s JOIN exercises e ON e.id = s.exercise_id"
+            " JOIN assignments a ON a.id = s.assignment_id"
             " WHERE s.id = ?",
             (submission_id,),
         ).fetchone()
@@ -369,11 +373,14 @@ def review_submission(
             raise HTTPException(status_code=404, detail="Submission not found.")
 
         review_status = "changes_requested" if body.action == "request_changes" else "approved"
-        assignment_status = {
-            "approve": "approved",
-            "complete": "completed",
-            "request_changes": "changes_requested",
-        }[body.action]
+        if body.action == "request_changes":
+            # Back to the student: in progress again, or pending when the
+            # deadline has already gone by.
+            assignment_status = resolve_status(
+                "in_progress", row["due_date"], opened=True, now=now
+            )
+        else:
+            assignment_status = "completed"
 
         conn.execute(
             "UPDATE submissions SET review_status = ?, comment = ?, reviewed_at = ?,"
@@ -450,17 +457,21 @@ def _locked(conn: sqlite3.Connection, row: sqlite3.Row) -> bool:
     hands the editor over again. A submission already reviewed and closed stays
     closed either way.
     """
-    if row["status"] in ("approved", "completed"):
+    if row["status"] == "completed":
         return True
-    if not _past_due(row["due_date"]):
+    if row["status"] == "submitted":
         return False
-    return not _reopened(conn, int(row["id"]))
+    # Not submitted, and the deadline has gone by -- whether or not the stored
+    # status has caught up with the date yet. An approved reopen unlocks it.
+    if row["status"] == "pending" or _past_due(row["due_date"]):
+        return not _reopened(conn, int(row["id"]))
+    return False
 
 
 def _deny_if_locked(conn: sqlite3.Connection, row: sqlite3.Row) -> None:
     if not _locked(conn, row):
         return
-    if row["status"] in ("approved", "completed"):
+    if row["status"] == "completed":
         raise HTTPException(status_code=409, detail="This exercise is already closed.")
     raise HTTPException(
         status_code=409,
@@ -488,7 +499,10 @@ def open_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_stud
     now = utcnow()
     with get_conn() as conn:
         row = _load_assignment(conn, assignment_id, student_id)
-        status_next = "in_progress" if row["status"] == "assigned" else row["status"]
+        # Opening marks the work started. It cannot clear ``pending``: past the
+        # deadline the exercise stays pending until it is submitted, and a
+        # reopen hands back the editor without rewinding the status.
+        status_next = resolve_status(row["status"], row["due_date"], opened=True, now=now)
         conn.execute(
             "UPDATE assignments SET last_opened_at = ?, status = ? WHERE id = ?",
             (now, status_next, assignment_id),
@@ -580,7 +594,7 @@ def raise_access_request(
     now = utcnow()
     with get_conn() as conn:
         row = _load_assignment(conn, assignment_id, student_id)
-        if row["status"] in ("approved", "completed"):
+        if row["status"] == "completed":
             raise HTTPException(status_code=409, detail="This exercise is already closed.")
         if not _past_due(row["due_date"]):
             raise HTTPException(
@@ -625,15 +639,20 @@ def list_access_requests(
     status_filter: str | None = Query(None, alias="status"),
     user: sqlite3.Row = Depends(require_trainer),
 ) -> list[dict]:
-    """Every reopen request on this trainer's exercises, newest first."""
+    """Every query a student has raised on this trainer's exercises, newest first.
+
+    The queries page splits these: the pending ones are the new queries, the
+    decided ones are the history behind its History button.
+    """
     where, params = "r.trainer_id = ?", [int(user["id"])]
     if status_filter in ("pending", "approved", "rejected"):
         where += " AND r.status = ?"
         params.append(status_filter)
     with get_conn() as conn:
+        sync_overdue_assignments(conn)
         rows = conn.execute(
             "SELECT r.*, e.title, u.full_name AS student_name, u.email AS student_email,"
-            "       a.due_date"
+            "       a.due_date, a.status AS assignment_status"
             " FROM access_requests r"
             " JOIN exercises e ON e.id = r.exercise_id"
             " JOIN users u ON u.id = r.student_id"
@@ -674,14 +693,10 @@ def decide_access_request(
             " decided_by = ? WHERE id = ?",
             (status_next, body.message.strip(), now, trainer_id, request_id),
         )
-        # Approval hands the editor back; the assignment leaves whatever
-        # terminal-looking state the deadline left it in.
-        if status_next == "approved":
-            conn.execute(
-                "UPDATE assignments SET status = CASE WHEN status = 'assigned'"
-                " THEN 'assigned' ELSE status END WHERE id = ?",
-                (int(row["assignment_id"]),),
-            )
+        # Approval hands the editor back. The status stays ``pending``: the
+        # deadline is still in the past and nothing has been submitted, so the
+        # work remains pending until it is. ``_locked`` reads the approved
+        # request directly to decide whether the editor opens.
 
         title = row["title"]
         student_id = int(row["student_id"])
@@ -709,7 +724,7 @@ def save_solution(
     with get_conn() as conn:
         row = _load_assignment(conn, assignment_id, student_id)
         _deny_if_locked(conn, row)
-        status_next = "in_progress" if row["status"] == "assigned" else row["status"]
+        status_next = resolve_status(row["status"], row["due_date"], opened=True, now=now)
         conn.execute(
             "UPDATE assignments SET solution_code = ?, last_stdin = ?,"
             " last_opened_at = ?, status = ? WHERE id = ?",
@@ -884,9 +899,10 @@ def student_detail(student_id: int, user: sqlite3.Row = Depends(require_trainer)
     """
     trainer_id = int(user["id"])
     with get_conn() as conn:
+        sync_overdue_assignments(conn)
         student = conn.execute(
             "SELECT id, email, full_name, first_name, last_name, phone, role,"
-            "       is_active, created_at"
+            "       is_active, created_at, last_seen_at"
             " FROM users WHERE id = ? AND role = 'student'",
             (student_id,),
         ).fetchone()
@@ -898,10 +914,16 @@ def student_detail(student_id: int, user: sqlite3.Row = Depends(require_trainer)
             "       a.last_opened_at, a.notebook_id,"
             "       e.id AS exercise_id, e.title, e.problem_statement,"
             "       s.id AS submission_id, s.submitted_at, s.tests_passed, s.tests_total,"
-            "       s.result, s.review_status, s.comment, s.reviewed_at"
+            "       s.result, s.review_status, s.comment, s.reviewed_at,"
+            "       q.id AS query_id, q.message AS query_message, q.created_at AS query_created_at,"
+            "       q.status AS query_status, q.decision_message AS query_decision,"
+            "       q.decided_at AS query_decided_at"
             " FROM assignments a"
             " JOIN exercises e ON e.id = a.exercise_id"
             " LEFT JOIN submissions s ON s.assignment_id = a.id"
+            " LEFT JOIN access_requests q ON q.id = ("
+            "     SELECT id FROM access_requests WHERE assignment_id = a.id"
+            "     ORDER BY id DESC LIMIT 1)"
             " WHERE a.student_id = ? AND e.trainer_id = ?"
             " ORDER BY a.assigned_at DESC",
             (student_id, trainer_id),
@@ -959,14 +981,19 @@ def student_detail(student_id: int, user: sqlite3.Row = Depends(require_trainer)
         "queries": [dict(q) for q in queries],
         "assigned": len(rows),
         "completed": completed,
-        "pending": sum(1 for r in rows if r["status"] in OPEN_STATUSES),
+        "pending": sum(1 for r in rows if r["status"] == "pending"),
         "awaiting": sum(1 for r in rows if r["status"] == "submitted"),
         "late": late,
         "on_time_rate": round(100 * (len(submitted) - late) / len(submitted)) if submitted else 100,
         "avg_tests": round(
             100 * sum(r["tests_passed"] for r in graded) / sum(r["tests_total"] for r in graded)
         ) if graded else 0,
-        "last_active": max((r["last_opened_at"] for r in rows if r["last_opened_at"]), default=None),
+        # "Last active" is real presence: users.last_seen_at is stamped by
+        # every authenticated request and, exactly, at logout. When the
+        # student opened an exercise most recently, that stays the fallback
+        # for accounts whose presence stamp never got written.
+        "last_active": student["last_seen_at"]
+        or max((r["last_opened_at"] for r in rows if r["last_opened_at"]), default=None),
         "progress": round(100 * completed / len(rows)) if rows else 0,
     }
 
@@ -976,6 +1003,7 @@ def exercise_detail(exercise_id: int, user: sqlite3.Row = Depends(require_traine
     """Everything about one exercise, for its detail page (req 8)."""
     trainer_id = int(user["id"])
     with get_conn() as conn:
+        sync_overdue_assignments(conn)
         row = conn.execute(
             "SELECT * FROM exercises WHERE id = ? AND trainer_id = ?",
             (exercise_id, trainer_id),
@@ -1050,13 +1078,14 @@ def assign_exercise(
         title = row["title"]
         actor = display_name(user)
         assigned = 0
+        new_status = resolve_status("assigned", row["due_date"], opened=False, now=now)
         for student_id in dict.fromkeys(body.assign_to):
             if int(student_id) not in valid:
                 continue
             conn.execute(
                 "INSERT OR IGNORE INTO assignments (exercise_id, student_id, assigned_by,"
-                " assigned_at, due_date, status) VALUES (?, ?, ?, ?, ?, 'assigned')",
-                (exercise_id, student_id, trainer_id, now, row["due_date"]),
+                " assigned_at, due_date, status) VALUES (?, ?, ?, ?, ?, ?)",
+                (exercise_id, student_id, trainer_id, now, row["due_date"], new_status),
             )
             assigned += 1
             notify(conn, student_id, "assigned", f"New exercise assigned: {title}", "/student")

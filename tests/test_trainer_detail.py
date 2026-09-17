@@ -2,6 +2,8 @@
 
 from conftest import register, register_trainer
 
+from app.db import get_conn, utcnow
+
 
 def login(client, email, password="password123"):
     """Sign back in to an account that already exists."""
@@ -69,6 +71,43 @@ def test_student_detail_is_trainer_only(client):
     assert client.get(f"/trainer/students/{sid}", follow_redirects=False).headers[
         "location"
     ] == "/student"
+
+
+def test_the_last_active_card_reads_the_real_logout_time(client):
+    """The Last-active card reads the student's real presence stamp -
+    refreshed on every authenticated request and written exactly at logout -
+    not the last time an exercise happened to be opened."""
+    sid, _, _ = a_student_and_trainer(client)
+
+    # Rewind the exercise-open stamps to the distant past: a correct
+    # "Last active" must ignore them in favour of the presence stamp.
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE assignments SET last_opened_at = '2000-01-01T00:00:00+00:00'"
+        )
+
+    before = utcnow()
+    login(client, "s1@example.com")  # the student signs in...
+    client.post("/auth/logout")       # ...and straight back out
+
+    login(client, "trainer@example.com")
+    detail = client.get(f"/api/students/{sid}").json()
+    assert detail["last_active"] >= before
+
+
+def test_the_timeline_page_carries_the_query_access_panel(client):
+    """The per-exercise timeline page answers queries, not submissions: the
+    trainer reaches it from the student's pending filter and grants access
+    there, in the same design as the queries page."""
+    sid, ex, _ = a_student_and_trainer(client)
+    html = client.get(f"/trainer/students/{sid}/exercises/{ex['id']}").text
+    assert "Query access" in html
+    assert 'id="query-access"' in html
+    # The old Submission panel is gone from this page.
+    assert 'id="submission"' not in html
+    assert "<h2>Submission</h2>" not in html
+    # The timeline it opened for stays.
+    assert 'id="timeline"' in html
 
 
 def test_the_roster_reports_how_many_students_exist(client):

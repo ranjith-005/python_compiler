@@ -29,17 +29,36 @@
   <div class="panel-grid">
     <div>
       <section class="panel">
-        <header><h2>Test cases</h2><span class="count" id="test-count">0</span></header>
+        <header>
+          <h2>Test cases</h2><span class="count" id="test-count">0</span>
+          <span class="spacer"></span>
+          <div class="activity-filter-wrap">
+            <select class="activity-filter-select" id="test-filter">
+              <option value="all">All tests</option>
+              <option value="normal">Normal</option>
+              <option value="hidden">Hidden</option>
+            </select>
+          </div>
+        </header>
         <div class="panel-body" id="tests"></div>
-      </section>
-      <section class="panel">
-        <header><h2>Submissions</h2><span class="count" id="sub-count">0</span></header>
-        <div class="panel-body" id="submissions"></div>
       </section>
     </div>
     <div>
       <section class="panel">
-        <header><h2>Assigned to</h2><span class="count" id="student-count">0</span></header>
+        <header>
+          <h2>Assigned to</h2><span class="count" id="student-count">0</span>
+          <span class="spacer"></span>
+          <div class="activity-filter-wrap">
+            <select class="activity-filter-select" id="student-filter">
+              <option value="all">All</option>
+              <option value="assigned">Assigned</option>
+              <option value="in_progress">In progress</option>
+              <option value="submitted">Submitted</option>
+              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
+            </select>
+          </div>
+        </header>
         <div class="panel-body" id="students"></div>
       </section>
     </div>
@@ -50,7 +69,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>window.PAGE = { kind: "exercise_detail", exerciseId: {{ exercise_id }} };</script>
+<script>window.PAGE = { kind: "exercise_detail", exerciseId: Number("{{ exercise_id }}") };</script>
 <script src="/static/js/dashboard_common.js?v={{ asset_v() }}"></script>
 <script src="/static/js/trainer_detail.js?v={{ asset_v() }}"></script>
 {% endblock %}

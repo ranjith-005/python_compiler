@@ -13,6 +13,7 @@
   function markdown(source) {
     const host = el("div", { class: "lesson" });
     let list = null;
+    let p = null;
 
     for (const raw of (source || "").split("\n")) {
       const line = raw.trimEnd();
@@ -23,16 +24,30 @@
         host.append(list);
         list = null;
       }
+      
+      if (!line.trim() && p) {
+        host.append(p);
+        p = null;
+      }
+
       if (heading) {
+        if (p) { host.append(p); p = null; }
         host.append(el(`h${Math.min(heading[1].length + 1, 5)}`, {}, inline(heading[2])));
       } else if (bullet) {
+        if (p) { host.append(p); p = null; }
         list = list || el("ul", {});
         list.append(el("li", {}, inline(bullet[1])));
       } else if (line.trim()) {
-        host.append(el("p", {}, inline(line)));
+        if (!p) {
+          p = el("p", {});
+        } else {
+          p.append(document.createTextNode(" "));
+        }
+        p.append(inline(line));
       }
     }
     if (list) host.append(list);
+    if (p) host.append(p);
     return host;
   }
 
@@ -71,16 +86,40 @@
 
   // A textarea where Tab indents instead of leaving the field.
   function codeEditor(value) {
-    const editor = el("textarea", { class: "code-editor", spellcheck: "false" });
+    const container = el("div", { class: "editor-container" });
+    const gutter = el("div", { class: "editor-gutter" });
+    const editor = el("textarea", { class: "code-editor", spellcheck: "false", wrap: "off" });
     editor.value = value || "";
+
+    function updateLines() {
+      const lines = editor.value.split('\n').length;
+      let html = '';
+      for (let i = 1; i <= lines; i++) {
+        html += `<div>${i}</div>`;
+      }
+      gutter.innerHTML = html;
+    }
+
+    editor.addEventListener("input", updateLines);
+    editor.addEventListener("scroll", () => { gutter.scrollTop = editor.scrollTop; });
+
     editor.addEventListener("keydown", (e) => {
       if (e.key !== "Tab") return;
       e.preventDefault();
       const { selectionStart: a, selectionEnd: z, value: text } = editor;
       editor.value = text.slice(0, a) + "    " + text.slice(z);
       editor.selectionStart = editor.selectionEnd = a + 4;
+      updateLines();
     });
-    return editor;
+
+    container.append(gutter, editor);
+    updateLines();
+
+    Object.defineProperty(container, 'value', {
+      get: () => editor.value,
+      set: (v) => { editor.value = v; updateLines(); }
+    });
+    return container;
   }
 
   // ── trainer: upload and list (module reqs 1-4, 17) ───────────────────────
@@ -94,8 +133,9 @@
           "div",
           {
             class: "row clickable",
+            style: "overflow: visible;",
             onclick: () => {
-              window.location.href = `/trainer/modules/${m.id}`;
+              window.location.href = `/trainer/modules/${m.id}?mode=view`;
             },
           },
           el(
@@ -111,8 +151,53 @@
               el("span", {}, `${m.assigned} assigned`)
             )
           ),
-          pill(m.status, m.status === "published" ? "green" : "grey"),
-          el("span", { class: "chev" }, "›")
+          el(
+            "div",
+            { class: "row-actions", style: "display: flex; align-items: center; gap: 8px;" },
+            pill(m.status, m.status === "published" ? "green" : "grey"),
+            el(
+              "button",
+              {
+                class: "cb-btn small",
+                onclick: (e) => {
+                  e.stopPropagation();
+                  window.open(`/api/modules/${m.id}/source`, "_blank");
+                },
+              },
+              "Original Material"
+            ),
+            el(
+              "div",
+              { style: "position: relative;" },
+              el("button", {
+                class: "cb-btn small",
+                style: "padding: 0 10px; font-weight: bold; font-size: 1.2em; line-height: 1;",
+                onclick: (e) => {
+                  e.stopPropagation();
+                  // Close any open menus
+                  document.querySelectorAll(".three-dot-menu").forEach(m => m.remove());
+                  // Build a fixed-position menu so it escapes overflow:hidden panels
+                  const btn = e.currentTarget;
+                  const rect = btn.getBoundingClientRect();
+                  const menu = el(
+                    "div",
+                    {
+                      class: "three-dot-menu",
+                      style: `position: fixed; right: ${window.innerWidth - rect.right}px; top: ${rect.bottom + 4}px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; z-index: 9999; min-width: 120px; box-shadow: var(--shadow-card);`,
+                    },
+                    el("button", { style: "padding: 9px 14px; text-align:left; background:transparent; border:none; cursor:pointer; font-size:13px; border-radius: 6px 6px 0 0;", onmouseover: (ev) => ev.target.style.background="var(--cell-bg,#f5f5f5)", onmouseout: (ev) => ev.target.style.background="transparent", onclick: (ev) => { ev.stopPropagation(); menu.remove(); window.location.href = `/trainer/modules/${m.id}?mode=edit`; } }, "Edit"),
+                    el("button", { style: "padding: 9px 14px; text-align:left; background:transparent; border:none; cursor:pointer; font-size:13px;", onmouseover: (ev) => ev.target.style.background="var(--cell-bg,#f5f5f5)", onmouseout: (ev) => ev.target.style.background="transparent", onclick: (ev) => { ev.stopPropagation(); menu.remove(); window.location.href = `/trainer/modules/${m.id}?mode=update`; } }, "Update"),
+                    el("button", { style: "padding: 9px 14px; text-align:left; background:transparent; border:none; cursor:pointer; font-size:13px; color: var(--red, #e53e3e); border-radius: 0 0 6px 6px;", onmouseover: (ev) => ev.target.style.background="var(--cell-bg,#f5f5f5)", onmouseout: (ev) => ev.target.style.background="transparent", onclick: async (ev) => { ev.stopPropagation(); menu.remove(); if (!confirm(`Delete "${m.title}"?`)) return; try { await api(`/api/modules/${m.id}`, { method: "DELETE" }); flash("Module deleted", "success"); refresh(); } catch (err) { flash(err.message, "error"); } } }, "Delete")
+                  );
+                  document.body.appendChild(menu);
+                  // Auto-close on next outside click
+                  setTimeout(() => {
+                    document.addEventListener("click", () => menu.remove(), { once: true });
+                  }, 0);
+                },
+              }, "⋮")
+            )
+          )
         ),
       }));
       wireSearch("m-search", items, $("m-list"), "No modules yet — upload one above.", "m-count");
@@ -175,7 +260,7 @@
         flash(`Draft "${job.title}" is ready for review`, "success");
         await refresh();
         setTimeout(() => {
-          window.location.href = `/trainer/modules/${job.module_id}`;
+          window.location.href = `/trainer/modules/${job.module_id}?mode=view`;
         }, 1200);
       } catch (err) {
         steps.hidden = true;
@@ -196,7 +281,54 @@
 
   async function moduleReview() {
     const id = PAGE.moduleId;
+    const urlParams = new URLSearchParams(window.location.search);
+    let isEditMode = urlParams.get("mode") === "edit";
+    let isUpdateMode = urlParams.get("mode") === "update";
     let m = await api(`/api/modules/${id}`);
+
+    function updateMode() {
+      document.querySelectorAll(".edit-only").forEach(el => el.hidden = !isEditMode);
+      document.querySelectorAll(".update-only").forEach(el => el.hidden = !isUpdateMode);
+      document.querySelectorAll(".hide-on-update").forEach(el => el.hidden = isUpdateMode);
+      // active-mode-only: visible in both edit AND update mode, hidden in view mode.
+      const isActionMode = isEditMode || isUpdateMode;
+      document.querySelectorAll(".active-mode-only").forEach(el => el.hidden = !isActionMode);
+      
+      if (!isEditMode) {
+        const valPanel = $("validation-panel");
+        if (valPanel) valPanel.hidden = true;
+      }
+    }
+
+    async function validateModule() {
+      if (!isEditMode) return true;
+      try {
+        const res = await api(`/api/modules/${id}/validate`);
+        const panel = $("validation-panel");
+        const list = $("validation-list");
+        if (res.valid) {
+          panel.hidden = true;
+        } else {
+          panel.hidden = false;
+          fill(list, res.errors.map(err => el("div", { class: "validation-error", style: "margin-bottom: 8px;" }, 
+            el("strong", {}, err.section_title + ": "),
+            el("span", {}, err.message + " "),
+            el("button", { class: "cb-btn small", onclick: () => {
+              const sec = document.getElementById(`section-${err.section_id}`);
+              if (sec) {
+                sec.scrollIntoView({ behavior: "smooth", block: "start" });
+                sec.style.outline = "2px solid var(--red)";
+                setTimeout(() => sec.style.outline = "", 2000);
+              }
+            }}, "Fix issue")
+          )));
+        }
+        return res.valid;
+      } catch (err) {
+        console.error(err);
+        return true;
+      }
+    }
 
     function header() {
       $("m-title").textContent = m.title;
@@ -242,9 +374,9 @@
       const title = el("input", { class: "section-title-input", value: section.title });
       title.addEventListener("change", () => patch({ title: title.value }));
 
-      const content = el("textarea", { class: "section-content" });
-      content.value = section.content || "";
-      content.addEventListener("change", () => patch({ content: content.value }));
+      const content = el("div", { class: "section-content lesson-content", contentEditable: "true", style: "overflow-y: auto;" });
+      content.innerHTML = section.content || "";
+      content.addEventListener("blur", () => patch({ content: content.innerHTML }));
 
       const practiceBody = el("div", { class: "practice-fields" });
       const question = el("textarea", { class: "section-question", rows: "2" });
@@ -306,7 +438,7 @@
           act(
             "Split",
             () => {
-              const lines = (content.value || "").split("\n").length;
+              const lines = (content.innerHTML || "").split("\n").length;
               const at = prompt(
                 `Split this section after which line? (1–${Math.max(lines - 1, 1)})`,
                 "1"
@@ -351,11 +483,62 @@
 
     function renderSections() {
       $("b-count").textContent = m.section_count;
-      fill(
-        $("b-list"),
-        m.sections.map(sectionCard),
-        "This module has no sections yet — add one above."
+      if (isEditMode) {
+        fill(
+          $("b-list"),
+          m.sections.map(sectionCard),
+          "This module has no sections yet — add one above."
+        );
+        validateModule();
+      } else {
+        fill(
+          $("b-list"),
+          m.sections.map(previewCard),
+          "This module has no sections yet."
+        );
+      }
+    }
+
+    function previewCard(section, index) {
+      const card = el("section", {
+        class: `section-panel`,
+        id: `section-${section.id}`,
+      });
+      card.append(
+        el(
+          "header",
+          {},
+          el("h2", { class: "section-name" }, section.title)
+        )
       );
+      const body = el("div", { class: "panel-body" });
+      const contentDiv = el("div", { class: "lesson-content" });
+      contentDiv.innerHTML = section.content || "";
+      body.append(contentDiv);
+      if (section.reference_code) {
+        const refCode = el("pre", { class: "reference-code" });
+        refCode.innerHTML = (section.reference_code || "").split("\n").map(l => `<div class="line">${l || " "}</div>`).join("");
+        body.append(
+          el("div", { class: "reference-block" },
+            el("div", { class: "practice-head" }, el("h3", {}, "Example")),
+            refCode
+          )
+        );
+      }
+      if (section.has_code_practice) {
+        const practice = el("div", { class: "code-practice" },
+          el("div", { class: "practice-head" }, el("h3", {}, "Code practice"))
+        );
+        if (section.code_question) {
+          practice.append(el("p", { class: "practice-question" }, section.code_question));
+        }
+        const pre = el("pre", { class: "code-editor" });
+        pre.innerHTML = (section.starter_code || "(student editor area)").split("\n").map(l => `<div class="line">${l || " "}</div>`).join("");
+        practice.append(pre);
+        body.append(practice);
+      }
+      card.append(body);
+      return card;
     }
 
     function renderStudents() {
@@ -373,25 +556,72 @@
             },
             el(
               "div",
-              {},
+              { style: "flex: 1;" },
               el("div", { class: "title" }, s.display),
               el(
                 "div",
                 { class: "meta" },
-                el("span", {}, `${s.completed_sections} of ${s.total_sections} sections completed`),
-                pill(`${s.progress}%`, s.progress === 100 ? "green" : "grey")
+                el("span", {}, `${s.completed_sections} of ${s.total_sections} sections completed`)
               )
             ),
-            progressBar(s.progress)
+            el(
+              "div",
+              { style: "display: flex; align-items: center; gap: 10px; width: 180px;" },
+              el("div", { style: "flex: 1; margin: 0;" }, progressBar(s.progress)),
+              el("span", { style: "font-weight: 600; min-width: 40px; text-align: right; font-size: 14px;" }, `${s.progress}%`)
+            )
           )
         ),
         "Not assigned to anyone yet."
       );
     }
 
+    updateMode();
     header();
     renderSections();
     renderStudents();
+
+    $("re-upload-btn").addEventListener("click", async () => {
+      const file = $("re-file").files[0];
+      if (!file) return flash("Choose a PDF, PPT or PPTX file first", "error");
+      
+      const form = new FormData();
+      form.append("file", file);
+      
+      const btn = $("re-upload-btn");
+      const resMsg = $("re-result");
+      btn.disabled = true;
+      btn.textContent = "Uploading...";
+      resMsg.hidden = true;
+      
+      try {
+        const started = await api(`/api/modules/${id}/reupload`, { method: "POST", body: form });
+        
+        async function poll(jobId) {
+          for (;;) {
+            const job = await api(`/api/modules/jobs/${jobId}`);
+            if (job.state === "done") return job;
+            if (job.state === "error") throw new Error(job.message);
+            await new Promise((r) => setTimeout(r, 400));
+          }
+        }
+        
+        await poll(started.job_id);
+        resMsg.hidden = false;
+        resMsg.className = "help process-result ok";
+        resMsg.textContent = "Re-upload complete. Draft sections have been replaced.";
+        flash("Re-upload successful", "success");
+        await reload();
+      } catch (err) {
+        resMsg.hidden = false;
+        resMsg.className = "help process-result err";
+        resMsg.textContent = err.message;
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Upload and replace";
+        $("re-file").value = "";
+      }
+    });
 
     $("save-meta").addEventListener("click", async () => {
       try {
@@ -422,40 +652,41 @@
     });
 
     $("publish-btn").addEventListener("click", async () => {
+      if (isEditMode) {
+        const isValid = await validateModule();
+        if (!isValid) {
+          if (!confirm("This module has validation issues. Are you sure you want to publish it anyway?")) {
+            return;
+          }
+        }
+      }
       try {
         const res = await api(`/api/modules/${id}/publish`, { method: "POST" });
-        flash(`Published ${res.sections} sections to your students`, "success");
+        
+        // Auto-assign to all students after publish
+        const students = await api("/api/students");
+        const ids = students.map(s => s.id);
+        if (ids.length) {
+          await api(`/api/modules/${id}/assign`, {
+            method: "POST",
+            body: JSON.stringify({ assign_to: ids }),
+          });
+        }
+        
+        flash(`Published and assigned to all students`, "success");
         await reload();
       } catch (err) {
         flash(err.message, "error");
       }
     });
 
-    $("assign-btn").addEventListener("click", async () => {
-      const students = await api("/api/students");
-      const picked = prompt(
-        `Assign "${m.title}" to which students?\n\n` +
-          students.map((s) => `${s.id}: ${s.display}`).join("\n") +
-          "\n\nEnter ids separated by commas, or 'all'.",
-        "all"
-      );
-      if (picked === null) return;
-      const ids =
-        picked.trim().toLowerCase() === "all"
-          ? students.map((s) => s.id)
-          : picked.split(",").map((n) => parseInt(n.trim(), 10)).filter((n) => !isNaN(n));
-      if (!ids.length) return flash("No students chosen", "error");
-      try {
-        const res = await api(`/api/modules/${m.id}/assign`, {
-          method: "POST",
-          body: JSON.stringify({ assign_to: ids }),
-        });
-        flash(`Assigned to ${res.assigned} student(s)`, "success");
-        await reload();
-      } catch (err) {
-        flash(err.message, "error");
-      }
-    });
+    const progBtn = $("student-progress-btn");
+    if (progBtn) {
+      progBtn.addEventListener("click", () => {
+        const panel = $("student-progress-panel");
+        panel.hidden = !panel.hidden;
+      });
+    }
   }
 
   // ── student: the list of what they have been given (module req 17) ───────
@@ -481,23 +712,26 @@
             { class: "meta" },
             el("span", {}, m.description || "No description"),
             el("span", {}, `${m.completed_sections} of ${m.sections} sections completed`),
-            m.completed
-              ? pill("✓ Completed", "green")
-              : pill(`${m.progress}%`, "grey")
+            m.completed ? pill("✓ Completed", "green") : ""
           )
         ),
-        progressBar(m.progress),
         el(
-          "button",
-          {
-            class: "cb-btn",
-            onclick: (e) => {
-              e.stopPropagation();
-              const target = m.next_section_id ? `#section-${m.next_section_id}` : "";
-              window.location.href = `/student/modules/${m.id}${target}`;
+          "div",
+          { style: "display: flex; align-items: center; gap: 12px; width: auto; max-width: 300px; flex-shrink: 0;" },
+          el("div", { style: "flex: 1; min-width: 100px;" }, progressBar(m.progress)),
+          el(
+            "button",
+            {
+              class: "cb-btn small",
+              style: "white-space: nowrap;",
+              onclick: (e) => {
+                e.stopPropagation();
+                const target = m.next_section_id ? `#section-${m.next_section_id}` : "";
+                window.location.href = `/student/modules/${m.id}${target}`;
+              },
             },
-          },
-          m.completed ? "Review" : "Continue learning"
+            m.completed ? "Review" : (m.progress > 0 ? "Continue learning" : "Start learning")
+          )
         )
       ),
     }));
@@ -546,7 +780,7 @@
     // order. Nothing is added, removed or reordered here.
     m.sections.forEach((section, index) => {
       const card = el("section", {
-        class: `panel section-panel ${section.completed ? "completed" : ""}`,
+        class: `section-panel ${section.completed ? "completed" : ""}`,
         id: `section-${section.id}`,
       });
 
@@ -555,8 +789,7 @@
         el(
           "header",
           {},
-          el("h2", {}, `Section ${index + 1}`),
-          el("span", { class: "section-name" }, section.title),
+          el("h2", { class: "section-name" }, section.title),
           el("span", { class: "spacer" }),
           tick
         )
@@ -565,7 +798,9 @@
       const body = el("div", { class: "panel-body" });
       // Content is unconditional: a section without code practice still shows
       // everything the trainer wrote (module reqs 2, 4, 20).
-      body.append(markdown(section.content));
+      const contentDiv = el("div", { class: "lesson-content" });
+      contentDiv.innerHTML = section.content || "";
+      body.append(contentDiv);
 
       // The worked example from the upload, read-only (module req 23). It has
       // its own Run button so the student can see what it does before writing
@@ -574,7 +809,8 @@
       if (section.reference_code) {
         const refOut = el("pre", { class: "code-output", hidden: true });
         const refRun = el("button", { class: "cb-btn" }, "▶ Run");
-        const refCode = el("pre", { class: "reference-code" }, section.reference_code);
+        const refCode = el("pre", { class: "reference-code" });
+        refCode.innerHTML = (section.reference_code || "").split("\n").map(l => `<div class="line">${l || " "}</div>`).join("");
 
         refRun.addEventListener("click", async () => {
           refRun.disabled = true;
@@ -605,7 +841,7 @@
             el(
               "div",
               { class: "practice-head" },
-              el("h3", {}, "Reference example"),
+              el("h3", {}, "Example"),
               el("span", { class: "hint" }, "read-only"),
               el("span", { class: "spacer" }),
               refRun

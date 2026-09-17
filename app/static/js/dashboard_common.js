@@ -163,19 +163,7 @@ window.Dash = (function () {
 
   // ── notifications (SRS §17) ──────────────────────────────────────────────
 
-  const ICONS = {
-    assigned: "📌",
-    submitted: "📤",
-    approve: "✅",
-    approved: "✅",
-    complete: "🏁",
-    completed: "🏁",
-    request_changes: "✏️",
-    changes_requested: "✏️",
-    created: "✨",
-    reviewed: "🔍",
-    query: "❓",
-  };
+  const ICONS = {};
   const TONES = {
     assigned: "blue",
     submitted: "blue",
@@ -201,17 +189,19 @@ window.Dash = (function () {
     badge.hidden = !unread;
     badge.textContent = String(unread || 0);
 
-    const shown = (items || []).slice(0, NOTIFICATION_LIMIT);
+    const unreadItems = (items || []).filter(n => !n.read_at);
+    const shown = unreadItems.slice(0, NOTIFICATION_LIMIT);
+    
     list.textContent = "";
     if (!shown.length) {
-      list.append(el("li", {}, el("span", { class: "meta" }, "Nothing yet.")));
+      list.append(el("li", {}, el("span", { class: "meta" }, "No notifications.")));
       if (foot) foot.hidden = true;
       return;
     }
     shown.forEach((n) => {
       const li = el(
         "li",
-        { class: n.read_at ? "" : "unread" },
+        { class: "unread" },
         el("span", {}, `${ICONS[n.kind] || "•"} ${n.title}`),
         el("time", {}, ago(n.created_at))
       );
@@ -222,7 +212,7 @@ window.Dash = (function () {
       list.append(li);
     });
     if (foot) {
-      const extra = (unread || 0) - shown.filter((n) => !n.read_at).length;
+      const extra = (unread || 0) - shown.length;
       foot.hidden = extra <= 0;
       foot.textContent = `${extra} more unread`;
     }
@@ -241,7 +231,7 @@ window.Dash = (function () {
           "li",
           {},
           el("span", { class: `icon ${TONES[a.kind] || ""}` }, ICONS[a.kind] || "•"),
-          el("div", {}, el("div", {}, a.summary), el("time", {}, ago(a.created_at)))
+          el("div", {}, el("div", {}, a.summary), el("time", {}, when(a.created_at)))
         )
       );
     });
@@ -275,15 +265,26 @@ window.Dash = (function () {
     const range = pager.querySelector(".range");
     const prev = pager.querySelector("[data-prev]");
     const next = pager.querySelector("[data-next]");
+    const filterSel = document.getElementById("activity-filter");
     let offset = 0;
     let busy = false;
+    let currentPage = firstPage || [];
+
+    function getFilter() {
+      return filterSel ? filterSel.value : "all";
+    }
 
     function paint(items) {
+      const filter = getFilter();
+      const visible = filter === "all"
+        ? items
+        : items.filter((a) => (a.kind || "").includes(filter) || (a.summary || "").toLowerCase().includes(filter));
+
       list.textContent = "";
-      if (!items.length) {
-        list.append(el("li", { class: "empty-note" }, "No activity yet."));
+      if (!visible.length) {
+        list.append(el("li", { class: "empty-note" }, filter === "all" ? "No activity yet." : `No ${filter} activity on this page.`));
       }
-      items.forEach((a) => {
+      visible.forEach((a) => {
         const { line, tag } = attribute(a);
         list.append(
           el(
@@ -298,7 +299,7 @@ window.Dash = (function () {
                 "div",
                 { class: "sub" },
                 tag ? el("span", { class: "actor-tag" }, tag) : null,
-                el("time", {}, ago(a.created_at))
+                el("time", {}, when(a.created_at))
               )
             )
           )
@@ -324,6 +325,7 @@ window.Dash = (function () {
         );
         offset = page.offset;
         total = page.total;
+        currentPage = page.items;
         busy = false;
         paint(page.items);
       } catch (err) {
@@ -333,12 +335,19 @@ window.Dash = (function () {
       }
     }
 
+    if (filterSel) {
+      filterSel.addEventListener("change", () => paint(currentPage));
+    }
     prev.addEventListener("click", () => go(Math.max(0, offset - ACTIVITY_PAGE)));
     next.addEventListener("click", () => go(offset + ACTIVITY_PAGE));
     paint(firstPage || []);
   }
 
-  function initChrome(reload) {
+  let chromeInitialized = false;
+  function initChrome() {
+    if (chromeInitialized) return;
+    chromeInitialized = true;
+    
     const bell = document.getElementById("bell-btn");
     if (!bell) return;
     const panel = document.getElementById("bell-panel");
@@ -352,11 +361,28 @@ window.Dash = (function () {
     document.getElementById("mark-read").addEventListener("click", async () => {
       try {
         await api("/api/dashboard/notifications/read", { method: "POST" });
-        reload();
+        const data = await api("/api/dashboard/notifications");
+        renderNotifications(data.notifications, data.unread);
       } catch (err) {
         toast(err.message, true);
       }
     });
+
+    // Fetch initial notifications for the badge
+    api("/api/dashboard/notifications").then(data => {
+      if (data) renderNotifications(data.notifications, data.unread);
+    }).catch(() => {});
+  }
+
+  // Assignment list filters (trainer student detail, exercise detail, student
+  // exercises): the five canonical statuses, one definition for every page.
+  // "open" is not a status of its own -- it is an alias for in_progress.
+  const ASSIGNMENT_STATUSES = ["assigned", "in_progress", "submitted", "pending", "completed"];
+
+  function assignmentMatchesFilter(row, filter) {
+    if (!filter || filter === "all") return true;
+    if (filter === "open") filter = "in_progress";
+    return row.status === filter;
   }
 
   return {
@@ -379,5 +405,7 @@ window.Dash = (function () {
     ACTIVITY_PAGE,
     ICONS,
     TONES,
+    ASSIGNMENT_STATUSES,
+    assignmentMatchesFilter,
   };
 })();

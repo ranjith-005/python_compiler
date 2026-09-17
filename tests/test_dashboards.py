@@ -282,7 +282,7 @@ def test_review_approves_and_notifies_the_student(client):
         f"/api/submissions/{queued['id']}/review",
         json={"action": "approve", "comment": "Nicely done."},
     ).json()
-    assert verdict["assignment_status"] == "approved"
+    assert verdict["assignment_status"] == "completed"
 
     after = client.get("/api/dashboard/trainer").json()
     assert after["stats"]["awaiting_review"] == 0
@@ -312,7 +312,7 @@ def test_requesting_changes_reopens_the_assignment(client):
     client.post("/auth/logout")
     client.post("/auth/login", json={"email": "a@example.com", "password": "password123"})
     data = client.get("/api/dashboard/student").json()
-    assert data["stats"]["changes_requested"] == 1
+    assert data["stats"]["in_progress"] == 1
     assert data["assignments"][0]["comment"] == "Read the input first."
     # It counts as open work again, so it comes back as the thing to continue.
     assert data["resume"]["id"] == assignment_id

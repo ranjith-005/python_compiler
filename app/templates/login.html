@@ -35,6 +35,29 @@
       <button type="submit" class="primary" id="submit-btn">Sign in</button>
     </form>
 
+    <div class="test-creds-box" style="margin-top: 1.25rem; padding: 0.85rem; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+        <span style="font-size: 0.82rem; font-weight: 600;">🧪 Testing Credentials</span>
+        <span style="font-size: 0.72rem; color: var(--muted, #888); background: rgba(255,255,255,0.08); padding: 2px 6px; border-radius: 4px;">Click to auto-fill</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-bottom: 0.6rem;">
+        <button type="button" class="test-fill-btn" data-email="student@test.com" data-pass="student1234"
+                style="padding: 0.45rem 0.6rem; font-size: 0.78rem; font-weight: 500; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: inherit; cursor: pointer; text-align: left;">
+          <strong>🎓 Student</strong><br>
+          <span style="font-size: 0.72rem; opacity: 0.8;">student@test.com</span>
+        </button>
+        <button type="button" class="test-fill-btn" data-email="trainer@test.com" data-pass="trainer1234"
+                style="padding: 0.45rem 0.6rem; font-size: 0.78rem; font-weight: 500; border-radius: 6px; border: 1px solid rgba(255,255,255,0.15); background: rgba(255,255,255,0.06); color: inherit; cursor: pointer; text-align: left;">
+          <strong>👨‍🏫 Trainer</strong><br>
+          <span style="font-size: 0.72rem; opacity: 0.8;">trainer@test.com</span>
+        </button>
+      </div>
+      <div style="font-size: 0.72rem; color: var(--muted, #888); display: flex; justify-content: space-between;">
+        <span>Student pass: <code>student1234</code></span>
+        <span>Trainer pass: <code>trainer1234</code></span>
+      </div>
+    </div>
+
     <p class="switch-line">
       Need an account? Ask your trainer — they create it and give you the
       email and password to sign in with.

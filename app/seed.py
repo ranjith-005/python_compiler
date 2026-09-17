@@ -14,16 +14,22 @@ from datetime import datetime, timedelta, timezone
 from .db import get_conn, init_db, notify, record_activity, utcnow
 from .security import hash_password
 
-TRAINER = ("trainer@pycompiler.dev", "Priya Raman")
+TRAINERS = [
+    ("trainer@test.com", "Demo Trainer"),
+    ("trainer@pycompiler.dev", "Priya Raman"),
+]
+TRAINER = TRAINERS[0]
 TRAINER_PASSWORD = "trainer1234"
 STUDENT_PASSWORD = "student1234"
 STUDENTS = [
+    ("student@test.com", "Demo Student"),
+    ("student@pycompiler.dev", "Test Student"),
     ("aditi@pycompiler.dev", "Aditi Sharma"),
     ("rahul@pycompiler.dev", "Rahul Verma"),
     ("meera@pycompiler.dev", "Meera Nair"),
     ("karthik@pycompiler.dev", "Karthik Iyer"),
 ]
-DEMO_EMAILS = [TRAINER[0]] + [email for email, _ in STUDENTS]
+DEMO_EMAILS = [email for email, _ in TRAINERS] + [email for email, _ in STUDENTS]
 
 
 def when(**delta) -> str:
@@ -137,6 +143,19 @@ def _submit(conn: sqlite3.Connection, assignment_id: int, student_id: int, exerc
     return int(cur.lastrowid)
 
 
+def _query(conn: sqlite3.Connection, assignment_id: int, exercise_id: int, student_id: int,
+           trainer_id: int, message: str, created_at: str, status: str = "pending",
+           decision_message: str = "", decided_at: str | None = None) -> int:
+    cur = conn.execute(
+        "INSERT INTO access_requests (assignment_id, exercise_id, student_id, trainer_id,"
+        " message, created_at, status, decision_message, decided_at, decided_by)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        (assignment_id, exercise_id, student_id, trainer_id, message, created_at,
+         status, decision_message, decided_at, trainer_id if decided_at else None),
+    )
+    return int(cur.lastrowid)
+
+
 def reset(conn: sqlite3.Connection) -> None:
     """Remove the demo accounts; cascades take their exercises and work with them."""
     placeholders = ",".join("?" * len(DEMO_EMAILS))
@@ -151,21 +170,24 @@ def seed() -> None:
         if wants_reset:
             reset(conn)
         existing = conn.execute(
-            "SELECT id FROM users WHERE email = ?", (TRAINER[0],)
+            "SELECT id FROM users WHERE email = ?", (TRAINERS[0][0],)
         ).fetchone()
         if existing:
             print(
-                f"Demo data already present ({TRAINER[0]}).\n"
+                f"Demo data already present ({TRAINERS[0][0]}).\n"
                 "Run `python -m app.seed --reset` to recreate it."
             )
             return
 
-        trainer_id = _create_user(conn, TRAINER[0], TRAINER[1], "trainer", TRAINER_PASSWORD)
+        trainer_id = _create_user(conn, TRAINERS[0][0], TRAINERS[0][1], "trainer", TRAINER_PASSWORD)
+        for email, name in TRAINERS[1:]:
+            _create_user(conn, email, name, "trainer", TRAINER_PASSWORD)
+
         student_ids = [
             _create_user(conn, email, name, "student", STUDENT_PASSWORD)
             for email, name in STUDENTS
         ]
-        aditi, rahul, meera, karthik = student_ids
+        demo_student, test_student, aditi, rahul, meera, karthik = student_ids
 
         exercise_ids = {}
         for spec in EXERCISES:
@@ -201,6 +223,7 @@ def seed() -> None:
         a_sum = {
             student: _assign(conn, summing, student, trainer_id, when(days=3), status, opened)
             for student, status, opened in (
+                (demo_student, "in_progress", when(hours=-2)),
                 (aditi, "completed", when(days=-2)),
                 (rahul, "submitted", when(days=-1)),
                 (meera, "in_progress", when(hours=-5)),
@@ -215,13 +238,14 @@ def seed() -> None:
             conn, a_sum[rahul], rahul, summing, BAD_SUM, "wrong_answer", 0, 3, when(days=-1),
         )
 
-        # ── FizzBuzz: three students, one needing changes ────────────────────
+        # ── FizzBuzz: students with assigned / submitted / rework needed ──────
         a_fizz = {
             student: _assign(conn, fizz, student, trainer_id, when(days=6), status, opened)
             for student, status, opened in (
+                (demo_student, "assigned", None),
                 (aditi, "submitted", when(hours=-8)),
                 (rahul, "assigned", None),
-                (meera, "changes_requested", when(days=-1)),
+                (meera, "in_progress", when(days=-1)),
             )
         }
         _submit(
@@ -242,18 +266,59 @@ def seed() -> None:
             when(days=-1), trainer_id,
         )
 
-        # ── Reverse a string: overdue for two students ───────────────────────
+        # ── Reverse a string: overdue for students, so pending ───────────────
         a_rev = {
             student: _assign(conn, reverse, student, trainer_id, when(days=-1), status, opened)
             for student, status, opened in (
-                (meera, "assigned", None),
-                (karthik, "in_progress", when(days=-2)),
+                (demo_student, "pending", None),
+                (meera, "pending", None),
+                (karthik, "pending", when(days=-2)),
                 (rahul, "completed", when(days=-3)),
             )
         }
         _submit(
             conn, a_rev[rahul], rahul, reverse, GOOD_REVERSE, "accepted", 2, 2, when(days=-3),
             "approved", "Slicing is exactly the right tool here.", when(days=-3), trainer_id,
+        )
+
+        # ── queries on the overdue exercise: one waiting, two already answered ─
+        # These feed the trainer's Query raised card and its queries page: the
+        # pending one waits for a decision, the decided ones sit in the history.
+        _query(
+            conn, a_rev[meera], reverse, meera, trainer_id,
+            "I was travelling last week and missed the deadline. Can I still submit it?",
+            when(hours=-3),
+        )
+        _query(
+            conn, a_rev[karthik], reverse, karthik, trainer_id,
+            "Please give me one more day to finish it.", when(days=-2),
+            "approved", "One more day — make it count.", when(days=-1),
+        )
+        _query(
+            conn, a_rev[demo_student], reverse, demo_student, trainer_id,
+            "I forgot the deadline, sorry.", when(days=-2),
+            "rejected", "The deadline was already a week long.", when(days=-1),
+        )
+        notify(
+            conn, trainer_id, "query", 'Meera Nair asked to reopen "Reverse a string"',
+            "/trainer",
+        )
+        record_activity(
+            conn, trainer_id, "query", 'Meera Nair asked to reopen "Reverse a string"',
+            meera, "/trainer",
+        )
+        notify(conn, karthik, "approved", "Reopened: Reverse a string", "/student/exercises")
+        record_activity(
+            conn, karthik, "approved", 'Demo Trainer reopened "Reverse a string"',
+            trainer_id, "/student/exercises",
+        )
+        notify(
+            conn, demo_student, "rejected", "Reopen request declined: Reverse a string",
+            "/student/exercises",
+        )
+        record_activity(
+            conn, demo_student, "rejected", 'Demo Trainer declined to reopen "Reverse a string"',
+            trainer_id, "/student/exercises",
         )
 
         # ── notifications and activity feeds (§17) ───────────────────────────
@@ -275,7 +340,7 @@ def seed() -> None:
         for student in student_ids:
             notify(conn, student, "assigned", 'New exercise assigned: Sum of two numbers', "/student")
             record_activity(
-                conn, student, "assigned", 'Priya Raman assigned "Sum of two numbers"',
+                conn, student, "assigned", 'Demo Trainer assigned "Sum of two numbers"',
                 trainer_id, "/student",
             )
         notify(conn, meera, "request_changes", "Changes requested: FizzBuzz", "/student")
@@ -285,10 +350,30 @@ def seed() -> None:
         record_activity(conn, rahul, "submitted", 'Submitted "Sum of two numbers" - wrong answer', rahul, "/student")
 
     print("Demo data created.\n")
-    print(f"  Trainer   {TRAINER[0]}  /  {TRAINER_PASSWORD}")
+    for email, name in TRAINERS:
+        print(f"  Trainer   {email}  /  {TRAINER_PASSWORD}   ({name})")
     for email, name in STUDENTS:
         print(f"  Student   {email}  /  {STUDENT_PASSWORD}   ({name})")
     print("\nSign in at http://127.0.0.1:8000/login")
+
+
+def ensure_default_accounts() -> None:
+    """Ensure baseline test accounts exist so the platform can be tested immediately."""
+    init_db()
+    with get_conn() as conn:
+        trainer = conn.execute("SELECT id FROM users WHERE role = 'trainer'").fetchone()
+        if not trainer:
+            seed()
+            return
+
+        # Ensure demo trainer and student exist
+        for email, name, role, pwd in [
+            (TRAINERS[0][0], TRAINERS[0][1], "trainer", TRAINER_PASSWORD),
+            (STUDENTS[0][0], STUDENTS[0][1], "student", STUDENT_PASSWORD),
+        ]:
+            row = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+            if not row:
+                _create_user(conn, email, name, role, pwd)
 
 
 if __name__ == "__main__":
