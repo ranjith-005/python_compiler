@@ -103,29 +103,37 @@ def _display(row: dict, name_key: str, email_key: str = "email") -> str:
     )
 
 
-def _feed(conn: sqlite3.Connection, user_id: int) -> dict:
-    """Notifications and recent activity - shared by both dashboards (§17).
+def _notifications(conn: sqlite3.Connection, user_id: int) -> tuple[list[dict], int]:
+    """Every unread notification, newest first, then recent read ones.
 
-    The bell shows the five newest notifications, unread first, so a run of
-    older read ones can never bury something new; `unread` still counts every
-    unread row, not just the five on screen.
-
-    `activity` is the first page only. The dashboards page through the rest
-    against /api/dashboard/activity, which is the same feed with an offset.
+    Nothing unread is ever cut off behind a "more" line. When few are unread
+    the list is topped up to five with the newest read ones.
     """
-    notifications = _rows(
-        conn.execute(
-            "SELECT id, kind, title, link, created_at, read_at FROM notifications"
-            " WHERE user_id = ? ORDER BY read_at IS NOT NULL, created_at DESC, id DESC"
-            " LIMIT 5",
-            (user_id,),
-        )
-    )
     unread = _scalar(
         conn,
         "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL",
         (user_id,),
     )
+    rows = _rows(
+        conn.execute(
+            "SELECT id, kind, title, link, created_at, read_at FROM notifications"
+            " WHERE user_id = ? ORDER BY read_at IS NOT NULL, created_at DESC, id DESC"
+            " LIMIT ?",
+            (user_id, max(unread, 5)),
+        )
+    )
+    return rows, unread
+
+
+def _feed(conn: sqlite3.Connection, user_id: int) -> dict:
+    """Notifications and recent activity - shared by both dashboards (§17).
+
+    The bell shows every unread notification (see `_notifications`).
+
+    `activity` is the first page only. The dashboards page through the rest
+    against /api/dashboard/activity, which is the same feed with an offset.
+    """
+    notifications, unread = _notifications(conn, user_id)
     activity = _with_actor(
         _rows(conn.execute(ACTIVITY_SELECT + " LIMIT ?", (user_id, ACTIVITY_PAGE))),
         user_id,
@@ -144,19 +152,7 @@ def _feed(conn: sqlite3.Connection, user_id: int) -> dict:
 def get_notifications(user: sqlite3.Row = Depends(get_current_user)) -> dict:
     user_id = int(user["id"])
     with get_conn() as conn:
-        notifications = _rows(
-            conn.execute(
-                "SELECT id, kind, title, link, created_at, read_at FROM notifications"
-                " WHERE user_id = ? ORDER BY read_at IS NOT NULL, created_at DESC, id DESC"
-                " LIMIT 5",
-                (user_id,),
-            )
-        )
-        unread = _scalar(
-            conn,
-            "SELECT COUNT(*) FROM notifications WHERE user_id = ? AND read_at IS NULL",
-            (user_id,),
-        )
+        notifications, unread = _notifications(conn, user_id)
         return {"notifications": notifications, "unread": unread}
 
 

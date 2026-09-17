@@ -783,6 +783,22 @@ def submit_assignment(assignment_id: int, user: sqlite3.Row = Depends(require_st
         )
 
         title = row["title"]
+        # One exercise is one entry in the bell and in both activity feeds:
+        # a resubmission replaces the earlier entries rather than adding more.
+        conn.execute(
+            "DELETE FROM notifications WHERE user_id = ? AND kind = 'submitted' AND title = ?",
+            (int(row["trainer_id"]), f"{display_name(user)} submitted \"{title}\""),
+        )
+        conn.execute(
+            "DELETE FROM activities WHERE user_id = ? AND actor_id = ? AND kind = 'submitted'"
+            " AND instr(summary, ?) > 0",
+            (int(row["trainer_id"]), student_id, f' submitted "{title}" - '),
+        )
+        conn.execute(
+            "DELETE FROM activities WHERE user_id = ? AND actor_id = ? AND kind = 'submitted'"
+            " AND substr(summary, 1, length(?)) = ?",
+            (student_id, student_id, f'Submitted "{title}" - ', f'Submitted "{title}" - '),
+        )
         notify(
             conn,
             int(row["trainer_id"]),
@@ -920,7 +936,10 @@ def student_detail(student_id: int, user: sqlite3.Row = Depends(require_trainer)
             "       q.decided_at AS query_decided_at"
             " FROM assignments a"
             " JOIN exercises e ON e.id = a.exercise_id"
-            " LEFT JOIN submissions s ON s.assignment_id = a.id"
+            # Only the latest attempt: a resubmitted exercise is still one row.
+            " LEFT JOIN submissions s ON s.id = ("
+            "     SELECT id FROM submissions WHERE assignment_id = a.id"
+            "     ORDER BY submitted_at DESC, id DESC LIMIT 1)"
             " LEFT JOIN access_requests q ON q.id = ("
             "     SELECT id FROM access_requests WHERE assignment_id = a.id"
             "     ORDER BY id DESC LIMIT 1)"

@@ -178,10 +178,8 @@ window.Dash = (function () {
     query: "amber",
   };
 
-  // The bell shows five, newest first. The server already orders unread ahead
-  // of read, so slicing here can never hide something new behind old noise.
-  const NOTIFICATION_LIMIT = 5;
-
+  // The bell lists every unread notification, newest first. The panel scrolls
+  // when there are many, so nothing new hides behind an "N more" line.
   function renderNotifications(items, unread) {
     const list = document.getElementById("bell-list");
     const badge = document.getElementById("bell-badge");
@@ -190,8 +188,8 @@ window.Dash = (function () {
     badge.textContent = String(unread || 0);
 
     const unreadItems = (items || []).filter(n => !n.read_at);
-    const shown = unreadItems.slice(0, NOTIFICATION_LIMIT);
-    
+    const shown = unreadItems;
+
     list.textContent = "";
     if (!shown.length) {
       list.append(el("li", {}, el("span", { class: "meta" }, "No notifications.")));
@@ -211,11 +209,7 @@ window.Dash = (function () {
       }
       list.append(li);
     });
-    if (foot) {
-      const extra = (unread || 0) - shown.length;
-      foot.hidden = extra <= 0;
-      foot.textContent = `${extra} more unread`;
-    }
+    if (foot) foot.hidden = true;
   }
 
   function renderActivity(items) {

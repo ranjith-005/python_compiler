@@ -489,3 +489,45 @@ def test_an_activity_with_no_actor_is_left_unattributed(client):
     items = client.get("/api/dashboard/activity?limit=50").json()["items"]
     row = next(a for a in items if a["summary"] == "System did a thing")
     assert row["actor"] == "" and row["actor_role"] == ""
+
+
+# ── one exercise, one entry, however many times it is submitted ─────────────
+
+
+def test_resubmitting_leaves_one_row_in_the_student_record(client):
+    assignment_id = setup_one_assignment(client)
+    for _ in range(3):
+        solve(client, assignment_id, "print(0)")
+
+    client.post("/auth/logout")
+    client.post("/auth/login", json={"email": "trainer@example.com", "password": "password123"})
+    sid = student_id(client, "a@example.com")
+    rows = client.get(f"/api/students/{sid}").json()["exercises"]
+    assert len(rows) == 1
+    # The row carries the latest attempt, not the first.
+    assert rows[0]["submission_id"] == max(
+        h["id"] for h in client.get(f"/api/assignments/{assignment_id}").json()["history"]
+    )
+
+
+def test_resubmitting_leaves_one_notification_and_one_activity(client):
+    assignment_id = setup_one_assignment(client)
+    solve(client, assignment_id, "print(0)")
+    solve(client, assignment_id, "print(0)")
+    solve(client, assignment_id, "a = int(input())\nb = int(input())\nprint(a + b)")
+
+    submitted = [
+        a for a in client.get("/api/dashboard/student").json()["activity"]
+        if a["kind"] == "submitted"
+    ]
+    assert len(submitted) == 1
+    assert "accepted" in submitted[0]["summary"]
+
+    client.post("/auth/logout")
+    client.post("/auth/login", json={"email": "trainer@example.com", "password": "password123"})
+    data = client.get("/api/dashboard/trainer").json()
+    assert len([n for n in data["notifications"] if n["kind"] == "submitted"]) == 1
+    assert data["unread"] == 1
+    submitted = [a for a in data["activity"] if a["kind"] == "submitted"]
+    assert len(submitted) == 1
+    assert "2/2 tests passed" in submitted[0]["summary"]

@@ -143,10 +143,10 @@ def test_assigned_module_names_the_trainer_in_the_activity_feed(client):
     assert any("Trainer One" in s and "Loops" in s for s in summaries), summaries
 
 
-# ── student 7: the bell carries five ────────────────────────────────────────
+# ── student 7: the bell carries every unread notification ───────────────────
 
 
-def test_the_bell_shows_at_most_five_notifications(client):
+def test_the_bell_shows_every_unread_notification(client):
     register(client, STUDENT)
     client.post("/auth/logout")
     register_trainer(client)
@@ -156,9 +156,10 @@ def test_the_bell_shows_at_most_five_notifications(client):
 
     as_student(client)
     data = client.get("/api/dashboard/student").json()
-    assert len(data["notifications"]) == 5
-    # The count is of everything unread, not of the five on screen.
+    assert len(data["notifications"]) == 7
+    assert all(n["read_at"] is None for n in data["notifications"])
     assert data["unread"] == 7
+    assert len(client.get("/api/dashboard/notifications").json()["notifications"]) == 7
 
 
 # ── student 8: no changes-requested card ────────────────────────────────────
