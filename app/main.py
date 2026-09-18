@@ -355,8 +355,12 @@ def trainer_student_detail_page(
     return _trainer_page(request, user, "student_detail.html", {"student_id": student_id})
 
 
-@app.get("/trainer/students/{student_id}/profile", include_in_schema=False)
-def trainer_student_profile_page(
+# "Personal information" on the student's progress page opens this. The path
+# says personal, not profile: /profile is the signed-in account's own page, and
+# the two were one typo apart -- the button pointed at a route that did not
+# exist and answered 404.
+@app.get("/trainer/students/{student_id}/personal", include_in_schema=False)
+def trainer_student_personal_page(
     student_id: int, request: Request, user=Depends(get_optional_user)
 ):
     return _trainer_page(request, user, "student_personal.html", {"student_id": student_id})

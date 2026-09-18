@@ -176,6 +176,17 @@
     );
   }
 
+  // An enrolled account carries the two name parts separately; one that signed
+  // itself up carries only the full name it typed. Split that rather than
+  // printing the whole name under "First name" and a dash under "Last name".
+  function nameParts(student) {
+    const first = (student.first_name || "").trim();
+    const last = (student.last_name || "").trim();
+    if (first || last) return [first, last];
+    const words = String(student.full_name || "").trim().split(/\s+/).filter(Boolean);
+    return [words[0] || "", words.slice(1).join(" ")];
+  }
+
   async function studentPersonal() {
     const data = await api(`/api/students/${PAGE.studentId}`);
     const s = data.student;
@@ -205,11 +216,12 @@
       el("div", { class: "info-item" },
         el("span", { class: "k" }, label),
         el("span", { class: "v" }, value || "—"));
+    const [first, last] = nameParts(s);
     fill($("fields"), [
-      field("First name", s.first_name || s.full_name),
-      field("Last name", s.last_name),
+      field("First name", first),
+      field("Last name", last),
       field("Email", s.email),
-      field("Phone", s.phone),
+      field("Contact number", s.phone),
       field("Account status", s.is_active ? "Active" : "Disabled"),
       field("Joined", D.when(s.created_at)),
       field("Exercises assigned", String(data.assigned)),

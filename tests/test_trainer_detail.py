@@ -57,7 +57,8 @@ def test_student_detail_page_and_api(client):
 
     for path in (
         f"/trainer/students/{sid}",
-        f"/trainer/students/{sid}/profile",
+        # "Personal information" on the progress page opens this one.
+        f"/trainer/students/{sid}/personal",
         f"/trainer/students/{sid}/exercises/{ex['id']}",
     ):
         assert client.get(path, follow_redirects=False).status_code == 200, path

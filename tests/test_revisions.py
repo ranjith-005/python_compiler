@@ -260,3 +260,74 @@ def test_a_student_module_shows_its_progress_as_a_percentage(client):
     script = source("app/static/js/modules.js")
     assert 'class: "bar-percent" }, `${m.progress}%`' in script
     assert ".bar-percent" in source("app/static/css/dashboard.css")
+
+
+# ── the trainer can read a student's own details ──────────────────────────
+
+
+def test_the_personal_information_button_opens_a_page_that_exists(client):
+    sid = a_class(client)
+    detail = client.get(f"/trainer/students/{sid}").text
+    assert 'id="personal-link"' in detail
+
+    # The button's href is written by trainer_detail.js, so the two have to
+    # agree: it pointed at /profile, which was never a route, and answered 404.
+    assert "/trainer/students/${PAGE.studentId}/personal" in source(
+        "app/static/js/trainer_detail.js"
+    )
+    page = client.get(f"/trainer/students/{sid}/personal")
+    assert page.status_code == 200
+    assert 'kind: "student_personal"' in page.text
+    assert f"studentId: {sid}" in page.text
+    # The fields the page fills in.
+    for field in ("First name", "Last name", "Email", "Contact number"):
+        assert field in source("app/static/js/trainer_detail.js"), field
+
+
+def test_an_enrolled_students_details_reach_the_trainer(client):
+    register_trainer(client)
+    created = client.post(
+        "/api/students",
+        json={
+            "email": "asha.menon@example.com",
+            "password": "password123",
+            "first_name": "Asha",
+            "last_name": "Menon",
+            "phone": "+91 98765 43210",
+        },
+    )
+    assert created.status_code == 201, created.text
+    sid = created.json()["id"]
+
+    student = client.get(f"/api/students/{sid}").json()["student"]
+    assert student["first_name"] == "Asha"
+    assert student["last_name"] == "Menon"
+    assert student["email"] == "asha.menon@example.com"
+    assert student["phone"] == "+91 98765 43210"
+    assert student["display"] == "Asha Menon"
+
+
+def test_a_student_with_only_a_full_name_still_shows_two_name_parts(client):
+    """Registration splits a full name into its parts, but a row written before
+    it did carries only `full_name`. The page splits that rather than printing
+    the whole name under "First name" and a dash under "Last name"."""
+    script = source("app/static/js/trainer_detail.js")
+    assert "function nameParts(student)" in script
+    assert "const [first, last] = nameParts(s);" in script
+
+    register(client, "legacy.name@example.com", name="Kiran Rao")
+    client.post("/auth/logout")
+    register_trainer(client)
+    sid = student_id(client, "legacy.name@example.com")
+
+    from app.db import get_conn
+
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE users SET first_name = '', last_name = '' WHERE id = ?", (sid,)
+        )
+
+    student = client.get(f"/api/students/{sid}").json()["student"]
+    assert (student["first_name"], student["last_name"]) == ("", "")
+    assert student["full_name"] == "Kiran Rao"
+    assert student["display"] == "Kiran Rao"
