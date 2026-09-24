@@ -3,12 +3,10 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .env
-pycompiler.db
-pycompiler.db-wal
-pycompiler.db-shm
-shots/
-.kernels/
-workspaces/
+
+# Runtime data: database, student workspaces, uploaded module files, backups
+data/
+
 server.log
 server.log.err
-module_sources/
+shots/

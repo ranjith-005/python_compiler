@@ -1,0 +1,26 @@
+services:
+  web:
+    build: .
+    image: pycompiler:latest
+    container_name: pycompiler
+    ports:
+      # Only this machine can reach it. A reverse proxy or Cloudflare Tunnel
+      # on the same host publishes it; change to "8000:8000" to open it to the LAN.
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - path: .env          # SECRET_KEY, GROQ_API_KEY, COOKIE_SECURE, ...
+        required: false
+    environment:
+      # Fixed here so a local-path value in .env cannot point the container elsewhere.
+      DB_PATH: /srv/data/pycompiler.db
+      WORKSPACE_ROOT: /srv/data/workspaces
+      MODULE_SOURCE_ROOT: /srv/data/module_sources
+      ENV_FILE: /srv/data/.env
+    volumes:
+      - pycompiler-data:/srv/data
+    restart: unless-stopped
+
+volumes:
+  # A Docker-managed volume, not a folder bind mount: SQLite in WAL mode is not
+  # reliable over a Windows/macOS bind mount.
+  pycompiler-data:

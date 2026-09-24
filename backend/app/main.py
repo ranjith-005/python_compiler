@@ -1,0 +1,402 @@
+"""FastAPI application: page routes + API wiring."""
+
+from __future__ import annotations
+
+from contextlib import asynccontextmanager
+
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import RedirectResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+
+from . import assignments, auth, dashboards, modules, settings_routes
+from .assignment_status import PRE_SUBMIT_LIST, PRE_SUBMIT_STATUSES
+from .config import settings
+from .db import get_conn, init_db
+from .auth import home_for
+from .deps import get_optional_user
+from .names import display_name
+
+TEMPLATES_DIR = settings.FRONTEND_DIR / "templates"
+STATIC_DIR = settings.FRONTEND_DIR / "static"
+
+
+def theme_context(request: Request) -> dict:
+    """Put the signed-in user's theme in every template.
+
+    The theme has to be on <html> before the first paint, and 9 of 24 templates
+    never load dashboard_common.js, so a script-only reconcile left those pages
+    permanently on the default. One processor covers every page instead.
+
+    `theme_source` matters: an account set to "system" renders the same value as
+    an anonymous visitor, so without it the head script cannot tell whether the
+    server's value is authoritative.
+    """
+    user = get_optional_user(request)
+    theme = user["theme"] if user else "system"
+    return {
+        "theme": theme if theme in ("system", "light", "dark") else "system",
+        "theme_source": "account" if user else "anonymous",
+    }
+
+
+templates = Jinja2Templates(
+    directory=str(TEMPLATES_DIR), context_processors=[theme_context]
+)
+
+
+def asset_version() -> str:
+    """Cache-buster for static URLs, so an edited .js/.css reaches the browser."""
+    latest = 0.0
+    for path in STATIC_DIR.rglob("*"):
+        if path.is_file():
+            try:
+                latest = max(latest, path.stat().st_mtime)
+            except OSError:
+                continue
+    return str(int(latest))
+
+
+templates.env.globals["asset_v"] = asset_version
+
+
+import asyncio
+from datetime import datetime, timedelta, timezone
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_db()
+    import os
+    import sys
+    if "pytest" not in sys.modules and not os.environ.get("PYTEST_CURRENT_TEST"):
+        from .seed import ensure_default_accounts
+        ensure_default_accounts()
+    
+    # Start deadline notification task
+    task = asyncio.create_task(deadline_notifier_loop())
+    
+    try:
+        yield
+    finally:
+        task.cancel()
+
+async def deadline_notifier_loop():
+    """Periodically check for assignments nearing their deadline and notify students."""
+    from .db import utcnow, notify
+    while True:
+        try:
+            now = datetime.fromisoformat(utcnow())
+            warning_threshold = (now + timedelta(hours=24)).isoformat(timespec="seconds")
+            
+            with get_conn() as conn:
+                # Find open assignments due in the next 24h that haven't been notified yet
+                # We can track "notified" by checking if a notification for this assignment exists.
+                rows = conn.execute(
+                    "SELECT a.id, a.student_id, a.due_date, e.title "
+                    "FROM assignments a "
+                    "JOIN exercises e ON e.id = a.exercise_id "
+                    f"WHERE a.status IN ({PRE_SUBMIT_LIST}) "
+                    "AND a.due_date IS NOT NULL "
+                    "AND a.due_date > ? AND a.due_date <= ? "
+                    "AND NOT EXISTS ("
+                    "  SELECT 1 FROM notifications n "
+                    "  WHERE n.user_id = a.student_id AND n.kind = 'deadline' "
+                    "  AND n.link = '/student/assignments/' || a.id || '/solve'"
+                    ")",
+                    (*PRE_SUBMIT_STATUSES, utcnow(), warning_threshold)
+                ).fetchall()
+                
+                for row in rows:
+                    link = f"/student/assignments/{row['id']}/solve"
+                    notify(
+                        conn, 
+                        row["student_id"], 
+                        "deadline", 
+                        f"Reminder: {row['title']} is due within 24 hours.", 
+                        link
+                    )
+        except Exception as e:
+            print(f"Deadline notifier error: {e}")
+            
+        await asyncio.sleep(60 * 60) # check every hour
+
+
+app = FastAPI(title="PyCompiler", lifespan=lifespan)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.include_router(auth.router)
+app.include_router(dashboards.router)
+app.include_router(assignments.router)
+app.include_router(modules.router)
+app.include_router(settings_routes.router)
+
+
+@app.get("/", include_in_schema=False)
+def index(user=Depends(get_optional_user)):
+    return RedirectResponse(home_for(user["role"]) if user else "/login", status_code=302)
+
+
+@app.get("/dashboard", include_in_schema=False)
+def dashboard(user=Depends(get_optional_user)):
+    """One address that lands each role on its own portal (SRS §1)."""
+    return RedirectResponse(home_for(user["role"]) if user else "/login", status_code=302)
+
+
+@app.get("/trainer", include_in_schema=False)
+def trainer_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "trainer":
+        return RedirectResponse("/student", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "trainer_dashboard.html",
+        {"email": user["email"], "name": display_name(user)},
+    )
+
+
+@app.get("/student", include_in_schema=False)
+def student_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "student":
+        return RedirectResponse("/trainer", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "student_dashboard.html",
+        {"email": user["email"], "name": display_name(user)},
+    )
+
+
+@app.get("/trainer/students", include_in_schema=False)
+def trainer_students_page(request: Request, user=Depends(get_optional_user)):
+    """Dedicated roster view, kept separate from the trainer overview."""
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "trainer":
+        return RedirectResponse("/student", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "trainer_students.html",
+        {"name": display_name(user)},
+    )
+
+
+@app.get("/profile", include_in_schema=False)
+def profile_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "profile.html",
+        {"user": user, "name": display_name(user), "back": home_for(user["role"])},
+    )
+
+
+@app.get("/settings", include_in_schema=False)
+def settings_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "settings.html",
+        {
+            "user": user,
+            "name": display_name(user),
+            "back": home_for(user["role"]),
+        },
+    )
+
+
+# Literal routes, not /trainer/{section}. A single-segment path parameter here
+# matches every future /trainer/<page>, swallowing it before its own route is
+# reached -- which is exactly what happened when the modules pages arrived.
+@app.get("/trainer/exercises", include_in_schema=False)
+def trainer_exercises_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "trainer_section.html", {"section": "exercises"})
+
+
+@app.get("/trainer/queue", include_in_schema=False)
+def trainer_queue_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "trainer_section.html", {"section": "queue"})
+
+
+@app.get("/trainer/pending", include_in_schema=False)
+def trainer_pending_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "trainer_section.html", {"section": "pending"})
+
+
+@app.get("/trainer/completed", include_in_schema=False)
+def trainer_completed_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "trainer_section.html", {"section": "completed"})
+
+
+@app.get("/trainer/queries", include_in_schema=False)
+def trainer_queries_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "trainer_section.html", {"section": "queries"})
+
+
+@app.get("/student/exercises", include_in_schema=False)
+def student_exercises_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "student":
+        return RedirectResponse("/trainer", status_code=302)
+    return templates.TemplateResponse(request, "student_exercises.html", {"name": display_name(user)})
+
+
+@app.get("/student/assignments/{assignment_id}/solve", include_in_schema=False)
+def student_solve_page(
+    assignment_id: int, request: Request, user=Depends(get_optional_user)
+):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "student":
+        return RedirectResponse("/trainer", status_code=302)
+    with get_conn() as conn:
+        owned = conn.execute(
+            "SELECT 1 FROM assignments WHERE id = ? AND student_id = ?",
+            (assignment_id, user["id"]),
+        ).fetchone()
+    if owned is None:
+        return RedirectResponse("/student/exercises", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "solve.html",
+        {"name": display_name(user), "assignment_id": assignment_id},
+    )
+
+
+@app.get("/activity", include_in_schema=False)
+def activity_page(request: Request, user=Depends(get_optional_user)):
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    return templates.TemplateResponse(
+        request,
+        "activity.html",
+        {
+            "back": home_for(user["role"]),
+            "name": display_name(user),
+            "role": user["role"],
+        },
+    )
+
+
+@app.get("/login", include_in_schema=False)
+def login_page(request: Request, user=Depends(get_optional_user)):
+    if user:
+        return RedirectResponse(home_for(user["role"]), status_code=302)
+    return templates.TemplateResponse(request, "login.html", {})
+
+
+@app.get("/healthz", include_in_schema=False)
+def healthz() -> dict:
+    return {"ok": True}
+
+
+# ══════════════ Phase B: detail pages (reqs 2, 6, 8, 13) ══════════════════
+#
+# Requirement 13 says a click opens a page, so the New exercise and Review
+# sheets became routes rather than modals. Each renders a shell; the data
+# arrives from /api.
+
+
+def _trainer_page(request: Request, user, template: str, extra: dict | None = None):
+    """Guard and render one of the trainer's detail pages."""
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "trainer":
+        return RedirectResponse("/student", status_code=302)
+    context = {"name": display_name(user)}
+    context.update(extra or {})
+    return templates.TemplateResponse(request, template, context)
+
+
+@app.get("/trainer/students/{student_id}", include_in_schema=False)
+def trainer_student_detail_page(
+    student_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _trainer_page(request, user, "student_detail.html", {"student_id": student_id})
+
+
+# "Personal information" on the student's progress page opens this. The path
+# says personal, not profile: /profile is the signed-in account's own page, and
+# the two were one typo apart -- the button pointed at a route that did not
+# exist and answered 404.
+@app.get("/trainer/students/{student_id}/personal", include_in_schema=False)
+def trainer_student_personal_page(
+    student_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _trainer_page(request, user, "student_personal.html", {"student_id": student_id})
+
+
+@app.get("/trainer/students/{student_id}/exercises/{exercise_id}", include_in_schema=False)
+def trainer_student_exercise_page(
+    student_id: int, exercise_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _trainer_page(
+        request,
+        user,
+        "student_exercise_detail.html",
+        {"student_id": student_id, "exercise_id": exercise_id},
+    )
+
+
+# Declared before /trainer/exercises/{exercise_id} so the literal paths win.
+@app.get("/trainer/exercises/new", include_in_schema=False)
+def trainer_new_exercise_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "exercise_form.html")
+
+
+@app.get("/trainer/exercises/drafts", include_in_schema=False)
+def trainer_drafts_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "exercise_drafts.html")
+
+
+@app.get("/trainer/exercises/{exercise_id}", include_in_schema=False)
+def trainer_exercise_detail_page(
+    exercise_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _trainer_page(request, user, "exercise_detail.html", {"exercise_id": exercise_id})
+
+
+@app.get("/trainer/submissions/{submission_id}", include_in_schema=False)
+def trainer_review_page(submission_id: int, request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "review.html", {"submission_id": submission_id})
+
+
+# ══════════════ Phase C: learning modules (reqs 14, 15, 17) ════════════════
+
+
+@app.get("/trainer/modules", include_in_schema=False)
+def trainer_modules_page(request: Request, user=Depends(get_optional_user)):
+    return _trainer_page(request, user, "modules_trainer.html")
+
+
+@app.get("/trainer/modules/{module_id}", include_in_schema=False)
+def trainer_module_detail_page(
+    module_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _trainer_page(request, user, "module_review.html", {"module_id": module_id})
+
+
+def _student_page(request: Request, user, template: str, extra: dict | None = None):
+    """Guard and render one of the student's pages."""
+    if not user:
+        return RedirectResponse("/login", status_code=302)
+    if user["role"] != "student":
+        return RedirectResponse("/trainer", status_code=302)
+    context = {"name": display_name(user)}
+    context.update(extra or {})
+    return templates.TemplateResponse(request, template, context)
+
+
+@app.get("/student/modules", include_in_schema=False)
+def student_modules_page(request: Request, user=Depends(get_optional_user)):
+    return _student_page(request, user, "modules_student.html")
+
+
+@app.get("/student/modules/{module_id}", include_in_schema=False)
+def student_module_player_page(
+    module_id: int, request: Request, user=Depends(get_optional_user)
+):
+    return _student_page(request, user, "module_player.html", {"module_id": module_id})

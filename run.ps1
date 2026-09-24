@@ -25,8 +25,8 @@ try {
     $hasModules = & $python -c "import uvicorn, fastapi; print('OK')" 2>$null
 } catch {}
 if ($LASTEXITCODE -ne 0 -or $hasModules -ne "OK") {
-    Write-Host "Installing dependencies from requirements.txt..." -ForegroundColor Cyan
-    & $python -m pip install -r (Join-Path $root "requirements.txt")
+    Write-Host "Installing dependencies from backend\requirements.txt..." -ForegroundColor Cyan
+    & $python -m pip install -r (Join-Path $root "backend\requirements.txt")
 }
 
 # 4. Open browser once the server is listening
@@ -48,5 +48,5 @@ Start-Job -ScriptBlock {
 
 Set-Location $root
 Write-Host "Starting PyCompiler on $url..." -ForegroundColor Green
-& $python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 @args
+& $python -m uvicorn app.main:app --app-dir backend --host 127.0.0.1 --port 8000 @args
 
