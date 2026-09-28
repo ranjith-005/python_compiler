@@ -588,8 +588,11 @@
                     method: "POST",
                     body: JSON.stringify({ assign_to: ids }),
                   });
-                  flash(`Published and assigned to ${res.assigned} student(s)`, "success");
-                  setTimeout(() => window.location.reload(), 900);
+                  D.flashAndGo(
+                    "/trainer/exercises",
+                    `Published and assigned to ${res.assigned} student(s)`,
+                    "success"
+                  );
                 } catch (err) {
                   flash(err.message, "error");
                 }
@@ -635,8 +638,11 @@
           method: "POST",
           body: JSON.stringify({ action, comment: $("comment").value }),
         });
-        flash(action === "approve" ? "Reviewed — approved" : "Reviewed — changes requested", "success");
-        setTimeout(() => (window.location.href = "/trainer"), 800);
+        D.flashAndGo(
+          "/trainer/queue",
+          action === "approve" ? "Reviewed — approved" : "Reviewed — changes requested",
+          "success"
+        );
       } catch (err) {
         flash(err.message, "error");
       }
@@ -706,8 +712,12 @@
             assign_to: [...picker.querySelectorAll("input:checked")].map((b) => Number(b.value)),
           }),
         });
-        flash($("ex-status").value === "draft" ? "Draft saved" : "Exercise created", "success");
-        setTimeout(() => (window.location.href = "/trainer"), 800);
+        const isDraft = $("ex-status").value === "draft";
+        D.flashAndGo(
+          isDraft ? "/trainer/exercises/drafts" : "/trainer/exercises",
+          isDraft ? "Draft saved" : "Exercise created",
+          "success"
+        );
       } catch (err) {
         flash(err.message, "error");
       }

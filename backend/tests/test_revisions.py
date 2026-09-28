@@ -74,11 +74,27 @@ def test_an_approved_exercise_can_no_longer_be_edited(client):
     assert client.post(f"/api/assignments/{assignment['id']}/submit").status_code == 409
 
 
-def test_a_fully_passing_submit_sends_the_student_back_to_the_list(client):
-    """Nothing is left to do on the solve page once every test passes."""
+def test_a_submit_sends_the_student_back_to_the_list(client):
+    """A submission hands the work to the trainer, whatever the verdict."""
     script = source("../frontend/static/js/solve.js")
-    assert 'window.location.href = "/student/exercises"' in script
+    assert "D.flashAndGo(" in script and '"/student/exercises",' in script
     assert "const allPassed = v.total > 0 && v.passed === v.total;" in script
+
+
+def test_finished_actions_leave_for_their_list_page(client):
+    """Publish, assign, review and module completion do not stay put."""
+    modules = source("../frontend/static/js/modules.js")
+    assert 'D.flashAndGo("/trainer/modules", "Published' in modules
+    assert 'D.flashAndGo("/student/modules", "✓ Module completed' in modules
+
+    trainer = source("../frontend/static/js/trainer_detail.js")
+    assert '"/trainer/exercises",' in trainer
+    assert '"/trainer/queue",' in trainer
+    assert 'isDraft ? "/trainer/exercises/drafts" : "/trainer/exercises"' in trainer
+    assert "window.location.reload()" not in trainer
+
+    common = source("../frontend/static/js/dashboard_common.js")
+    assert "function flashAndGo(url, message, kind)" in common
 
 
 # ── one tab per bucket, and the due date is what sorts them ────────────────

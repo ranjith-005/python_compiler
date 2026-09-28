@@ -71,7 +71,11 @@ async def lifespan(app: FastAPI):
     if "pytest" not in sys.modules and not os.environ.get("PYTEST_CURRENT_TEST"):
         from .seed import ensure_default_accounts
         ensure_default_accounts()
-    
+        # Uvicorn only reports the bind address (0.0.0.0 inside Docker), which
+        # is not something a browser can open. Print the address that is.
+        url = os.environ.get("PUBLIC_URL", "http://localhost:8000")
+        print(f"\n  PyCompiler is running. Open {url} in your browser.\n", flush=True)
+
     # Start deadline notification task
     task = asyncio.create_task(deadline_notifier_loop())
     

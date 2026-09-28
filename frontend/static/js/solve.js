@@ -416,28 +416,21 @@
       return;
     }
     try {
+      submitBtn.disabled = true;
+      runBtn.disabled = true;
       const v = await D.api(`/api/assignments/${id}/submit`, { method: "POST" });
-      showResults(v);
-      openDrawer();
       const allPassed = v.total > 0 && v.passed === v.total;
-      D.flash(
+      // A submission hands the work to the trainer, so the student goes back
+      // to the exercise list; the verdict travels with them as the flash.
+      // Reopening the exercise from the list still allows a resubmission.
+      D.flashAndGo(
+        "/student/exercises",
         `Submitted — ${v.passed}/${v.total} test cases passed`,
         allPassed ? "success" : "info"
       );
-      if (allPassed) {
-        // Nothing is left to do on this page once every test passes: the work
-        // is with the trainer now, so the student is put back on the exercise
-        // list rather than left staring at the editor. The pause is there so
-        // the verdict is read before the page changes.
-        submitBtn.disabled = true;
-        runBtn.disabled = true;
-        setTimeout(() => {
-          window.location.href = "/student/exercises";
-        }, 1400);
-        return;
-      }
-      load();
     } catch (err) {
+      submitBtn.disabled = false;
+      runBtn.disabled = false;
       D.flash(err.message, "error");
     }
   });

@@ -673,8 +673,8 @@
           });
         }
         
-        flash(`Published and assigned to all students`, "success");
-        await reload();
+        // Publishing finishes the module: back to the list of modules.
+        D.flashAndGo("/trainer/modules", "Published and assigned to all students", "success");
       } catch (err) {
         flash(err.message, "error");
       }
@@ -928,7 +928,10 @@
           done = res.completed_sections;
           paintComplete();
           setProgress();
-          if (res.module_completed) flash("✓ Module completed — 100%", "success");
+          if (res.module_completed) {
+            D.flashAndGo("/student/modules", "✓ Module completed — 100%", "success");
+            return;
+          }
         } catch (err) {
           flash(err.message, "error");
         } finally {

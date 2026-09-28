@@ -36,6 +36,28 @@ window.Dash = (function () {
   }
   if (flashEl) flashEl.addEventListener("click", () => (flashEl.hidden = true));
 
+  // A finished action (publish, assign, submit) leaves its page for the list
+  // it belongs to. The confirmation rides along in sessionStorage and is shown
+  // by the page that loads next, so it is not lost to the navigation.
+  const PENDING_FLASH = "pc-pending-flash";
+
+  function flashAndGo(url, message, kind) {
+    try {
+      sessionStorage.setItem(PENDING_FLASH, JSON.stringify({ message, kind }));
+    } catch (_) {
+      // Storage blocked: the redirect still happens, just without the message.
+    }
+    window.location.href = url;
+  }
+
+  try {
+    const pending = JSON.parse(sessionStorage.getItem(PENDING_FLASH) || "null");
+    sessionStorage.removeItem(PENDING_FLASH);
+    if (pending && pending.message) flash(pending.message, pending.kind);
+  } catch (_) {
+    // Nothing stored, or storage blocked.
+  }
+
   async function api(path, options = {}) {
     const res = await fetch(path, {
       headers: options.body instanceof FormData ? {} : { "Content-Type": "application/json" },
@@ -423,6 +445,7 @@ window.Dash = (function () {
     api,
     toast,
     flash,
+    flashAndGo,
     when,
     ago,
     due,
